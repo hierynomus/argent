@@ -1,0 +1,13 @@
+{
+  "name": "argent",
+  "version": "0.0.1",
+  "private": true,
+  "workspaces": ["packages/*"],
+  "scripts": {
+    "dev:backend": "bun run --cwd packages/backend dev",
+    "dev:frontend": "bun run --cwd packages/frontend dev",
+    "build": "bun run build --filter '*'",
+    "db:generate": "bun run --cwd packages/backend db:generate",
+    "db:migrate": "bun run --cwd packages/backend db:migrate"
+  }
+}
