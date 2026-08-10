@@ -43,6 +43,7 @@ import type {
   CreateStockDividendBody,
   CreateStockTradeBody,
   StockDividend,
+  StockLookup,
   StockPortfolioDetail,
   StockTrade,
   Subscription,
@@ -278,6 +279,9 @@ export const deleteStockPortfolio = (token: string, id: string) =>
 
 export const addStockTrade = (token: string, portfolioId: string, body: CreateStockTradeBody) =>
   request<StockTrade>(`/stocks/${portfolioId}/trades`, { token, method: "POST", body: JSON.stringify(body) })
+
+export const lookupStock = (token: string, symbol: string) =>
+  request<StockLookup>(`/stocks/lookup/${encodeURIComponent(symbol)}`, { token })
 
 export const addStockDividend = (token: string, portfolioId: string, body: CreateStockDividendBody) =>
   request<StockDividend>(`/stocks/${portfolioId}/dividends`, { token, method: "POST", body: JSON.stringify(body) })

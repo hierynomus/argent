@@ -384,6 +384,12 @@ export interface CreateStockDividendBody {
   notes?: string
 }
 
+/** Ticker lookup result — used to auto-fill the asset name on the buy form */
+export interface StockLookup {
+  symbol: string
+  name: string | null
+}
+
 // ─── Mortgages ──────────────────────────────────────────────────────────────
 
 export interface Mortgage {

@@ -3,7 +3,7 @@ import { and, eq, inArray } from "drizzle-orm"
 import { db } from "../db"
 import { portfolios, portfolioMembers, stockTrades, stockAssets, stockDividends } from "../db/schema"
 import { getViewablePortfolioIds, getEditablePortfolioIds } from "../services/accessControl"
-import { getStockPrice } from "../services/priceService"
+import { getStockPrice, getStockName } from "../services/priceService"
 import { computeFifo, investmentSymbols } from "../services/fifo"
 import type { AuthUser } from "../middleware/auth"
 
@@ -54,6 +54,14 @@ app.post("/", async (c) => {
     .values({ type: "stocks", name, currency, broker, ownerSub: user.sub })
     .returning()
   return c.json(portfolio, 201)
+})
+
+// Ticker lookup — used to auto-fill the asset name on the buy form. No portfolio
+// access check needed since it doesn't touch any portfolio's data.
+app.get("/lookup/:symbol", async (c) => {
+  const symbol = c.req.param("symbol").toUpperCase().trim()
+  const name = await getStockName(symbol)
+  return c.json({ symbol, name })
 })
 
 // Get portfolio with computed positions, trade history, and dividends

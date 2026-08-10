@@ -143,6 +143,7 @@ export async function getMetalPricePerGram(metal: string, currency: "EUR" | "USD
 interface StockQuote {
   price: number
   currency: string // the ticker's native trading currency, e.g. "USD", "EUR"
+  name: string | null
 }
 
 interface StockCacheEntry extends StockQuote {
@@ -154,14 +155,40 @@ const fxCache = new Map<string, { rate: number; fetchedAt: number }>()
 
 async function fetchStockQuote(symbol: string): Promise<StockQuote | null> {
   const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=1d`
-  const res = await fetch(url, { signal: AbortSignal.timeout(8000) })
+  const res = await fetch(url, {
+    signal: AbortSignal.timeout(8000),
+    // Yahoo's chart API 429s requests without a browser-like User-Agent
+    headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" },
+  })
   if (!res.ok) throw new Error(`Yahoo Finance HTTP ${res.status}`)
   const json = await res.json() as {
-    chart: { result?: Array<{ meta: { regularMarketPrice?: number; currency?: string } }> }
+    chart: { result?: Array<{ meta: { regularMarketPrice?: number; currency?: string; longName?: string; shortName?: string } }> }
   }
   const meta = json.chart.result?.[0]?.meta
   if (!meta?.regularMarketPrice || !meta.currency) return null
-  return { price: meta.regularMarketPrice, currency: meta.currency }
+  return { price: meta.regularMarketPrice, currency: meta.currency, name: meta.longName ?? meta.shortName ?? null }
+}
+
+async function getStockQuote(symbol: string): Promise<StockQuote | null> {
+  const key = symbol.toUpperCase()
+  const now = Date.now()
+  const cached = stockCache.get(key)
+  if (cached && now - cached.fetchedAt < CACHE_TTL_MS) return cached
+
+  const fresh = await fetchStockQuote(key)
+  if (!fresh) return null
+  stockCache.set(key, { ...fresh, fetchedAt: now })
+  return fresh
+}
+
+/** Returns the ticker's display name (e.g. "Apple Inc."), or null if unknown/unavailable. */
+export async function getStockName(symbol: string): Promise<string | null> {
+  try {
+    const quote = await getStockQuote(symbol)
+    return quote?.name ?? null
+  } catch {
+    return null
+  }
 }
 
 async function getFxRate(from: string, to: string): Promise<number | null> {
@@ -183,19 +210,8 @@ async function getFxRate(from: string, to: string): Promise<number | null> {
 /** Returns price per share in the given currency, or null if unknown/unavailable. */
 export async function getStockPrice(symbol: string, currency: "EUR" | "USD" = "EUR"): Promise<number | null> {
   try {
-    const key = symbol.toUpperCase()
-    const now = Date.now()
-    const cached = stockCache.get(key)
-    let quote: StockQuote
-    if (cached && now - cached.fetchedAt < CACHE_TTL_MS) {
-      quote = cached
-    } else {
-      const fresh = await fetchStockQuote(key)
-      if (!fresh) return null
-      quote = fresh
-      stockCache.set(key, { ...fresh, fetchedAt: now })
-    }
-
+    const quote = await getStockQuote(symbol)
+    if (!quote) return null
     const rate = await getFxRate(quote.currency, currency)
     return rate != null ? quote.price * rate : null
   } catch {

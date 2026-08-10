@@ -11,6 +11,7 @@ import {
   deleteStockDividend,
   addStockPortfolioMember,
   removeStockPortfolioMember,
+  lookupStock,
 } from "../api"
 import type { StockPosition, StockPortfolioDetail, PortfolioMember, PortfolioWithAccess, StockTrade, StockDividend } from "@argent/shared"
 
@@ -211,9 +212,30 @@ function PortfolioView({
   const [submittingDividend, setSubmittingDividend] = useState(false)
   const [showHistory, setShowHistory] = useState(false)
   const [showDividends, setShowDividends] = useState(false)
+  const [symbolUnknown, setSymbolUnknown] = useState(false)
 
   const cur = portfolio.currency
   const heldPositions = portfolio.positions.filter((p) => p.balance > 1e-10)
+
+  async function handleSymbolBlur() {
+    const symbol = tradeForm.symbol.trim()
+    if (tradeForm.type !== "buy" || !symbol) {
+      setSymbolUnknown(false)
+      return
+    }
+    try {
+      const result = await lookupStock(token, symbol)
+      setSymbolUnknown(!result.name)
+      if (result.name) {
+        setTradeForm((f) => (f.assetName.trim() ? f : { ...f, assetName: result.name! }))
+      } else {
+        setTradeForm((f) => ({ ...f, assetName: "" }))
+      }
+    } catch {
+      // lookup failure isn't necessarily a bad symbol — don't flag it
+      setSymbolUnknown(false)
+    }
+  }
 
   async function handleAddTrade(e: React.FormEvent) {
     e.preventDefault()
@@ -230,6 +252,7 @@ function PortfolioView({
       })
       onChanged()
       setTradeForm(EMPTY_TRADE_FORM)
+      setSymbolUnknown(false)
       setAddingTrade(false)
     } finally {
       setSubmittingTrade(false)
@@ -371,7 +394,7 @@ function PortfolioView({
               <button
                 key={dir}
                 type="button"
-                onClick={() => setTradeForm(() => ({ ...EMPTY_TRADE_FORM, type: dir }))}
+                onClick={() => { setTradeForm(() => ({ ...EMPTY_TRADE_FORM, type: dir })); setSymbolUnknown(false) }}
                 className={`px-4 py-1.5 text-sm font-medium rounded-lg transition-colors capitalize ${
                   tradeForm.type === dir
                     ? dir === "buy" ? "bg-green-600 text-white" : "bg-red-600 text-white"
@@ -406,9 +429,13 @@ function PortfolioView({
                   required
                   placeholder="AAPL"
                   value={tradeForm.symbol}
-                  onChange={(e) => setTradeForm((f) => ({ ...f, symbol: e.target.value }))}
-                  className={INPUT}
+                  onChange={(e) => { setTradeForm((f) => ({ ...f, symbol: e.target.value })); setSymbolUnknown(false) }}
+                  onBlur={handleSymbolBlur}
+                  className={`${INPUT} ${symbolUnknown ? "border-orange-400 dark:border-orange-500 focus:ring-orange-400" : ""}`}
                 />
+              )}
+              {symbolUnknown && (
+                <p className="text-xs text-orange-600 dark:text-orange-400 mt-1">Unknown ticker — double check the symbol</p>
               )}
             </div>
 
@@ -493,7 +520,7 @@ function PortfolioView({
             </button>
             <button
               type="button"
-              onClick={() => { setAddingTrade(false); setTradeForm(EMPTY_TRADE_FORM) }}
+              onClick={() => { setAddingTrade(false); setTradeForm(EMPTY_TRADE_FORM); setSymbolUnknown(false) }}
               className="px-4 py-1.5 text-sm text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg"
             >
               Cancel
