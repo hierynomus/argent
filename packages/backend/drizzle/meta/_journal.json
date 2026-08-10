@@ -1,0 +1,132 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1772198368846,
+      "tag": "0000_curved_red_wolf",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1772203868728,
+      "tag": "0001_medical_whirlwind",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1772207114760,
+      "tag": "0002_fixed_queen_noir",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1772267330474,
+      "tag": "0003_dapper_gwen_stacy",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1772268299313,
+      "tag": "0004_reflective_ender_wiggin",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1772268936792,
+      "tag": "0005_messy_rattler",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1772269602334,
+      "tag": "0006_group_based_access",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1772272277392,
+      "tag": "0007_complete_kat_farrell",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1772274522575,
+      "tag": "0008_unknown_dexter_bennett",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1772287442132,
+      "tag": "0009_abandoned_jocasta",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1772350000000,
+      "tag": "0010_portfolio_trades",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1772450000000,
+      "tag": "0011_split_portfolio_tables",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1772550000000,
+      "tag": "0012_account_type",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1772650000000,
+      "tag": "0013_mortgages",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1772750000000,
+      "tag": "0014_loans",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1772850000000,
+      "tag": "0015_mortgage_loan_members",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1772950000000,
+      "tag": "0016_subscription_status",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1773050000000,
+      "tag": "0017_stocks",
+      "breakpoints": true
+    }
+  ]
+}

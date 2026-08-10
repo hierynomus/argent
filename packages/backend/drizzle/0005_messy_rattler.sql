@@ -1,0 +1,1 @@
+ALTER TABLE "account_members" ADD COLUMN "role" text DEFAULT 'viewer' NOT NULL;

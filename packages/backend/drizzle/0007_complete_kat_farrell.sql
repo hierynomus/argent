@@ -1,0 +1,1 @@
+ALTER TABLE "accounts" ADD COLUMN "owner_sub" text;
