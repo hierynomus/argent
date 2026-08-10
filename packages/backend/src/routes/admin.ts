@@ -14,6 +14,9 @@ import {
   cryptoAssets,
   metalLots,
   metalSales,
+  stockTrades,
+  stockAssets,
+  stockDividends,
   mortgages,
   mortgageParts,
   mortgageExtraPayments,
@@ -177,6 +180,9 @@ app.get("/backup", async (c) => {
     allCryptoAssets,
     allMetalLots,
     allMetalSales,
+    allStockTrades,
+    allStockAssets,
+    allStockDividends,
     allMortgages,
     allMortgageParts,
     allMortgageExtraPayments,
@@ -198,6 +204,9 @@ app.get("/backup", async (c) => {
     db.select().from(cryptoAssets),
     db.select().from(metalLots),
     db.select().from(metalSales),
+    db.select().from(stockTrades),
+    db.select().from(stockAssets),
+    db.select().from(stockDividends),
     db.select().from(mortgages),
     db.select().from(mortgageParts),
     db.select().from(mortgageExtraPayments),
@@ -223,6 +232,9 @@ app.get("/backup", async (c) => {
     cryptoAssets: allCryptoAssets,
     metalLots: allMetalLots,
     metalSales: allMetalSales,
+    stockTrades: allStockTrades,
+    stockAssets: allStockAssets,
+    stockDividends: allStockDividends,
     mortgages: allMortgages,
     mortgageParts: allMortgageParts,
     mortgageExtraPayments: allMortgageExtraPayments,
@@ -241,6 +253,18 @@ app.get("/backup", async (c) => {
     },
   })
 })
+
+// JSON.parse leaves timestamp columns as ISO strings; Drizzle's timestamp mapper expects Date objects
+function withDates<T extends Record<string, unknown>>(rows: T[], fields: (keyof T)[]): T[] {
+  return rows.map((row) => {
+    const copy = { ...row }
+    for (const field of fields) {
+      const value = copy[field]
+      if (typeof value === "string") copy[field] = new Date(value) as T[typeof field]
+    }
+    return copy
+  })
+}
 
 // POST /api/admin/restore — wipe all data and restore from a backup JSON
 app.post("/restore", async (c) => {
@@ -262,6 +286,9 @@ app.post("/restore", async (c) => {
     cryptoAssets: (typeof cryptoAssets.$inferSelect)[]
     metalLots: (typeof metalLots.$inferSelect)[]
     metalSales: (typeof metalSales.$inferSelect)[]
+    stockTrades: (typeof stockTrades.$inferSelect)[]
+    stockAssets: (typeof stockAssets.$inferSelect)[]
+    stockDividends: (typeof stockDividends.$inferSelect)[]
     mortgages: (typeof mortgages.$inferSelect)[]
     mortgageParts: (typeof mortgageParts.$inferSelect)[]
     mortgageExtraPayments: (typeof mortgageExtraPayments.$inferSelect)[]
@@ -282,6 +309,9 @@ app.post("/restore", async (c) => {
     await tx.delete(metalLots)               // FK → portfolios
     await tx.delete(cryptoTrades)            // FK → portfolios
     await tx.delete(cryptoAssets)            // FK → portfolios
+    await tx.delete(stockTrades)             // FK → portfolios
+    await tx.delete(stockAssets)             // FK → portfolios
+    await tx.delete(stockDividends)          // FK → portfolios
     await tx.delete(portfolioMembers)
     await tx.delete(portfolios)
     await tx.delete(accounts)
@@ -297,36 +327,39 @@ app.post("/restore", async (c) => {
     await tx.delete(loans)
 
     // Insert in FK dependency order
-    if (data.accounts?.length) await tx.insert(accounts).values(data.accounts)
+    if (data.accounts?.length) await tx.insert(accounts).values(withDates(data.accounts, ["createdAt"]))
 
     // Categories have a self-reference (parentId); insert roots first
     const rootCats = (data.categories ?? []).filter((cat) => !cat.parentId)
     const childCats = (data.categories ?? []).filter((cat) => cat.parentId)
-    if (rootCats.length) await tx.insert(categories).values(rootCats)
-    if (childCats.length) await tx.insert(categories).values(childCats)
+    if (rootCats.length) await tx.insert(categories).values(withDates(rootCats, ["createdAt"]))
+    if (childCats.length) await tx.insert(categories).values(withDates(childCats, ["createdAt"]))
 
-    if (data.userProfiles?.length) await tx.insert(userProfiles).values(data.userProfiles)
-    if (data.portfolios?.length) await tx.insert(portfolios).values(data.portfolios)
-    if (data.subscriptions?.length) await tx.insert(subscriptions).values(data.subscriptions)
+    if (data.userProfiles?.length) await tx.insert(userProfiles).values(withDates(data.userProfiles, ["updatedAt"]))
+    if (data.portfolios?.length) await tx.insert(portfolios).values(withDates(data.portfolios, ["createdAt"]))
+    if (data.subscriptions?.length) await tx.insert(subscriptions).values(withDates(data.subscriptions, ["createdAt"]))
     if (data.accountMembers?.length) await tx.insert(accountMembers).values(data.accountMembers)
     if (data.portfolioMembers?.length) await tx.insert(portfolioMembers).values(data.portfolioMembers)
-    if (data.cryptoTrades?.length) await tx.insert(cryptoTrades).values(data.cryptoTrades)
+    if (data.cryptoTrades?.length) await tx.insert(cryptoTrades).values(withDates(data.cryptoTrades, ["createdAt"]))
     if (data.cryptoAssets?.length) await tx.insert(cryptoAssets).values(data.cryptoAssets)
-    if (data.metalLots?.length) await tx.insert(metalLots).values(data.metalLots)
-    if (data.metalSales?.length) await tx.insert(metalSales).values(data.metalSales)
-    if (data.mortgages?.length) await tx.insert(mortgages).values(data.mortgages)
-    if (data.mortgageParts?.length) await tx.insert(mortgageParts).values(data.mortgageParts)
-    if (data.mortgageExtraPayments?.length) await tx.insert(mortgageExtraPayments).values(data.mortgageExtraPayments)
+    if (data.metalLots?.length) await tx.insert(metalLots).values(withDates(data.metalLots, ["createdAt"]))
+    if (data.metalSales?.length) await tx.insert(metalSales).values(withDates(data.metalSales, ["createdAt"]))
+    if (data.stockTrades?.length) await tx.insert(stockTrades).values(withDates(data.stockTrades, ["createdAt"]))
+    if (data.stockAssets?.length) await tx.insert(stockAssets).values(data.stockAssets)
+    if (data.stockDividends?.length) await tx.insert(stockDividends).values(withDates(data.stockDividends, ["createdAt"]))
+    if (data.mortgages?.length) await tx.insert(mortgages).values(withDates(data.mortgages, ["createdAt"]))
+    if (data.mortgageParts?.length) await tx.insert(mortgageParts).values(withDates(data.mortgageParts, ["createdAt"]))
+    if (data.mortgageExtraPayments?.length) await tx.insert(mortgageExtraPayments).values(withDates(data.mortgageExtraPayments, ["createdAt"]))
     if (data.mortgageMembers?.length) await tx.insert(mortgageMembers).values(data.mortgageMembers)
-    if (data.loans?.length) await tx.insert(loans).values(data.loans)
-    if (data.loanParts?.length) await tx.insert(loanParts).values(data.loanParts)
-    if (data.loanExtraPayments?.length) await tx.insert(loanExtraPayments).values(data.loanExtraPayments)
+    if (data.loans?.length) await tx.insert(loans).values(withDates(data.loans, ["createdAt"]))
+    if (data.loanParts?.length) await tx.insert(loanParts).values(withDates(data.loanParts, ["createdAt"]))
+    if (data.loanExtraPayments?.length) await tx.insert(loanExtraPayments).values(withDates(data.loanExtraPayments, ["createdAt"]))
     if (data.loanMembers?.length) await tx.insert(loanMembers).values(data.loanMembers)
 
     // Transactions have a self-reference (transferPeerId); insert without it first, then patch
     if (data.transactions?.length) {
       await tx.insert(transactions).values(
-        data.transactions.map((t) => ({ ...t, transferPeerId: null, subscriptionId: null }))
+        withDates(data.transactions, ["createdAt"]).map((t) => ({ ...t, transferPeerId: null, subscriptionId: null }))
       )
       const needsUpdate = data.transactions.filter((t) => t.transferPeerId || t.subscriptionId)
       for (const t of needsUpdate) {
@@ -350,6 +383,9 @@ app.post("/restore", async (c) => {
       cryptoAssets: data.cryptoAssets?.length ?? 0,
       metalLots: data.metalLots?.length ?? 0,
       metalSales: data.metalSales?.length ?? 0,
+      stockTrades: data.stockTrades?.length ?? 0,
+      stockAssets: data.stockAssets?.length ?? 0,
+      stockDividends: data.stockDividends?.length ?? 0,
       mortgages: data.mortgages?.length ?? 0,
       loans: data.loans?.length ?? 0,
     },

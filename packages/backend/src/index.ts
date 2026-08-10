@@ -13,6 +13,7 @@ import meRoute from "./routes/me"
 import adminRoute from "./routes/admin"
 import cryptoRoute from "./routes/crypto"
 import metalsRoute from "./routes/metals"
+import stocksRoute from "./routes/stocks"
 import mortgagesRoute from "./routes/mortgages"
 import loansRoute from "./routes/loans"
 
@@ -41,6 +42,7 @@ api.route("/subscriptions", subscriptionsRoute)
 api.route("/admin", adminRoute)
 api.route("/crypto", cryptoRoute)
 api.route("/metals", metalsRoute)
+api.route("/stocks", stocksRoute)
 api.route("/mortgages", mortgagesRoute)
 api.route("/loans", loansRoute)
 

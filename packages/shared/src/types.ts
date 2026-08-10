@@ -117,6 +117,7 @@ export interface Subscription {
   nextExpectedDate: string | null
   lastSeenDate: string | null
   isActive: boolean
+  status: "candidate" | "confirmed" | "dismissed"
   createdAt: string
   transactionCount?: number
 }
@@ -124,6 +125,13 @@ export interface Subscription {
 export interface UpdateSubscriptionBody {
   name?: string
   isActive?: boolean
+  status?: "confirmed" | "dismissed"
+}
+
+export interface CreateSubscriptionBody {
+  accountId: string
+  counterpartyIban: string
+  name?: string
 }
 
 export interface UserProfile {
@@ -137,10 +145,11 @@ export interface UserProfile {
 
 export interface Portfolio {
   id: string
-  type: "crypto" | "metals"
+  type: "crypto" | "metals" | "stocks"
   name: string
   ownerSub: string | null
   currency: string
+  broker: string | null // stocks only
   createdAt: string
 }
 
@@ -213,6 +222,7 @@ export interface PortfolioDetail extends Portfolio {
 export interface CreatePortfolioBody {
   name: string
   currency?: string
+  broker?: string // stocks only
 }
 
 export interface CreateCryptoTradeBody {
@@ -290,6 +300,87 @@ export interface CreateMetalSaleBody {
   saleDate: string
   quantitySold: number
   totalReceived: string
+  notes?: string
+}
+
+// ─── Stocks / ETFs ──────────────────────────────────────────────────────────
+
+/** A single immutable stock ledger entry (buy or sell) */
+export interface StockTrade {
+  id: string
+  portfolioId: string
+  tradeDate: string
+  fromSymbol: string
+  fromAmount: string
+  toSymbol: string
+  toAmount: string
+  baseCurrencyAmount: string | null
+  notes: string | null
+  createdAt: string
+}
+
+/** Display metadata for a ticker symbol within a portfolio */
+export interface StockAsset {
+  portfolioId: string
+  symbol: string
+  name: string
+  assetForm: string | null // "stock" | "etf"
+}
+
+/** A dividend payment for a symbol within a portfolio */
+export interface StockDividend {
+  id: string
+  portfolioId: string
+  symbol: string
+  paymentDate: string
+  amount: string
+  notes: string | null
+  createdAt: string
+}
+
+/** FIFO-computed position for a single ticker symbol */
+export interface StockPosition {
+  symbol: string
+  name: string
+  assetForm: string | null
+  balance: number
+  avgCostBasis: number
+  totalCostEur: number
+  realizedPnL: number
+  currentPrice: number | null
+  currentValueEur: number | null
+  unrealizedPnL: number | null
+  totalDividends: number
+}
+
+export interface StockPortfolioDetail extends Portfolio {
+  trades: StockTrade[]
+  dividends: StockDividend[]
+  positions: StockPosition[]
+  totalOpenCostEur: number
+  totalCurrentValueEur: number | null
+  totalRealizedPnL: number
+  totalUnrealizedPnL: number | null
+  totalDividends: number
+  members: PortfolioMember[]
+  isOwner: boolean
+  canEdit: boolean
+}
+
+export interface CreateStockTradeBody {
+  tradeDate: string
+  type: "buy" | "sell"
+  symbol: string
+  quantity: string
+  amount: string
+  assetName?: string
+  notes?: string
+}
+
+export interface CreateStockDividendBody {
+  symbol: string
+  paymentDate: string
+  amount: string
   notes?: string
 }
 
@@ -482,7 +573,7 @@ export interface AdminSharingEntry {
 }
 
 export interface AdminSharingPortfolioEntry extends AdminSharingEntry {
-  type: "crypto" | "metals"
+  type: "crypto" | "metals" | "stocks"
 }
 
 export interface AdminSharingResponse {

@@ -36,6 +36,7 @@ export const subscriptions = pgTable("subscriptions", {
   nextExpectedDate: date("next_expected_date"),
   lastSeenDate: date("last_seen_date"),
   isActive: boolean("is_active").default(true).notNull(),
+  status: text("status").notNull().default("confirmed"), // 'candidate' | 'confirmed' | 'dismissed'
   createdAt: timestamp("created_at").defaultNow().notNull(),
 })
 
@@ -81,10 +82,11 @@ export const accountMembers = pgTable("account_members", {
 
 export const portfolios = pgTable("portfolios", {
   id: uuid("id").primaryKey().defaultRandom(),
-  type: text("type").notNull(), // "crypto" | "metals"
+  type: text("type").notNull(), // "crypto" | "metals" | "stocks"
   name: text("name").notNull(),
   ownerSub: text("owner_sub"),
   currency: text("currency").notNull().default("EUR"),
+  broker: text("broker"), // stocks only — e.g. "DEGIRO", "Trade Republic"
   createdAt: timestamp("created_at").defaultNow().notNull(),
 })
 
@@ -149,6 +151,41 @@ export const metalSales = pgTable("metal_sales", {
   saleDate: date("sale_date").notNull(),
   quantitySold: integer("quantity_sold").notNull(),
   totalReceived: numeric("total_received", { precision: 15, scale: 2 }).notNull(),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+})
+
+// ─── Stocks / ETFs ─────────────────────────────────────────────────────────
+// Same immutable ledger + FIFO cost-basis model as crypto. Each portfolio is
+// tied to one broker (portfolios.broker); buy/sell only, no swaps.
+export const stockTrades = pgTable("stock_trades", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  portfolioId: uuid("portfolio_id").notNull().references(() => portfolios.id, { onDelete: "cascade" }),
+  tradeDate: date("trade_date").notNull(),
+  fromSymbol: text("from_symbol").notNull(),
+  fromAmount: numeric("from_amount", { precision: 20, scale: 6 }).notNull(),
+  toSymbol: text("to_symbol").notNull(),
+  toAmount: numeric("to_amount", { precision: 20, scale: 6 }).notNull(),
+  baseCurrencyAmount: numeric("base_currency_amount", { precision: 15, scale: 2 }),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+})
+
+// Display metadata per (portfolio, ticker symbol)
+export const stockAssets = pgTable("stock_assets", {
+  portfolioId: uuid("portfolio_id").notNull().references(() => portfolios.id, { onDelete: "cascade" }),
+  symbol: text("symbol").notNull(),
+  name: text("name").notNull(),
+  assetForm: text("asset_form"), // "stock" | "etf"
+}, (t) => ({ pk: primaryKey({ columns: [t.portfolioId, t.symbol] }) }))
+
+// Dividend payments — not part of the FIFO cost-basis chain, tracked separately per symbol
+export const stockDividends = pgTable("stock_dividends", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  portfolioId: uuid("portfolio_id").notNull().references(() => portfolios.id, { onDelete: "cascade" }),
+  symbol: text("symbol").notNull(),
+  paymentDate: date("payment_date").notNull(),
+  amount: numeric("amount", { precision: 15, scale: 2 }).notNull(),
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 })
@@ -269,6 +306,9 @@ export const portfolioRelations = relations(portfolios, ({ many }) => ({
   cryptoTrades: many(cryptoTrades),
   cryptoAssets: many(cryptoAssets),
   metalLots: many(metalLots),
+  stockTrades: many(stockTrades),
+  stockAssets: many(stockAssets),
+  stockDividends: many(stockDividends),
 }))
 
 export const portfolioMemberRelations = relations(portfolioMembers, ({ one }) => ({
@@ -308,6 +348,27 @@ export const metalSaleRelations = relations(metalSales, ({ one }) => ({
   lot: one(metalLots, {
     fields: [metalSales.lotId],
     references: [metalLots.id],
+  }),
+}))
+
+export const stockTradeRelations = relations(stockTrades, ({ one }) => ({
+  portfolio: one(portfolios, {
+    fields: [stockTrades.portfolioId],
+    references: [portfolios.id],
+  }),
+}))
+
+export const stockAssetRelations = relations(stockAssets, ({ one }) => ({
+  portfolio: one(portfolios, {
+    fields: [stockAssets.portfolioId],
+    references: [portfolios.id],
+  }),
+}))
+
+export const stockDividendRelations = relations(stockDividends, ({ one }) => ({
+  portfolio: one(portfolios, {
+    fields: [stockDividends.portfolioId],
+    references: [portfolios.id],
   }),
 }))
 

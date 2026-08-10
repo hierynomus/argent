@@ -182,14 +182,14 @@ function AccountsTab({ token }: { token: string }) {
   )
 }
 
-// ─── Categories Tab ───────────────────────────────────────────────────────────
+// ─── Labels Tab ───────────────────────────────────────────────────────────────
 
-function CategoriesTab({ token }: { token: string }) {
+function LabelsTab({ token }: { token: string }) {
   const qc = useQueryClient()
   const [name, setName] = useState("")
   const [color, setColor] = useState("#6366f1")
 
-  const { data: categories, isLoading } = useQuery({
+  const { data: labels, isLoading } = useQuery({
     queryKey: ["categories"],
     queryFn: () => getCategories(token),
   })
@@ -210,11 +210,11 @@ function CategoriesTab({ token }: { token: string }) {
   return (
     <div className="max-w-xl">
       <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 p-4 mb-4">
-        <h2 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Add category</h2>
+        <h2 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">Add label</h2>
         <div className="flex gap-3">
           <input
             type="text"
-            placeholder="Category name"
+            placeholder="Label name"
             value={name}
             onChange={(e) => setName(e.target.value)}
             className="flex-1 border border-gray-300 dark:border-gray-600 rounded-md px-3 py-1.5 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-indigo-500"
@@ -240,18 +240,18 @@ function CategoriesTab({ token }: { token: string }) {
         <p className="text-gray-400 dark:text-gray-500 text-sm">Loading…</p>
       ) : (
         <div className="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 divide-y divide-gray-100 dark:divide-gray-800">
-          {categories?.length === 0 && (
-            <p className="px-4 py-6 text-gray-400 dark:text-gray-500 text-sm text-center">No categories yet.</p>
+          {labels?.length === 0 && (
+            <p className="px-4 py-6 text-gray-400 dark:text-gray-500 text-sm text-center">No labels yet.</p>
           )}
-          {categories?.map((cat) => (
-            <div key={cat.id} className="flex items-center px-4 py-3">
+          {labels?.map((label) => (
+            <div key={label.id} className="flex items-center px-4 py-3">
               <span
                 className="w-3 h-3 rounded-full mr-3 flex-shrink-0"
-                style={{ backgroundColor: cat.color ?? "#9ca3af" }}
+                style={{ backgroundColor: label.color ?? "#9ca3af" }}
               />
-              <span className="flex-1 text-sm text-gray-900 dark:text-gray-100">{cat.name}</span>
+              <span className="flex-1 text-sm text-gray-900 dark:text-gray-100">{label.name}</span>
               <button
-                onClick={() => remove.mutate(cat.id)}
+                onClick={() => remove.mutate(label.id)}
                 className="text-xs text-gray-400 dark:text-gray-500 hover:text-red-500 dark:hover:text-red-400"
               >
                 Delete
@@ -432,7 +432,7 @@ export default function SettingsPage() {
 
   const tabs = [
     { id: "accounts", label: "Accounts" },
-    { id: "categories", label: "Categories" },
+    { id: "labels", label: "Labels" },
     ...(me?.canImport ? [{ id: "import", label: "Import" }] : []),
   ]
 
@@ -463,7 +463,7 @@ export default function SettingsPage() {
       </div>
 
       {activeTab === "accounts" && <AccountsTab token={token} />}
-      {activeTab === "categories" && <CategoriesTab token={token} />}
+      {activeTab === "labels" && <LabelsTab token={token} />}
       {activeTab === "import" && me?.canImport && <ImportTab token={token} />}
     </div>
   )

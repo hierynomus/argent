@@ -135,3 +135,70 @@ export async function getMetalPricePerGram(metal: string, currency: "EUR" | "USD
     return null
   }
 }
+
+// ──────────────────────────────────────────────
+// Stocks/ETFs — Yahoo Finance chart API (no key needed) + Frankfurter for FX
+// ──────────────────────────────────────────────
+
+interface StockQuote {
+  price: number
+  currency: string // the ticker's native trading currency, e.g. "USD", "EUR"
+}
+
+interface StockCacheEntry extends StockQuote {
+  fetchedAt: number
+}
+
+const stockCache = new Map<string, StockCacheEntry>()
+const fxCache = new Map<string, { rate: number; fetchedAt: number }>()
+
+async function fetchStockQuote(symbol: string): Promise<StockQuote | null> {
+  const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=1d`
+  const res = await fetch(url, { signal: AbortSignal.timeout(8000) })
+  if (!res.ok) throw new Error(`Yahoo Finance HTTP ${res.status}`)
+  const json = await res.json() as {
+    chart: { result?: Array<{ meta: { regularMarketPrice?: number; currency?: string } }> }
+  }
+  const meta = json.chart.result?.[0]?.meta
+  if (!meta?.regularMarketPrice || !meta.currency) return null
+  return { price: meta.regularMarketPrice, currency: meta.currency }
+}
+
+async function getFxRate(from: string, to: string): Promise<number | null> {
+  if (from === to) return 1
+  const key = `${from}_${to}`
+  const now = Date.now()
+  const cached = fxCache.get(key)
+  if (cached && now - cached.fetchedAt < CACHE_TTL_MS) return cached.rate
+
+  const res = await fetch(`https://api.frankfurter.app/latest?from=${from}&to=${to}`, { signal: AbortSignal.timeout(8000) })
+  if (!res.ok) throw new Error(`Frankfurter HTTP ${res.status}`)
+  const json = await res.json() as { rates: Record<string, number> }
+  const rate = json.rates[to]
+  if (rate == null) return null
+  fxCache.set(key, { rate, fetchedAt: now })
+  return rate
+}
+
+/** Returns price per share in the given currency, or null if unknown/unavailable. */
+export async function getStockPrice(symbol: string, currency: "EUR" | "USD" = "EUR"): Promise<number | null> {
+  try {
+    const key = symbol.toUpperCase()
+    const now = Date.now()
+    const cached = stockCache.get(key)
+    let quote: StockQuote
+    if (cached && now - cached.fetchedAt < CACHE_TTL_MS) {
+      quote = cached
+    } else {
+      const fresh = await fetchStockQuote(key)
+      if (!fresh) return null
+      quote = fresh
+      stockCache.set(key, { ...fresh, fetchedAt: now })
+    }
+
+    const rate = await getFxRate(quote.currency, currency)
+    return rate != null ? quote.price * rate : null
+  } catch {
+    return null
+  }
+}

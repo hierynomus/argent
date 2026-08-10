@@ -39,6 +39,12 @@ import type {
   PortfolioDetail,
   PortfolioMember,
   PortfolioWithAccess,
+  CreateSubscriptionBody,
+  CreateStockDividendBody,
+  CreateStockTradeBody,
+  StockDividend,
+  StockPortfolioDetail,
+  StockTrade,
   Subscription,
   TransactionFilters,
   TransactionWithDetails,
@@ -153,6 +159,14 @@ export const deleteCategory = (token: string, id: string) =>
 export const getSubscriptions = (token: string) =>
   request<Subscription[]>("/subscriptions", { token })
 
+export const createSubscription = (token: string, body: CreateSubscriptionBody) =>
+  request<Subscription>("/subscriptions", {
+    token,
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  })
+
 export const updateSubscription = (token: string, id: string, body: UpdateSubscriptionBody) =>
   request<Subscription>(`/subscriptions/${id}`, {
     token,
@@ -248,6 +262,34 @@ export const addMetalLot = (token: string, portfolioId: string, body: CreateMeta
 
 export const addMetalSale = (token: string, portfolioId: string, lotId: string, body: CreateMetalSaleBody) =>
   request<MetalSale>(`/metals/${portfolioId}/lots/${lotId}/sales`, { token, method: "POST", body: JSON.stringify(body) })
+
+// Stocks portfolios
+export const getStockPortfolios = (token: string) =>
+  request<PortfolioWithAccess[]>("/stocks", { token })
+
+export const getStockPortfolio = (token: string, id: string) =>
+  request<StockPortfolioDetail>(`/stocks/${id}`, { token })
+
+export const createStockPortfolio = (token: string, body: CreatePortfolioBody) =>
+  request<Portfolio>("/stocks", { token, method: "POST", body: JSON.stringify(body) })
+
+export const deleteStockPortfolio = (token: string, id: string) =>
+  request<void>(`/stocks/${id}`, { token, method: "DELETE" })
+
+export const addStockTrade = (token: string, portfolioId: string, body: CreateStockTradeBody) =>
+  request<StockTrade>(`/stocks/${portfolioId}/trades`, { token, method: "POST", body: JSON.stringify(body) })
+
+export const addStockDividend = (token: string, portfolioId: string, body: CreateStockDividendBody) =>
+  request<StockDividend>(`/stocks/${portfolioId}/dividends`, { token, method: "POST", body: JSON.stringify(body) })
+
+export const deleteStockDividend = (token: string, portfolioId: string, dividendId: string) =>
+  request<void>(`/stocks/${portfolioId}/dividends/${dividendId}`, { token, method: "DELETE" })
+
+export const addStockPortfolioMember = (token: string, portfolioId: string, body: AddPortfolioMemberBody) =>
+  request<PortfolioMember>(`/stocks/${portfolioId}/members`, { token, method: "POST", body: JSON.stringify(body) })
+
+export const removeStockPortfolioMember = (token: string, portfolioId: string, groupName: string) =>
+  request<void>(`/stocks/${portfolioId}/members/${encodeURIComponent(groupName)}`, { token, method: "DELETE" })
 
 // Mortgages
 export const getMortgages = (token: string) =>

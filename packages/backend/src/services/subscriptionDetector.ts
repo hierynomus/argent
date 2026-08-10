@@ -2,14 +2,14 @@ import { and, eq, inArray, isNull, isNotNull, sql, count } from "drizzle-orm"
 import { db } from "../db"
 import { accounts, subscriptions, transactions } from "../db/schema"
 
-function median(values: number[]): number {
+export function median(values: number[]): number {
   if (values.length === 0) return 0
   const sorted = [...values].sort((a, b) => a - b)
   const mid = Math.floor(sorted.length / 2)
   return sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid]
 }
 
-function computeIntervalLabel(medianDays: number): string {
+export function computeIntervalLabel(medianDays: number): string {
   if (medianDays >= 6 && medianDays <= 8) return "weekly"
   if (medianDays >= 13 && medianDays <= 17) return "bi-weekly"
   if (medianDays >= 25 && medianDays <= 38) return "monthly"
@@ -18,14 +18,61 @@ function computeIntervalLabel(medianDays: number): string {
   return "custom"
 }
 
-function addDays(dateStr: string, days: number): string {
+export function addDays(dateStr: string, days: number): string {
   const d = new Date(dateStr)
   d.setDate(d.getDate() + days)
   return d.toISOString().slice(0, 10)
 }
 
-function daysBetween(a: string, b: string): number {
+export function daysBetween(a: string, b: string): number {
   return Math.round((new Date(b).getTime() - new Date(a).getTime()) / 86_400_000)
+}
+
+/**
+ * Computes subscription stats (medianAmount, intervalDays, etc.) from a sorted
+ * list of transactions. Does NOT enforce regularity — that's the detector's job.
+ * Used by both the auto-detector and manual subscription creation.
+ */
+export function computeStatsFromTransactions(txs: Array<{
+  bookingDate: string
+  amount: string
+  currency: string
+  counterpartyName: string | null
+}>) {
+  const amounts = txs.map((t) => parseFloat(t.amount))
+  const medianAmt = amounts.length > 0 ? median(amounts) : 0
+
+  const gaps: number[] = []
+  for (let i = 1; i < txs.length; i++) {
+    gaps.push(daysBetween(txs[i - 1].bookingDate, txs[i].bookingDate))
+  }
+  const medianGap = gaps.length > 0 ? median(gaps) : null
+  const intervalDays = medianGap != null ? Math.round(medianGap) : null
+  const intervalLabel = intervalDays != null ? computeIntervalLabel(intervalDays) : null
+
+  const lastTx = txs[txs.length - 1]
+  const lastSeenDate = lastTx?.bookingDate ?? null
+  const nextExpectedDate =
+    lastSeenDate && intervalDays ? addDays(lastSeenDate, intervalDays) : null
+
+  const daysSinceLast = lastSeenDate
+    ? daysBetween(lastSeenDate, new Date().toISOString().slice(0, 10))
+    : Infinity
+  const isActive = intervalDays != null ? daysSinceLast <= intervalDays * 2 : true
+
+  const currency = lastTx?.currency ?? "EUR"
+  const counterpartyName = txs.find((t) => t.counterpartyName)?.counterpartyName ?? null
+
+  return {
+    medianAmount: medianAmt.toFixed(2),
+    intervalDays,
+    intervalLabel,
+    lastSeenDate,
+    nextExpectedDate,
+    isActive,
+    currency,
+    counterpartyName,
+  }
 }
 
 /**
@@ -34,6 +81,12 @@ function daysBetween(a: string, b: string): number {
  * Groups unlinked DBIT transactions by (accountId, counterpartyIban), checks
  * for regularity, and upserts subscription rows. Returns the count of newly
  * created subscriptions.
+ *
+ * Behaviour:
+ * - Skips (accountId, counterpartyIban) pairs that are already 'dismissed'.
+ * - Updates stats on existing 'candidate' or 'confirmed' subscriptions without
+ *   touching their status.
+ * - Creates new subscriptions as 'candidate' so the user can review them.
  */
 export async function detectSubscriptions(): Promise<number> {
   const ownAccounts = await db.select({ id: accounts.id }).from(accounts)
@@ -66,6 +119,21 @@ export async function detectSubscriptions(): Promise<number> {
   for (const group of groups) {
     const accountId = group.accountId
     const counterpartyIban = group.counterpartyIban!
+
+    // Check for an existing subscription record for this pair
+    const [existing] = await db
+      .select({ id: subscriptions.id, status: subscriptions.status })
+      .from(subscriptions)
+      .where(
+        and(
+          eq(subscriptions.accountId, accountId),
+          eq(subscriptions.counterpartyIban, counterpartyIban),
+        )
+      )
+      .limit(1)
+
+    // Skip dismissed pairs — user explicitly doesn't want this as a subscription
+    if (existing?.status === "dismissed") continue
 
     // Load all matching transactions sorted by bookingDate
     const txs = await db
@@ -122,22 +190,11 @@ export async function detectSubscriptions(): Promise<number> {
     const daysSinceLast = daysBetween(lastSeenDate, new Date().toISOString().slice(0, 10))
     const isActive = daysSinceLast <= intervalDays * 2
 
-    // Upsert subscription keyed on (accountId, counterpartyIban)
-    const [existing] = await db
-      .select({ id: subscriptions.id })
-      .from(subscriptions)
-      .where(
-        and(
-          eq(subscriptions.accountId, accountId),
-          eq(subscriptions.counterpartyIban, counterpartyIban),
-        )
-      )
-      .limit(1)
-
     let subscriptionId: string
 
     if (existing) {
       subscriptionId = existing.id
+      // Update stats but preserve the existing status (candidate or confirmed)
       await db
         .update(subscriptions)
         .set({
@@ -152,6 +209,7 @@ export async function detectSubscriptions(): Promise<number> {
         })
         .where(eq(subscriptions.id, subscriptionId))
     } else {
+      // New pattern — create as 'candidate' for user review
       const [inserted] = await db
         .insert(subscriptions)
         .values({
@@ -165,6 +223,7 @@ export async function detectSubscriptions(): Promise<number> {
           nextExpectedDate,
           lastSeenDate,
           isActive,
+          status: "candidate",
         })
         .returning({ id: subscriptions.id })
       subscriptionId = inserted.id

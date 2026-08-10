@@ -66,6 +66,15 @@ function IconGem() {
   )
 }
 
+function IconTrendingUp() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="23 6 13.5 15.5 8.5 10.5 1 18" />
+      <polyline points="17 6 23 6 23 12" />
+    </svg>
+  )
+}
+
 function IconCreditCard() {
   return (
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
@@ -345,6 +354,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
 
             <NavItem to="/crypto" icon={<IconCoin />} label="Crypto" showLabel={displayLabels} />
             <NavItem to="/metals" icon={<IconGem />} label="Metals" showLabel={displayLabels} />
+            <NavItem to="/stocks" icon={<IconTrendingUp />} label="Stocks" showLabel={displayLabels} />
 
             {/* Push admin/profile to bottom */}
             <div className="flex-1" />

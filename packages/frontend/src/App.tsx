@@ -8,6 +8,7 @@ import AdminPage from "./pages/Admin"
 import ProfilePage from "./pages/Profile"
 import CryptoPage from "./pages/Crypto"
 import MetalsPage from "./pages/Metals"
+import StocksPage from "./pages/Stocks"
 import SavingsPage from "./pages/Savings"
 import CheckingPage from "./pages/Checking"
 import SubscriptionsPage from "./pages/Subscriptions"
@@ -68,6 +69,7 @@ export default function App() {
                   <Route path="loans" element={<LoansPage />} />
                   <Route path="crypto" element={<CryptoPage />} />
                   <Route path="metals" element={<MetalsPage />} />
+                  <Route path="stocks" element={<StocksPage />} />
                 </Routes>
               </Layout>
             </RequireAuth>

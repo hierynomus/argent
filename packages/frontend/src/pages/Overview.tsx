@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { useSearchParams } from "react-router-dom"
+import { useSearchParams, useNavigate } from "react-router-dom"
 import { useAuth } from "react-oidc-context"
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
 import {
@@ -7,6 +7,7 @@ import {
   getTransactions,
   getCategories,
   updateTransaction,
+  createSubscription,
   getTransferSuggestions,
   linkTransfer,
   unlinkTransfer,
@@ -124,19 +125,21 @@ function LinkTransferSection({
 
 function TransactionDetail({
   tx,
-  categories,
+  labels,
   token,
   onClose,
-  onCategorize,
+  onLabel,
   onTransferChange,
 }: {
   tx: TransactionWithDetails
-  categories: Category[]
+  labels: Category[]
   token: string
   onClose: () => void
-  onCategorize: (id: string, categoryId: string | null) => void
+  onLabel: (id: string, categoryId: string | null) => void
   onTransferChange: (updated: TransactionWithDetails) => void
 }) {
+  const navigate = useNavigate()
+
   async function handleUnlink() {
     await unlinkTransfer(token, tx.id)
     onTransferChange({ ...tx, transferPeerId: null, transferPeer: null })
@@ -236,17 +239,31 @@ function TransactionDetail({
               )}
             </dd>
 
-            <dt className="text-gray-500 dark:text-gray-400 font-medium pt-0.5">Category</dt>
+            {tx.subscriptionId && (
+              <>
+                <dt className="text-gray-500 dark:text-gray-400 font-medium pt-0.5">Subscription</dt>
+                <dd>
+                  <button
+                    onClick={() => { onClose(); navigate("/subscriptions") }}
+                    className="text-indigo-600 dark:text-indigo-400 hover:underline text-sm font-medium"
+                  >
+                    ↻ View subscription →
+                  </button>
+                </dd>
+              </>
+            )}
+
+            <dt className="text-gray-500 dark:text-gray-400 font-medium pt-0.5">Label</dt>
             <dd>
               <select
                 className="text-sm border border-gray-200 dark:border-gray-700 rounded px-2 py-1 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 w-full"
                 value={tx.categoryId ?? ""}
-                onChange={(e) => onCategorize(tx.id, e.target.value || null)}
+                onChange={(e) => onLabel(tx.id, e.target.value || null)}
               >
-                <option value="">Uncategorized</option>
-                {categories.map((cat) => (
-                  <option key={cat.id} value={cat.id}>
-                    {cat.name}
+                <option value="">Unlabeled</option>
+                {labels.map((l) => (
+                  <option key={l.id} value={l.id}>
+                    {l.name}
                   </option>
                 ))}
               </select>
@@ -315,6 +332,7 @@ function AccountSelector({
 export default function OverviewPage() {
   const auth = useAuth()
   const token = auth.user?.access_token ?? ""
+  const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const initialAccountId = searchParams.get("account") ?? undefined
 
@@ -325,12 +343,20 @@ export default function OverviewPage() {
   const [selectedTx, setSelectedTx] = useState<TransactionWithDetails | null>(null)
   const [filters, setFilters] = useState<TransactionFilters>({ page: 1, pageSize: PAGE_SIZE })
 
+  // Multi-select state
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [bulkLabelId, setBulkLabelId] = useState("")
+  const [bulkLabeling, setBulkLabeling] = useState(false)
+  const [showSubForm, setShowSubForm] = useState(false)
+  const [subName, setSubName] = useState("")
+  const [subCreating, setSubCreating] = useState(false)
+
   const { data: accounts = [] } = useQuery({
     queryKey: ["accounts"],
     queryFn: () => getAccounts(token),
   })
 
-  const { data: categories = [] } = useQuery({
+  const { data: labels = [] } = useQuery({
     queryKey: ["categories"],
     queryFn: () => getCategories(token),
   })
@@ -342,23 +368,89 @@ export default function OverviewPage() {
     queryFn: () => getTransactions(token, { ...filters, accountIds }),
   })
 
-  const categorize = useMutation({
+  const rows = data?.data ?? []
+
+  const labelMutation = useMutation({
     mutationFn: ({ id, categoryId }: { id: string; categoryId: string | null }) =>
       updateTransaction(token, id, { categoryId }),
   })
 
-  async function handleCategorize(id: string, categoryId: string | null) {
-    await categorize.mutateAsync({ id, categoryId })
+  async function handleLabel(id: string, categoryId: string | null) {
+    await labelMutation.mutateAsync({ id, categoryId })
     qc.invalidateQueries({ queryKey: ["transactions"] })
     if (selectedTx?.id === id) {
-      const cat = categories.find((c) => c.id === categoryId) ?? null
-      setSelectedTx((prev) => (prev ? { ...prev, categoryId, category: cat } : null))
+      const label = labels.find((l) => l.id === categoryId) ?? null
+      setSelectedTx((prev) => (prev ? { ...prev, categoryId, category: label } : null))
+    }
+  }
+
+  async function handleBulkLabel() {
+    if (selectedIds.size === 0) return
+    setBulkLabeling(true)
+    try {
+      for (const id of selectedIds) {
+        await updateTransaction(token, id, { categoryId: bulkLabelId || null })
+      }
+      qc.invalidateQueries({ queryKey: ["transactions"] })
+      setSelectedIds(new Set())
+    } finally {
+      setBulkLabeling(false)
+    }
+  }
+
+  // Derive a common (accountId, counterpartyIban) from the selected visible rows.
+  // Returns null if the selection spans different IBANs/accounts or has no IBAN.
+  const subscriptionTarget = (() => {
+    const eligible = rows.filter((r) => selectedIds.has(r.id) && r.counterpartyIban && !r.transferPeerId)
+    if (eligible.length === 0) return null
+    const first = eligible[0]
+    if (!eligible.every((r) => r.accountId === first.accountId && r.counterpartyIban === first.counterpartyIban))
+      return null
+    return { accountId: first.accountId, counterpartyIban: first.counterpartyIban!, counterpartyName: first.counterpartyName }
+  })()
+
+  async function handleCreateSubscription() {
+    if (!subscriptionTarget) return
+    setSubCreating(true)
+    try {
+      await createSubscription(token, {
+        accountId: subscriptionTarget.accountId,
+        counterpartyIban: subscriptionTarget.counterpartyIban,
+        name: subName.trim() || undefined,
+      })
+      setSelectedIds(new Set())
+      setShowSubForm(false)
+      setSubName("")
+      navigate("/subscriptions")
+    } catch (err) {
+      alert((err as Error).message)
+    } finally {
+      setSubCreating(false)
     }
   }
 
   function handleTransferChange(updated: TransactionWithDetails) {
     qc.invalidateQueries({ queryKey: ["transactions"] })
     setSelectedTx(updated)
+  }
+
+  function toggleRow(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const allOnPageSelected = rows.length > 0 && rows.every((r) => selectedIds.has(r.id))
+
+  function toggleSelectAll() {
+    if (allOnPageSelected) {
+      setSelectedIds(new Set())
+    } else {
+      setSelectedIds(new Set(rows.map((r) => r.id)))
+    }
   }
 
   return (
@@ -400,11 +492,11 @@ export default function OverviewPage() {
             setFilters((f) => ({ ...f, categoryId: e.target.value || undefined, page: 1 }))
           }
         >
-          <option value="">All categories</option>
-          <option value="uncategorized">Uncategorized</option>
-          {categories.map((cat) => (
-            <option key={cat.id} value={cat.id}>
-              {cat.name}
+          <option value="">All labels</option>
+          <option value="uncategorized">Unlabeled</option>
+          {labels.map((l) => (
+            <option key={l.id} value={l.id}>
+              {l.name}
             </option>
           ))}
         </select>
@@ -418,27 +510,47 @@ export default function OverviewPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+                  <th className="px-4 py-3 w-10">
+                    <input
+                      type="checkbox"
+                      checked={allOnPageSelected}
+                      onChange={toggleSelectAll}
+                      className="w-4 h-4 accent-indigo-600 cursor-pointer"
+                    />
+                  </th>
                   <th className="px-4 py-3">Date</th>
                   <th className="px-4 py-3">Account</th>
                   <th className="px-4 py-3">Counterparty</th>
                   <th className="px-4 py-3">Description</th>
                   <th className="px-4 py-3 text-right">Amount</th>
-                  <th className="px-4 py-3">Category</th>
+                  <th className="px-4 py-3">Label</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 dark:divide-gray-800">
-                {data?.data.map((tx: TransactionWithDetails) => (
+                {rows.map((tx: TransactionWithDetails) => (
                   <tr
                     key={tx.id}
                     onClick={() => setSelectedTx(tx)}
                     className={`cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors ${
                       selectedTx?.id === tx.id ? "bg-indigo-50 dark:bg-indigo-950" : ""
-                    }`}
+                    } ${selectedIds.has(tx.id) ? "bg-indigo-50/60 dark:bg-indigo-950/40" : ""}`}
                   >
+                    {/* Checkbox */}
+                    <td className="px-4 py-3 w-10" onClick={(e) => e.stopPropagation()}>
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(tx.id)}
+                        onChange={() => toggleRow(tx.id)}
+                        className="w-4 h-4 accent-indigo-600 cursor-pointer"
+                      />
+                    </td>
+
                     <td className="px-4 py-3 whitespace-nowrap text-gray-600 dark:text-gray-400">{tx.bookingDate}</td>
+
                     <td className="px-4 py-3 text-gray-500 dark:text-gray-400 text-xs max-w-[120px] truncate">
                       {tx.account.name ?? tx.account.iban}
                     </td>
+
                     <td className="px-4 py-3 max-w-[140px] truncate">
                       {tx.transferPeer ? (
                         <span className="text-indigo-500 dark:text-indigo-400 text-xs font-medium">
@@ -450,9 +562,22 @@ export default function OverviewPage() {
                         </span>
                       )}
                     </td>
-                    <td className="px-4 py-3 text-gray-600 dark:text-gray-400 max-w-[220px] truncate">
-                      {tx.description ?? <span className="text-gray-400 dark:text-gray-500">—</span>}
+
+                    {/* Description + subscription badge */}
+                    <td className="px-4 py-3 max-w-[220px]">
+                      <div className="text-gray-600 dark:text-gray-400 truncate">
+                        {tx.description ?? <span className="text-gray-400 dark:text-gray-500">—</span>}
+                      </div>
+                      {tx.subscriptionId && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); navigate("/subscriptions") }}
+                          className="mt-0.5 inline-flex items-center gap-0.5 text-[10px] text-indigo-500 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 font-medium leading-none"
+                        >
+                          ↻ subscription
+                        </button>
+                      )}
                     </td>
+
                     <td
                       className={`px-4 py-3 text-right font-mono font-medium whitespace-nowrap ${
                         tx.creditDebitIndicator === "CRDT" ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"
@@ -460,25 +585,29 @@ export default function OverviewPage() {
                     >
                       {formatAmount(tx.amount, tx.creditDebitIndicator, tx.currency)}
                     </td>
-                    <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
-                      <select
-                        className="text-sm border border-gray-200 dark:border-gray-700 rounded px-2 py-1 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
-                        value={tx.categoryId ?? ""}
-                        onChange={(e) => handleCategorize(tx.id, e.target.value || null)}
-                      >
-                        <option value="">Uncategorized</option>
-                        {categories.map((cat) => (
-                          <option key={cat.id} value={cat.id}>
-                            {cat.name}
-                          </option>
-                        ))}
-                      </select>
+
+                    {/* Label chip */}
+                    <td className="px-4 py-3">
+                      {tx.category ? (
+                        <span
+                          className="inline-flex items-center text-xs px-2 py-0.5 rounded-full font-medium border"
+                          style={{
+                            backgroundColor: tx.category.color ? `${tx.category.color}22` : "#6366f122",
+                            color: tx.category.color ?? "#6366f1",
+                            borderColor: tx.category.color ? `${tx.category.color}44` : "#6366f144",
+                          }}
+                        >
+                          {tx.category.name}
+                        </span>
+                      ) : (
+                        <span className="text-gray-300 dark:text-gray-600 text-xs">—</span>
+                      )}
                     </td>
                   </tr>
                 ))}
-                {data?.data.length === 0 && (
+                {rows.length === 0 && (
                   <tr>
-                    <td colSpan={6} className="px-4 py-10 text-center text-gray-400 dark:text-gray-500 text-sm">
+                    <td colSpan={7} className="px-4 py-10 text-center text-gray-400 dark:text-gray-500 text-sm">
                       No transactions found.
                     </td>
                   </tr>
@@ -514,12 +643,92 @@ export default function OverviewPage() {
       {selectedTx && (
         <TransactionDetail
           tx={selectedTx}
-          categories={categories}
+          labels={labels}
           token={token}
           onClose={() => setSelectedTx(null)}
-          onCategorize={handleCategorize}
+          onLabel={handleLabel}
           onTransferChange={handleTransferChange}
         />
+      )}
+
+      {/* Bulk action bar */}
+      {selectedIds.size > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-30 flex items-center gap-3 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl shadow-xl px-5 py-3">
+          {showSubForm && subscriptionTarget ? (
+            // ── Subscription creation mode ──────────────────────────────────
+            <>
+              <span className="text-sm text-gray-600 dark:text-gray-400 whitespace-nowrap">
+                ↻ {subscriptionTarget.counterpartyName ?? subscriptionTarget.counterpartyIban}
+              </span>
+              <input
+                autoFocus
+                type="text"
+                value={subName}
+                onChange={(e) => setSubName(e.target.value)}
+                placeholder="Name (optional)"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") handleCreateSubscription()
+                  if (e.key === "Escape") setShowSubForm(false)
+                }}
+                className="text-sm border border-gray-200 dark:border-gray-700 rounded px-2 py-1.5 w-40 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              />
+              <button
+                onClick={handleCreateSubscription}
+                disabled={subCreating}
+                className="text-sm px-3 py-1.5 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50 font-medium"
+              >
+                {subCreating ? "Creating…" : "Create"}
+              </button>
+              <button
+                onClick={() => setShowSubForm(false)}
+                className="text-sm px-2 py-1.5 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+              >
+                Cancel
+              </button>
+            </>
+          ) : (
+            // ── Default label mode ───────────────────────────────────────────
+            <>
+              <span className="text-sm font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap">
+                {selectedIds.size} selected
+              </span>
+              <select
+                value={bulkLabelId}
+                onChange={(e) => setBulkLabelId(e.target.value)}
+                className="text-sm border border-gray-200 dark:border-gray-700 rounded px-2 py-1.5 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+              >
+                <option value="">Unlabeled</option>
+                {labels.map((l) => (
+                  <option key={l.id} value={l.id}>{l.name}</option>
+                ))}
+              </select>
+              <button
+                onClick={handleBulkLabel}
+                disabled={bulkLabeling}
+                className="text-sm px-3 py-1.5 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50 font-medium"
+              >
+                {bulkLabeling ? "Applying…" : "Apply label"}
+              </button>
+              {subscriptionTarget && (
+                <>
+                  <div className="w-px h-5 bg-gray-200 dark:bg-gray-700 shrink-0" />
+                  <button
+                    onClick={() => setShowSubForm(true)}
+                    className="text-sm px-3 py-1.5 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 font-medium whitespace-nowrap"
+                  >
+                    ↻ Create subscription
+                  </button>
+                </>
+              )}
+              <button
+                onClick={() => setSelectedIds(new Set())}
+                className="text-sm px-2 py-1.5 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+              >
+                Clear
+              </button>
+            </>
+          )}
+        </div>
       )}
     </div>
   )

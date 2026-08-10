@@ -9,6 +9,8 @@ import {
   getCryptoPortfolio,
   getMetalPortfolios,
   getMetalPortfolio,
+  getStockPortfolios,
+  getStockPortfolio,
   getTransactions,
 } from "../api"
 
@@ -339,6 +341,11 @@ export default function DashboardPage() {
     queryFn: () => getMetalPortfolios(token),
     enabled: !!token,
   })
+  const { data: stockList = [] } = useQuery({
+    queryKey: ["stock-portfolios-list"],
+    queryFn: () => getStockPortfolios(token),
+    enabled: !!token,
+  })
 
   // ── Per-portfolio details (parallel) ──
   const cryptoDetails = useQueries({
@@ -352,6 +359,13 @@ export default function DashboardPage() {
     queries: metalList.map((p) => ({
       queryKey: ["metals", p.id],
       queryFn: () => getMetalPortfolio(token, p.id),
+      enabled: !!token,
+    })),
+  })
+  const stockDetails = useQueries({
+    queries: stockList.map((p) => ({
+      queryKey: ["stocks", p.id],
+      queryFn: () => getStockPortfolio(token, p.id),
       enabled: !!token,
     })),
   })
@@ -389,15 +403,19 @@ export default function DashboardPage() {
     return s + (d.data?.totalUnrealizedPnL ?? 0)
   }, 0)
 
+  const stockLoading = stockDetails.some((d) => d.isLoading)
+  const totalStocksEur = stockDetails.reduce((s, d) => s + (d.data?.totalCurrentValueEur ?? 0), 0)
+  const totalStocksUnrealizedPnL = stockDetails.reduce((s, d) => s + (d.data?.totalUnrealizedPnL ?? 0), 0)
+
   const totalMortgageBalance = mortgages.reduce((s, m) => s + m.totalCurrentBalance, 0)
   const totalMortgageMonthly = mortgages.reduce((s, m) => s + m.totalMonthlyPayment, 0)
   const totalLoanBalance = loans.reduce((s, l) => s + l.totalCurrentBalance, 0)
   const totalLoanMonthly = loans.reduce((s, l) => s + l.totalMonthlyPayment, 0)
 
-  const totalAssets = totalAccountsBalance + totalCryptoEur + totalMetalsEur
+  const totalAssets = totalAccountsBalance + totalCryptoEur + totalMetalsEur + totalStocksEur
   const totalLiabilities = totalMortgageBalance + totalLoanBalance
   const netWorth = totalAssets - totalLiabilities
-  const netWorthLoading = cryptoLoading || metalLoading
+  const netWorthLoading = cryptoLoading || metalLoading || stockLoading
 
   // ── Monthly cash flow ──
   const eligible = (monthlyData?.data ?? []).filter((t) => !t.transferPeerId)
@@ -429,6 +447,12 @@ export default function DashboardPage() {
       : undefined
     : undefined
 
+  const stocksSub = !stockLoading && stockList.length > 0
+    ? totalStocksUnrealizedPnL !== 0
+      ? `${totalStocksUnrealizedPnL >= 0 ? "↑" : "↓"} ${fmtCur(Math.abs(totalStocksUnrealizedPnL))} unrealized`
+      : undefined
+    : undefined
+
   const monthlySub = !monthlyLoading
     ? `↑ ${fmtCur(monthlyIncome)} income · ↓ ${fmtCur(monthlyExpenses)} expenses`
     : undefined
@@ -447,7 +471,7 @@ export default function DashboardPage() {
       />
 
       {/* Summary tiles row */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
         <SummaryTile
           label="Banking"
           value={fmtCur(totalAccountsBalance)}
@@ -464,6 +488,12 @@ export default function DashboardPage() {
           value={metalList.length === 0 ? "—" : fmtCur(totalMetalsEur)}
           sub={metalsSub}
           loading={metalLoading && metalList.length > 0}
+        />
+        <SummaryTile
+          label="Stocks"
+          value={stockList.length === 0 ? "—" : fmtCur(totalStocksEur)}
+          sub={stocksSub}
+          loading={stockLoading && stockList.length > 0}
         />
         <SummaryTile
           label="This month"
