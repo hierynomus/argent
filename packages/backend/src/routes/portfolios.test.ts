@@ -167,6 +167,23 @@ describe("crypto trades", () => {
     expect(swap.body.baseCurrencyAmount).toBe("12345.67")
   })
 
+  test("a sub-cent coin keeps its real price: 1 billion SHIB bought for 5 EUR", async () => {
+    const id = await newPortfolio()
+    await trade(id, { fromSymbol: "EUR", fromAmount: "5", toSymbol: "SHIB", toAmount: "1000000000", assetName: "Shiba Inu" })
+    const d = (await get(`/crypto/${id}`)).body
+    expect(d.positions[0]).toMatchObject({ symbol: "SHIB", balance: 1_000_000_000, currentPrice: 0.0000085 })
+    expect(d.positions[0].avgCostBasis).toBeCloseTo(0.000000005, 12) // 5 EUR / 1e9 coins
+    expect(d.positions[0].currentValueEur).toBeCloseTo(8500, 6) // 1e9 × 0.0000085
+    expect(d.positions[0].unrealizedPnL).toBeCloseTo(8495, 6)
+  })
+
+  test("a coin that is not in the built-in list is found by ticker search", async () => {
+    const id = await newPortfolio()
+    await trade(id, { fromSymbol: "EUR", fromAmount: "100", toSymbol: "NEWCOIN", toAmount: "200" })
+    const d = (await get(`/crypto/${id}`)).body
+    expect(d.positions[0]).toMatchObject({ symbol: "NEWCOIN", currentPrice: 0.25, currentValueEur: 50 })
+  })
+
   test("positions without a price still return, with null valuation", async () => {
     const id = await newPortfolio()
     await trade(id, { fromSymbol: "EUR", fromAmount: "100", toSymbol: "XRP", toAmount: "200" }) // not in the fake price feed

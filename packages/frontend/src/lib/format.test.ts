@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest"
 import {
   APP_LOCALE, capitalize, fmt, fmtAmount, fmtBalance, fmtCur, fmtDate, fmtDayMonth, fmtMaxDecimals, fmtSignedAmount, fmtMonthLabel, fmtMonthYear,
-  fmtRate, fmtSignificant, fmtSymbolCur, pnlColor, pnlFmt,
+  fmtPrice, fmtRate, fmtSignificant, fmtSymbolCur, pnlColor, pnlFmt,
 } from "./format"
 
 /** Locale-independent comparison: collapse every kind of space (NBSP, narrow NBSP) to a plain one. */
@@ -36,6 +36,25 @@ describe("fmtSymbolCur / pnlFmt", () => {
     expect(pnlFmt(120, "EUR")).toBe("+€120,00")
     expect(pnlFmt(0, "EUR")).toBe("+€0,00")
     expect(pnlFmt(-45.5, "USD")).toBe("$-45,50")
+  })
+})
+
+describe("fmtPrice", () => {
+  test("prices of 1 and up read like money", () => {
+    expect(fmtPrice(1234.5, "EUR")).toBe("€1.234,50")
+    expect(fmtPrice(1, "USD")).toBe("$1,00")
+    expect(fmtPrice(0, "EUR")).toBe("€0,00")
+  })
+  test("sub-unit prices get four significant digits", () => {
+    expect(fmtPrice(0.5, "EUR")).toBe("€0,50")
+    expect(fmtPrice(0.05123456, "EUR")).toBe("€0,05123")
+    expect(fmtPrice(0.0000085, "EUR")).toBe("€0,0000085")
+    expect(fmtPrice(0.00000712345, "USD")).toBe("$0,000007123")
+    expect(fmtPrice(0.000000005, "EUR")).toBe("€0,000000005")
+  })
+  test("never more than 12 decimals, and negative values keep the sign", () => {
+    expect(fmtPrice(1e-15, "EUR")).toBe("€0,00")
+    expect(fmtPrice(-0.0000085, "EUR")).toBe("€-0,0000085")
   })
 })
 

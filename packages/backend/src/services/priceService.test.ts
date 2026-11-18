@@ -30,6 +30,45 @@ describe("crypto prices", () => {
     expect(fakeFetch.callsTo("coingecko")).toHaveLength(1)
   })
 
+  test("tiny prices keep their full precision (SHIB)", async () => {
+    const p = await load()
+    expect(await p.getCryptoPrice("SHIB", "EUR")).toBe(0.0000085)
+    expect(await p.getCryptoPrice("shib", "USD")).toBe(0.0000092)
+    expect(await p.getCryptoPrice("PEPE", "EUR")).toBe(0.0000071)
+    expect(fakeFetch.callsTo("coingecko").every((u) => !u.includes("simple/price") || u.includes("precision=full"))).toBe(true)
+  })
+
+  test("a ticker that is not pinned is found by search, preferring the ranked coin over clones", async () => {
+    const p = await load()
+    expect(await p.getCryptoPrice("NEWCOIN", "EUR")).toBe(0.25)
+    const priced = fakeFetch.callsTo("simple/price").at(-1)!
+    expect(priced).toContain("newcoin-real")
+    expect(priced).not.toContain("newcoin-clone")
+  })
+
+  test("a resolved ticker is remembered: no second search, and it is refreshed with the others", async () => {
+    const p = await load()
+    await p.getCryptoPrice("NEWCOIN")
+    const searches = fakeFetch.callsTo("/search").length
+    expect(searches).toBe(1)
+    await p.getCryptoPrice("NEWCOIN", "USD")
+    expect(fakeFetch.callsTo("/search")).toHaveLength(searches)
+  })
+
+  test("a ticker CoinGecko does not know is searched once, then remembered as unknown", async () => {
+    const p = await load()
+    expect(await p.getCryptoPrice("ZZZNOPE")).toBeNull()
+    expect(await p.getCryptoPrice("ZZZNOPE")).toBeNull()
+    expect(fakeFetch.callsTo("/search")).toHaveLength(1)
+  })
+
+  test("several tickers are priced with one price request", async () => {
+    const p = await load()
+    const prices = await p.getCryptoPrices(["BTC", "SHIB", "NEWCOIN", "NOPE"], "EUR")
+    expect(prices).toEqual({ BTC: 50000, SHIB: 0.0000085, NEWCOIN: 0.25, NOPE: null })
+    expect(fakeFetch.callsTo("simple/price")).toHaveLength(1)
+  })
+
   test("a failing provider yields null instead of throwing", async () => {
     fakeFetch.failing.add("coingecko")
     const p = await load()

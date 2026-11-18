@@ -9,6 +9,10 @@ const CACHE_TTL_MS = 5 * 60 * 1000
 // Crypto — CoinGecko public API (no key needed)
 // ──────────────────────────────────────────────
 
+/**
+ * Ticker → CoinGecko id for the common coins (many tickers are ambiguous on CoinGecko, so these are
+ * pinned). Any other ticker is resolved through CoinGecko's search, see `resolveCoinId`.
+ */
 const COINGECKO_IDS: Record<string, string> = {
   BTC: "bitcoin",
   ETH: "ethereum",
@@ -21,45 +25,101 @@ const COINGECKO_IDS: Record<string, string> = {
   MATIC: "matic-network",
   LINK: "chainlink",
   LTC: "litecoin",
+  BNB: "binancecoin",
+  TRX: "tron",
+  TON: "the-open-network",
+  SHIB: "shiba-inu",
+  PEPE: "pepe",
+  BONK: "bonk",
+  FLOKI: "floki",
+  WIF: "dogwifcoin",
+  USDT: "tether",
+  USDC: "usd-coin",
+  ATOM: "cosmos",
+  UNI: "uniswap",
+  NEAR: "near",
+  APT: "aptos",
+  ARB: "arbitrum",
+  OP: "optimism",
+  SUI: "sui",
+  XLM: "stellar",
+  ETC: "ethereum-classic",
+  BCH: "bitcoin-cash",
+  XMR: "monero",
+  HBAR: "hedera-hashgraph",
+  AAVE: "aave",
 }
 
-interface CryptoCache {
-  prices: Record<string, { eur: number; usd: number }>
-  fetchedAt: number
+const ID_FOUND_TTL_MS = 24 * 60 * 60 * 1000
+const ID_MISSING_TTL_MS = 60 * 60 * 1000 // don't search again for a ticker CoinGecko doesn't know, for an hour
+
+/** Resolved ticker → id. `id: null` means "searched, not found". The pinned ids never expire. */
+const coinIds = new Map<string, { id: string | null; resolvedAt: number }>()
+const cryptoPrices = new Map<string, { eur: number; usd: number; fetchedAt: number }>()
+
+/** The CoinGecko id for a ticker: pinned, previously resolved, or found by search (most valuable coin with exactly that ticker). */
+async function resolveCoinId(symbol: string): Promise<string | null> {
+  const pinned = COINGECKO_IDS[symbol]
+  if (pinned) return pinned
+  const known = coinIds.get(symbol)
+  if (known && Date.now() - known.resolvedAt < (known.id ? ID_FOUND_TTL_MS : ID_MISSING_TTL_MS)) return known.id
+
+  const res = await fetch(`https://api.coingecko.com/api/v3/search?query=${encodeURIComponent(symbol)}`, { signal: AbortSignal.timeout(8000) })
+  if (!res.ok) throw new Error(`CoinGecko search HTTP ${res.status}`)
+  const json = await res.json() as { coins?: Array<{ id: string; symbol: string; market_cap_rank: number | null }> }
+  const best = (json.coins ?? [])
+    .filter((c) => c.symbol.toUpperCase() === symbol)
+    // many scam/clone tokens reuse popular tickers: the best-ranked coin is the real one; unranked last
+    .sort((a, b) => (a.market_cap_rank ?? Infinity) - (b.market_cap_rank ?? Infinity))[0]
+  coinIds.set(symbol, { id: best?.id ?? null, resolvedAt: Date.now() })
+  return best?.id ?? null
 }
 
-let cryptoCache: CryptoCache | null = null
+/**
+ * Prices per coin for several tickers at once, in the given currency (null = unknown/unavailable).
+ * One provider call refreshes every coin we know about, so the next lookups are served from the cache.
+ * Tiny prices (SHIB, PEPE, …) are requested at full precision.
+ */
+export async function getCryptoPrices(symbols: string[], currency: "EUR" | "USD" = "EUR"): Promise<Record<string, number | null>> {
+  const wanted = [...new Set(symbols.map((s) => s.toUpperCase()))]
+  const now = Date.now()
+  const pick = (s: string) => {
+    const e = cryptoPrices.get(s)
+    return e ? (currency === "USD" ? e.usd : e.eur) : null
+  }
+  const fresh = (s: string) => {
+    const e = cryptoPrices.get(s)
+    return !!e && now - e.fetchedAt < CACHE_TTL_MS
+  }
 
-async function refreshCryptoPrices(): Promise<Record<string, { eur: number; usd: number }>> {
-  const ids = Object.values(COINGECKO_IDS).join(",")
-  const url = `https://api.coingecko.com/api/v3/simple/price?ids=${ids}&vs_currencies=eur,usd`
-  const res = await fetch(url, { signal: AbortSignal.timeout(8000) })
-  if (!res.ok) throw new Error(`CoinGecko HTTP ${res.status}`)
-  const json = await res.json() as Record<string, { eur?: number; usd?: number }>
-  const result: Record<string, { eur: number; usd: number }> = {}
-  for (const [sym, cgId] of Object.entries(COINGECKO_IDS)) {
-    const data = json[cgId]
-    if (data?.eur != null && data?.usd != null) {
-      result[sym] = { eur: data.eur, usd: data.usd }
+  if (!wanted.every(fresh)) {
+    try {
+      // ids of the requested tickers; one that can't be resolved simply stays null
+      const requested = await Promise.all(wanted.map(async (s) => [s, await resolveCoinId(s).catch(() => null)] as const))
+      const idOf = new Map<string, string>(requested.filter((r): r is [string, string] => r[1] !== null))
+      // refresh everything we know in the same request
+      const allSymbols = new Map<string, string>(Object.entries(COINGECKO_IDS))
+      for (const [sym, v] of coinIds) if (v.id) allSymbols.set(sym, v.id)
+      for (const [sym, id] of idOf) allSymbols.set(sym, id)
+
+      const ids = [...new Set(allSymbols.values())].join(",")
+      const res = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${ids}&vs_currencies=eur,usd&precision=full`, { signal: AbortSignal.timeout(8000) })
+      if (!res.ok) throw new Error(`CoinGecko HTTP ${res.status}`)
+      const json = await res.json() as Record<string, { eur?: number; usd?: number }>
+      for (const [sym, id] of allSymbols) {
+        const data = json[id]
+        if (data?.eur != null && data?.usd != null) cryptoPrices.set(sym, { eur: data.eur, usd: data.usd, fetchedAt: now })
+      }
+    } catch {
+      // keep whatever (possibly stale) prices we have; callers get null for the rest
     }
   }
-  return result
+  return Object.fromEntries(wanted.map((s) => [s, fresh(s) ? pick(s) : null]))
 }
 
 /** Returns price per coin in the given currency, or null if unknown/unavailable. */
 export async function getCryptoPrice(symbol: string, currency: "EUR" | "USD" = "EUR"): Promise<number | null> {
-  try {
-    const now = Date.now()
-    if (!cryptoCache || now - cryptoCache.fetchedAt > CACHE_TTL_MS) {
-      const prices = await refreshCryptoPrices()
-      cryptoCache = { prices, fetchedAt: now }
-    }
-    const entry = cryptoCache.prices[symbol.toUpperCase()]
-    if (!entry) return null
-    return currency === "USD" ? entry.usd : entry.eur
-  } catch {
-    return null
-  }
+  return (await getCryptoPrices([symbol], currency))[symbol.toUpperCase()] ?? null
 }
 
 // ──────────────────────────────────────────────

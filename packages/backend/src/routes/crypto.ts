@@ -3,7 +3,7 @@ import { and, eq, inArray } from "drizzle-orm"
 import { db } from "../db"
 import { portfolios, portfolioMembers, cryptoTrades, cryptoAssets } from "../db/schema"
 import { getViewablePortfolioIds, getEditablePortfolioIds, toAccessContext, canEditPortfolio, canViewPortfolio } from "../services/accessControl"
-import { getCryptoPrice } from "../services/priceService"
+import { getCryptoPrices } from "../services/priceService"
 import { computeFifo, investmentSymbols } from "../services/fifo"
 import type { AuthUser } from "../middleware/auth"
 import { isOwnerOrAdmin } from "../middleware/guards"
@@ -65,9 +65,7 @@ app.get("/:id", async (c) => {
 
   const symbols = investmentSymbols(trades, portfolio.currency)
   const currency = portfolio.currency as "EUR" | "USD"
-  const prices = Object.fromEntries(
-    await Promise.all(symbols.map(async (s) => [s, await getCryptoPrice(s, currency)] as const)),
-  )
+  const prices = await getCryptoPrices(symbols, currency)
 
   const positions = symbols.map((symbol) => {
     const fifo = computeFifo(trades, symbol, portfolio.currency)

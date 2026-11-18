@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { Card, Th } from "../../components/ui"
 import type { AssetPosition, StockPosition } from "@argent/shared"
-import { fmtSymbolCur, pnlColor, pnlFmt } from "../../lib/format"
+import { fmtPrice, fmtSymbolCur, pnlColor, pnlFmt } from "../../lib/format"
 
 /**
  * The positions table of a crypto or stock portfolio: one row per symbol with cost basis,
@@ -44,9 +44,9 @@ const dividends = (pos: AssetPosition | StockPosition) => ("totalDividends" in p
           <td class="px-4 py-3 font-mono font-semibold text-indigo-700 dark:text-indigo-300">{{ pos.symbol }}</td>
           <td class="px-4 py-3 text-gray-700 dark:text-gray-300">{{ pos.name }}</td>
           <td class="px-4 py-3 text-right font-mono text-gray-900 dark:text-gray-100">{{ formatBalance(pos.balance) }}</td>
-          <td class="px-4 py-3 text-right font-mono text-gray-600 dark:text-gray-400">{{ fmtSymbolCur(pos.avgCostBasis, currency) }}</td>
+          <td class="px-4 py-3 text-right font-mono text-gray-600 dark:text-gray-400">{{ fmtPrice(pos.avgCostBasis, currency) }}</td>
           <td class="px-4 py-3 text-right font-mono text-gray-600 dark:text-gray-400">
-            <template v-if="pos.currentPrice != null">{{ fmtSymbolCur(pos.currentPrice, currency) }}</template>
+            <template v-if="pos.currentPrice != null">{{ fmtPrice(pos.currentPrice, currency) }}</template>
             <span v-else class="text-gray-300 dark:text-gray-600">—</span>
           </td>
           <td class="px-4 py-3 text-right font-mono text-gray-900 dark:text-gray-100">

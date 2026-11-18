@@ -41,6 +41,18 @@ export function fmtSymbolCur(n: number, currency: string): string {
   return (currency === "USD" ? "$" : "€") + fmt(n)
 }
 
+/**
+ * A price per unit (coin or share). Prices of 1 and up read like money (two decimals); smaller prices
+ * get as many decimals as needed to show four significant digits, so a coin worth 0.0000085 is not
+ * shown as 0,00. Trailing zeros are dropped (but never fewer than two decimals): `€0,0000085`.
+ */
+export function fmtPrice(n: number, currency: string): string {
+  const abs = Math.abs(n)
+  const decimals = abs === 0 || abs >= 1 ? 2 : Math.min(12, Math.max(2, Math.ceil(-Math.log10(abs)) + 3))
+  const body = n.toLocaleString(APP_LOCALE, { minimumFractionDigits: 2, maximumFractionDigits: decimals })
+  return (currency === "USD" ? "$" : "€") + body
+}
+
 /** Tailwind text colour for a profit/loss figure (green / red / neutral). */
 export function pnlColor(n: number): string {
   if (n > 0) return "text-green-600 dark:text-green-400"

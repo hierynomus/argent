@@ -159,6 +159,18 @@ describe("crypto page: positions and trades", () => {
     expect(screen.getByText("BTC")).toBeInTheDocument()
   })
 
+  test("sub-cent coins show their real price instead of 0,00", async () => {
+    await setup(cryptoDetail({
+      id: "p1", totalOpenCostEur: 5, totalCurrentValueEur: 8500, totalUnrealizedPnL: 8495, totalRealizedPnL: 0,
+      positions: [{ symbol: "SHIB", name: "Shiba Inu", assetForm: null, balance: 1_000_000_000, avgCostBasis: 0.000000005, totalCostEur: 5, realizedPnL: 0, currentPrice: 0.0000085, currentValueEur: 8500, unrealizedPnL: 8495 }],
+    }))
+    expect(await screen.findByText("Shiba Inu")).toBeInTheDocument()
+    expect(screen.getByText("€0,0000085")).toBeInTheDocument() // current price
+    expect(screen.getByText("€0,000000005")).toBeInTheDocument() // average cost
+    expect(screen.getAllByText("€8.500,00").length).toBeGreaterThan(0) // the total value is still money (tile + value column)
+    expect(screen.getByText("1.000.000.000")).toBeInTheDocument() // balance
+  })
+
   test("with no positions it says so", async () => {
     await setup(cryptoDetail({ id: "p1" }))
     expect(await screen.findByText(/No positions yet/)).toBeInTheDocument()
