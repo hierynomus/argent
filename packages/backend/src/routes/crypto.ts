@@ -7,6 +7,7 @@ import { getCryptoPrice } from "../services/priceService"
 import { computeFifo, investmentSymbols } from "../services/fifo"
 import type { AuthUser } from "../middleware/auth"
 import { isOwnerOrAdmin } from "../middleware/guards"
+import { groupBy } from "../lib/groupBy"
 import { validateJson } from "../middleware/validate"
 import { createPortfolioSchema, updatePortfolioSchema, addMemberSchema, createCryptoTradeSchema } from "@argent/shared"
 
@@ -22,20 +23,18 @@ app.get("/", async (c) => {
   if (ids.length === 0) return c.json([])
   const editableSet = new Set(editableIds)
   const rows = await db.select().from(portfolios).where(inArray(portfolios.id, ids)).orderBy(portfolios.name)
-  const result = await Promise.all(
-    rows.map(async (p) => {
-      const members = await db
-        .select({ groupName: portfolioMembers.groupName, role: portfolioMembers.role })
-        .from(portfolioMembers)
-        .where(eq(portfolioMembers.portfolioId, p.id))
-      return {
-        ...p,
-        members,
-        isOwner: isOwnerOrAdmin(p, user),
-        canEdit: editableSet.has(p.id),
-      }
-    })
-  )
+  // one query for all members, grouped here (instead of one query per portfolio)
+  const memberRows = await db
+    .select({ portfolioId: portfolioMembers.portfolioId, groupName: portfolioMembers.groupName, role: portfolioMembers.role })
+    .from(portfolioMembers)
+    .where(inArray(portfolioMembers.portfolioId, ids))
+  const membersOf = groupBy(memberRows, (m) => m.portfolioId)
+  const result = rows.map((p) => ({
+    ...p,
+    members: (membersOf.get(p.id) ?? []).map(({ groupName, role }) => ({ groupName, role })),
+    isOwner: isOwnerOrAdmin(p, user),
+    canEdit: editableSet.has(p.id),
+  }))
   return c.json(result)
 })
 

@@ -19,7 +19,7 @@ Verify everything with `bun run check` (type-check all packages + all tests + "m
 - [x] Extract owner-only / `requireAdmin` middleware instead of inline checks — `middleware/guards.ts` (`requireAdmin` on the admin router, `isOwnerOrAdmin` in the 5 shared-resource routes)
 - [ ] Route factory (or shared helpers) for shared resources: list-with-members, create, patch, owner delete, member add/remove (crypto/metals/stocks/mortgages/loans)
 - [ ] Extract `buildPositions(trades, assets, priceFn, currency)` shared by crypto + stocks routes
-- [ ] Fix N+1 member/part queries in list endpoints (one `inArray` query, group in memory)
+- [x] N+1 member/part/payment queries in the list endpoints: one `inArray` query per table, grouped in memory (`lib/groupBy.ts`)
 
 ## Validation and errors
 - [x] Runtime validation with zod + `@hono/zod-validator` on every JSON route; schemas live in `@argent/shared` and the `*Body` types are derived from them

@@ -6,6 +6,7 @@ import { computePartState } from "../services/amortization"
 import { getViewableMortgageIds, getEditableMortgageIds, toAccessContext, canEditMortgage } from "../services/accessControl"
 import type { AuthUser } from "../middleware/auth"
 import { isOwnerOrAdmin } from "../middleware/guards"
+import { groupBy } from "../lib/groupBy"
 import { validateJson } from "../middleware/validate"
 import { createDebtSchema, updateDebtSchema, createDebtPartSchema, updateDebtPartSchema, createDebtExtraPaymentSchema, addMemberSchema } from "@argent/shared"
 
@@ -54,41 +55,33 @@ app.get("/", async (c) => {
     .where(inArray(mortgages.id, ids))
     .orderBy(mortgages.name)
 
-  const result = await Promise.all(
-    rows.map(async (m) => {
-      const parts = await db
-        .select()
-        .from(mortgageParts)
-        .where(eq(mortgageParts.mortgageId, m.id))
-        .orderBy(mortgageParts.createdAt)
+  // three queries for everything (parts, extra payments, members), grouped here instead of per mortgage
+  const rowIds = rows.map((r) => r.id)
+  const allParts = await db.select().from(mortgageParts).where(inArray(mortgageParts.mortgageId, rowIds)).orderBy(mortgageParts.createdAt)
+  const allPayments = allParts.length === 0 ? [] : await db
+    .select().from(mortgageExtraPayments)
+    .where(inArray(mortgageExtraPayments.partId, allParts.map((p) => p.id)))
+    .orderBy(mortgageExtraPayments.paymentDate)
+  const allMembers = await db
+    .select({ mortgageId: mortgageMembers.mortgageId, groupName: mortgageMembers.groupName, role: mortgageMembers.role })
+    .from(mortgageMembers)
+    .where(inArray(mortgageMembers.mortgageId, rowIds))
+  const partsOf = groupBy(allParts, (p) => p.mortgageId)
+  const paymentsOf = groupBy(allPayments, (p) => p.partId)
+  const membersOf = groupBy(allMembers, (m) => m.mortgageId)
 
-      const paymentsByPart = await Promise.all(
-        parts.map((p) =>
-          db.select().from(mortgageExtraPayments)
-            .where(eq(mortgageExtraPayments.partId, p.id))
-            .orderBy(mortgageExtraPayments.paymentDate)
-        )
-      )
-
-      const members = await db
-        .select({ groupName: mortgageMembers.groupName, role: mortgageMembers.role })
-        .from(mortgageMembers)
-        .where(eq(mortgageMembers.mortgageId, m.id))
-
-      const enrichedParts = parts.map((part, i) => enrichPart(part, paymentsByPart[i] ?? []))
-      const totalCurrentBalance = enrichedParts.reduce((sum, p) => sum + p.currentBalance, 0)
-      const totalMonthlyPayment = enrichedParts.reduce((sum, p) => sum + p.monthlyPayment, 0)
-      return {
-        ...m,
-        parts: enrichedParts,
-        totalCurrentBalance,
-        totalMonthlyPayment,
-        members,
-        isOwner: isOwnerOrAdmin(m, user),
-        canEdit: editableSet.has(m.id),
-      }
-    })
-  )
+  const result = rows.map((m) => {
+    const enrichedParts = (partsOf.get(m.id) ?? []).map((part) => enrichPart(part, paymentsOf.get(part.id) ?? []))
+    return {
+      ...m,
+      parts: enrichedParts,
+      totalCurrentBalance: enrichedParts.reduce((sum, p) => sum + p.currentBalance, 0),
+      totalMonthlyPayment: enrichedParts.reduce((sum, p) => sum + p.monthlyPayment, 0),
+      members: (membersOf.get(m.id) ?? []).map(({ groupName, role }) => ({ groupName, role })),
+      isOwner: isOwnerOrAdmin(m, user),
+      canEdit: editableSet.has(m.id),
+    }
+  })
 
   return c.json(result)
 })
