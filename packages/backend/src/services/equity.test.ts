@@ -32,6 +32,14 @@ describe("vestedOptions", () => {
     expect(vestedOptions(grant({ options: 100, vestMonths: 36, cliffMonths: 0 }), "2022-02-01")).toBe(2.77) // 100/36 = 2.777…
   })
 
+  test("rounding is exact: values floats get wrong (0.29 × 100 = 28.999…) are not truncated a cent short", () => {
+    const full = { vestStart: "2022-01-01", cliffMonths: 0, vestMonths: 12 }
+    expect(vestedOptions(grant({ ...full, options: 1.15 }), "2023-01-01")).toBe(1.15) // 1.15 × 100 = 114.99999999999999
+    expect(vestedOptions(grant({ ...full, options: 0.29 }), "2023-01-01")).toBe(0.29)
+    expect(vestedOptions(grant({ ...full, options: 4.35 }), "2023-01-01")).toBe(4.35) // 4.35 × 100 = 434.99999999999994
+    expect(vestedOptions(grant({ ...full, options: 12.01 }), "2022-07-01")).toBe(6.00) // 6 months of 12.01 = 6.005, rounded down
+  })
+
   test("exit-only grants never vest over time", () => {
     expect(vestedOptions(grant({ vestingType: "exit", vestStart: null, vestMonths: null, cliffMonths: 0 }), "2030-01-01")).toBe(0)
   })

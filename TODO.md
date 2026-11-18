@@ -18,7 +18,7 @@ Verify everything with `bun run check` (type-check all packages + all tests + "m
 - [x] One generic access resolver instead of 8 near-identical functions; `canView*`/`canEdit*` single-resource checks; `toAccessContext(user)`
 - [x] Extract owner-only / `requireAdmin` middleware instead of inline checks — `middleware/guards.ts` (`requireAdmin` on the admin router, `isOwnerOrAdmin` in the 5 shared-resource routes)
 - [~] Shared-resource routes: `mountOwnerRoutes` (`routes/ownerRoutes.ts`) now provides owner delete + member add/remove for all 7 routers (404 for non-viewers, 403 for non-owners, portfolio kinds no longer mix). Still per-router: list-with-members, create, patch
-- [ ] Extract `buildPositions(trades, assets, priceFn, currency)` shared by crypto + stocks routes
+- [x] `buildPositions`/`summarizePositions` (`services/positions.ts`) shared by the crypto + stocks routes
 - [x] N+1 member/part/payment queries in the list endpoints: one `inArray` query per table, grouped in memory (`lib/groupBy.ts`)
 
 ## Validation and errors
@@ -41,7 +41,7 @@ Verify everything with `bun run check` (type-check all packages + all tests + "m
 - [x] Saving a blank account name was sent as "unchanged" although the API can clear it
 - [x] Icon-only "×" close button had no accessible name; form labels were not tied to their controls
 - [x] `import_hash` ignored the account and the debit/credit direction, so identical entries on two accounts collided and the second was silently skipped. Hash now includes both (and a 2-decimal amount); migration 0019 recomputes stored hashes in SQL; tests cover it. Still true: identical entries on the same account collapse.
-- [ ] Money as `float`: use a decimal lib (`decimal.js`/`big.js`) in `fifo.ts` and `amortization.ts`; centralize epsilon constants (`1e-10`, `1e-8`)
+- [x] Money precision: `services/money.ts` (decimal.js): exact FIFO, cent-rounded totals, exact oversell check, exact equity vesting rounding; epsilons centralized. Amortization still simulates in floats but rounds every step to cents with the decimal-exact `cents()`
 - [x] Currency-specific names are gone: `totalCostEur`→`totalCost`, `currentValueEur`→`currentValue`, `totalOpenCostEur`→`totalOpenCost`, `totalCurrentValueEur`→`totalCurrentValue` (backend, shared types, frontend, tests; portfolios can be USD)
 - [x] `linkPair` runs in a `db.transaction`, only touches still-unlinked rows and rolls back when the other leg was taken (both legs or neither)
 - [x] Date arithmetic is time-zone independent (`lib/dates.ts`: ISO date strings, UTC calendar): `addDays` used to be a day early across daylight-saving changes in Europe/Amsterdam (wrong next-payment dates for subscriptions); amortization no longer depends on the server's zone. `bun run test:tz` runs the date tests under 5 zones

@@ -1,11 +1,13 @@
+import { Decimal, cents } from "./money"
+
 export interface FifoResult {
   /** Remaining unconsumed units in the open position */
   balance: number
-  /** FIFO average cost per unit of the open position, in base currency */
+  /** FIFO average cost per unit of the open position, in base currency (not rounded: a coin can cost 0.000000005) */
   avgCostBasis: number
-  /** Total base-currency cost of the open position */
+  /** Total base-currency cost of the open position, in whole cents */
   totalCost: number
-  /** Realized P&L from all sales matched so far, in base currency */
+  /** Realized P&L from all sales matched so far, in base currency, in whole cents */
   realizedPnL: number
 }
 
@@ -19,6 +21,12 @@ interface Trade {
   baseCurrencyAmount?: string | null
 }
 
+/** A purchase not yet fully sold: what is left of it and what that remainder cost, in total (never per unit). */
+interface Lot {
+  quantity: Decimal
+  cost: Decimal
+}
+
 /**
  * FIFO cost-basis computation for a single asset symbol within a portfolio.
  *
@@ -28,64 +36,53 @@ interface Trade {
  *   Swap-in  = fromSymbol !== baseCurrency, toSymbol === symbol  (cost from baseCurrencyAmount)
  *   Swap-out = fromSymbol === symbol, toSymbol !== baseCurrency  (proceeds from baseCurrencyAmount)
  *
- * All amounts are strings (Drizzle numeric columns) and parsed here.
+ * All amounts are decimal strings (Drizzle numeric columns). The computation is exact: quantities and costs
+ * are `Decimal`s, and a lot's cost is kept as a total and taken in proportion when it is partly sold, so
+ * nothing is ever divided per unit and then multiplied back. Money results are rounded to cents at the end.
  */
-export function computeFifo(
-  trades: Trade[],
-  symbol: string,
-  baseCurrency: string,
-): FifoResult {
+export function computeFifo(trades: Trade[], symbol: string, baseCurrency: string): FifoResult {
   const sorted = [...trades].sort((a, b) => a.tradeDate.localeCompare(b.tradeDate))
 
   // Build FIFO buy queue — includes regular buys and swap-ins
-  const buyQueue = sorted
+  const lots: Lot[] = sorted
     .filter((t) => t.toSymbol === symbol && t.fromSymbol !== symbol)
-    .map((t) => {
-      const qty = parseFloat(t.toAmount)
-      let costPerUnit: number
-      if (t.fromSymbol === baseCurrency) {
-        // Regular buy: EUR paid ÷ units received
-        costPerUnit = parseFloat(t.fromAmount) / qty
-      } else {
-        // Swap-in: baseCurrencyAmount is the transferred cost basis
-        costPerUnit = t.baseCurrencyAmount != null ? parseFloat(t.baseCurrencyAmount) / qty : 0
-      }
-      return { remainingQty: qty, costPerUnit }
-    })
+    .map((t) => ({
+      quantity: new Decimal(t.toAmount),
+      // regular buy: the base currency paid; swap-in: the cost basis transferred with the coins
+      cost: t.fromSymbol === baseCurrency ? new Decimal(t.fromAmount) : new Decimal(t.baseCurrencyAmount ?? 0),
+    }))
 
   // Sells — includes regular sells and swap-outs
   const sells = sorted.filter((t) => t.fromSymbol === symbol && t.toSymbol !== symbol)
 
-  let realizedPnL = 0
+  let realized = new Decimal(0)
 
   for (const sell of sells) {
-    let remaining = parseFloat(sell.fromAmount)
-    let salePricePerUnit: number
-    if (sell.toSymbol === baseCurrency) {
-      // Regular sell
-      salePricePerUnit = parseFloat(sell.toAmount) / parseFloat(sell.fromAmount)
-    } else {
-      // Swap-out: baseCurrencyAmount = cost basis transferred (zero realized P&L)
-      salePricePerUnit = sell.baseCurrencyAmount != null
-        ? parseFloat(sell.baseCurrencyAmount) / parseFloat(sell.fromAmount)
-        : 0
-    }
+    const sold = new Decimal(sell.fromAmount)
+    if (sold.lte(0)) continue
+    // what the sale brought in, in total: regular sell → the base currency received;
+    // swap-out → the cost basis transferred (so a swap realises nothing)
+    const proceeds = sell.toSymbol === baseCurrency ? new Decimal(sell.toAmount) : new Decimal(sell.baseCurrencyAmount ?? 0)
 
-    while (remaining > 1e-10 && buyQueue.length > 0) {
-      const lot = buyQueue[0]
-      const consumed = Math.min(remaining, lot.remainingQty)
-      realizedPnL += consumed * (salePricePerUnit - lot.costPerUnit)
-      lot.remainingQty -= consumed
-      remaining -= consumed
-      if (lot.remainingQty < 1e-10) buyQueue.shift()
+    let remaining = sold
+    while (remaining.gt(0) && lots.length > 0) {
+      const lot = lots[0]
+      const consumed = Decimal.min(remaining, lot.quantity)
+      // the share of the lot's cost and of the sale's proceeds that belong to the units consumed
+      const costOfConsumed = lot.quantity.isZero() ? new Decimal(0) : lot.cost.times(consumed).div(lot.quantity)
+      realized = realized.plus(proceeds.times(consumed).div(sold)).minus(costOfConsumed)
+      lot.quantity = lot.quantity.minus(consumed)
+      lot.cost = lot.cost.minus(costOfConsumed)
+      remaining = remaining.minus(consumed)
+      if (lot.quantity.isZero()) lots.shift()
     }
   }
 
-  const balance = buyQueue.reduce((s, l) => s + l.remainingQty, 0)
-  const totalCost = buyQueue.reduce((s, l) => s + l.remainingQty * l.costPerUnit, 0)
-  const avgCostBasis = balance > 1e-10 ? totalCost / balance : 0
+  const balance = lots.reduce((s, l) => s.plus(l.quantity), new Decimal(0))
+  const totalCost = lots.reduce((s, l) => s.plus(l.cost), new Decimal(0))
+  const avgCostBasis = balance.gt(0) ? totalCost.div(balance) : new Decimal(0)
 
-  return { balance, avgCostBasis, totalCost, realizedPnL }
+  return { balance: balance.toNumber(), avgCostBasis: avgCostBasis.toNumber(), totalCost: cents(totalCost), realizedPnL: cents(realized) }
 }
 
 /** Returns all unique investment symbols in a trade list (non-baseCurrency symbols) */

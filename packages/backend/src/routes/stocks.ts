@@ -5,6 +5,8 @@ import { portfolios, portfolioMembers, stockTrades, stockAssets, stockDividends 
 import { getViewablePortfolioIds, getEditablePortfolioIds, toAccessContext, canEditPortfolio, canViewPortfolio } from "../services/accessControl"
 import { getStockPrice, getStockName, getStockHistory } from "../services/priceService"
 import { computeFifo, investmentSymbols } from "../services/fifo"
+import { buildPositions, summarizePositions } from "../services/positions"
+import { Decimal, cents, exceedsBalance } from "../services/money"
 import type { AuthUser } from "../middleware/auth"
 import { isOwnerOrAdmin } from "../middleware/guards"
 import { mountOwnerRoutes } from "./ownerRoutes"
@@ -90,43 +92,11 @@ app.get("/:id", async (c) => {
     await Promise.all(symbols.map(async (s) => [s, await getStockPrice(s, currency)] as const)),
   )
 
-  const positions = symbols.map((symbol) => {
-    const fifo = computeFifo(trades, symbol, portfolio.currency)
-    const asset = assets.find((a) => a.symbol === symbol)
-    const currentPrice = prices[symbol] ?? null
-    const currentValue = currentPrice !== null ? fifo.balance * currentPrice : null
-    const unrealizedPnL = currentValue !== null ? currentValue - fifo.totalCost : null
-    const totalDividends = dividends
-      .filter((d) => d.symbol === symbol)
-      .reduce((s, d) => s + parseFloat(d.amount), 0)
-    return {
-      symbol,
-      name: asset?.name ?? symbol,
-      assetForm: asset?.assetForm ?? null,
-      balance: fifo.balance,
-      avgCostBasis: fifo.avgCostBasis,
-      totalCost: fifo.totalCost,
-      realizedPnL: fifo.realizedPnL,
-      currentPrice,
-      currentValue,
-      unrealizedPnL,
-      totalDividends,
-    }
-  }).sort((a, b) => {
-    if (a.balance > 1e-10 && b.balance <= 1e-10) return -1
-    if (b.balance > 1e-10 && a.balance <= 1e-10) return 1
-    return a.symbol.localeCompare(b.symbol)
-  })
-
-  const totalOpenCost = positions.reduce((s, p) => s + p.totalCost, 0)
-  const allHavePrices = positions.some((p) => p.balance > 1e-10) &&
-    positions.filter((p) => p.balance > 1e-10).every((p) => p.currentValue !== null)
-  const totalCurrentValue = allHavePrices
-    ? positions.reduce((s, p) => s + (p.currentValue ?? 0), 0)
-    : null
-  const totalRealizedPnL = positions.reduce((s, p) => s + p.realizedPnL, 0)
-  const totalUnrealizedPnL = totalCurrentValue !== null ? totalCurrentValue - totalOpenCost : null
-  const totalDividends = dividends.reduce((s, d) => s + parseFloat(d.amount), 0)
+  const positions = buildPositions(trades, symbols, assets, prices, portfolio.currency, (symbol) => ({
+    totalDividends: cents(dividends.filter((d) => d.symbol === symbol).reduce((s, d) => s.plus(d.amount), new Decimal(0))),
+  }))
+  const { totalOpenCost, totalCurrentValue, totalRealizedPnL, totalUnrealizedPnL } = summarizePositions(positions)
+  const totalDividends = cents(dividends.reduce((s, d) => s.plus(d.amount), new Decimal(0)))
 
   const [members, editableIds] = await Promise.all([
     db.select({ groupName: portfolioMembers.groupName, role: portfolioMembers.role })
@@ -187,7 +157,7 @@ app.post("/:id/trades", validateJson(createStockTradeSchema), async (c) => {
   if (!isBuy) {
     const existingTrades = await db.select().from(stockTrades).where(eq(stockTrades.portfolioId, portfolioId))
     const fifo = computeFifo(existingTrades, symbol, baseCur)
-    if (parseFloat(body.quantity) > fifo.balance + 1e-8) {
+    if (exceedsBalance(body.quantity, fifo.balance)) {
       return c.json({ error: `Insufficient balance: have ${fifo.balance} ${symbol}` }, 400)
     }
   }

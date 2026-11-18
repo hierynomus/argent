@@ -206,6 +206,29 @@ describe("crypto trades", () => {
     expect(d.positions[0]).toMatchObject({ symbol: "NEWCOIN", currentPrice: 0.25, currentValue: 50 })
   })
 
+  test("the balance is exact: 0.1 + 0.2 bought can be sold as exactly 0.3, but not one unit (1e-8) more", async () => {
+    const id = await newPortfolio()
+    await trade(id, { fromSymbol: "EUR", fromAmount: "10", toSymbol: "BTC", toAmount: "0.1" })
+    await trade(id, { fromSymbol: "EUR", fromAmount: "20", toSymbol: "BTC", toAmount: "0.2" })
+    const tooMuch = await trade(id, { fromSymbol: "BTC", fromAmount: "0.30000001", toSymbol: "EUR", toAmount: "30" })
+    expect(tooMuch.status).toBe(400)
+    expect(tooMuch.body.error).toContain("Insufficient balance")
+    expect((await trade(id, { fromSymbol: "BTC", fromAmount: "0.3", toSymbol: "EUR", toAmount: "30" })).status).toBe(201)
+    const d = (await get(`/crypto/${id}`)).body
+    expect(d.positions[0]).toMatchObject({ balance: 0, totalCost: 0, realizedPnL: 0 }) // closed, with no 5.55e-17 left over
+    expect(d.totalOpenCost).toBe(0)
+  })
+
+  test("money in the response is whole cents, not float residue", async () => {
+    const id = await newPortfolio()
+    for (let i = 0; i < 10; i++) await trade(id, { fromSymbol: "EUR", fromAmount: "0.10", toSymbol: "BTC", toAmount: "0.001" })
+    const d = (await get(`/crypto/${id}`)).body
+    expect(d.totalOpenCost).toBe(1) // not 0.9999999999999999
+    expect(d.positions[0].totalCost).toBe(1)
+    expect(Number.isInteger(d.totalCurrentValue * 100)).toBe(true) // 0.01 BTC × 50000 = 500
+    expect(d.totalUnrealizedPnL).toBe(499)
+  })
+
   test("positions without a price still return, with null valuation", async () => {
     const id = await newPortfolio()
     await trade(id, { fromSymbol: "EUR", fromAmount: "100", toSymbol: "XRP", toAmount: "200" }) // not in the fake price feed
@@ -278,6 +301,17 @@ describe("stock trades & dividends", () => {
     expect(over.status).toBe(400)
     expect(over.body.error).toContain("Insufficient balance")
     expect((await trade(id, { type: "sell", symbol: "MSFT", quantity: "1", amount: "1" })).status).toBe(400)
+  })
+
+
+  test("the share balance is exact too: 0.1 + 0.2 bought sells as exactly 0.3, not 0.30000001", async () => {
+    const id = await newPortfolio("EUR")
+    await trade(id, { type: "buy", symbol: "AAPL", quantity: "0.1", amount: "10" })
+    await trade(id, { type: "buy", symbol: "AAPL", quantity: "0.2", amount: "20" })
+    expect((await trade(id, { type: "sell", symbol: "AAPL", quantity: "0.30000001", amount: "30" })).status).toBe(400)
+    expect((await trade(id, { type: "sell", symbol: "AAPL", quantity: "0.3", amount: "30" })).status).toBe(201)
+    const d = (await get(`/stocks/${id}`)).body
+    expect(d.positions[0]).toMatchObject({ balance: 0, totalCost: 0, realizedPnL: 0 })
   })
 
   test("validation", async () => {

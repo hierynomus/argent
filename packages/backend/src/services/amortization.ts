@@ -1,4 +1,5 @@
 import { addMonths, daysBetween, monthsBetween, todayIso } from "../lib/dates"
+import { cents } from "./money"
 
 export interface ExtraPayment {
   paymentDate: string  // ISO date "YYYY-MM-DD"
@@ -40,10 +41,6 @@ export function monthlyRate(annualRate: number, rateType: string = "nominal"): n
   return rateType === "effective" ? Math.pow(1 + annualRate, 1 / 12) - 1 : annualRate / 12
 }
 
-/** Round to the nearest cent (2 decimal places). */
-function cents(n: number): number {
-  return Math.round(n * 100) / 100
-}
 
 /**
  * Compute the current amortization state for a mortgage/loan part.

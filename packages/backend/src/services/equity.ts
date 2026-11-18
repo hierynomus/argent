@@ -1,4 +1,5 @@
 import { addMonths, completedMonths } from "../lib/dates"
+import { Decimal } from "./money"
 
 export interface GrantInput {
   options: number
@@ -11,14 +12,14 @@ export interface GrantInput {
 /**
  * Options vested on `today` (ISO date). Exit-only grants never vest here (they pay out on an exit).
  * Time vesting is monthly: nothing before the cliff, then every completed month since the start counts,
- * up to the full vesting period (the cliff releases what has built up by then). Rounded down to 1/100.
+ * up to the full vesting period (the cliff releases what has built up by then). Rounded down to 1/100 of an option.
  */
 export function vestedOptions(g: GrantInput, today: string): number {
   if (g.vestingType !== "time" || !g.vestStart || !g.vestMonths) return 0
   const months = completedMonths(g.vestStart, today)
   if (months < g.cliffMonths) return 0
-  const fraction = Math.min(1, months / g.vestMonths)
-  return Math.floor(g.options * fraction * 100 + 1e-9) / 100
+  // options × months ÷ total, exact, then rounded DOWN to 1/100 (no float fudge needed)
+  return new Decimal(g.options).times(Math.min(months, g.vestMonths)).div(g.vestMonths).toDecimalPlaces(2, Decimal.ROUND_DOWN).toNumber()
 }
 
 /** The date more options vest next (the cliff, then each month); null when fully vested or exit-only. */

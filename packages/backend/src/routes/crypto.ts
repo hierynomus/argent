@@ -5,6 +5,8 @@ import { portfolios, portfolioMembers, cryptoTrades, cryptoAssets } from "../db/
 import { getViewablePortfolioIds, getEditablePortfolioIds, toAccessContext, canEditPortfolio, canViewPortfolio } from "../services/accessControl"
 import { getCryptoPrices, getCryptoHistory, PriceProviderError } from "../services/priceService"
 import { computeFifo, investmentSymbols } from "../services/fifo"
+import { buildPositions, summarizePositions } from "../services/positions"
+import { exceedsBalance } from "../services/money"
 import type { AuthUser } from "../middleware/auth"
 import { isOwnerOrAdmin } from "../middleware/guards"
 import { mountOwnerRoutes } from "./ownerRoutes"
@@ -85,38 +87,8 @@ app.get("/:id", async (c) => {
   const currency = portfolio.currency as "EUR" | "USD"
   const prices = await getCryptoPrices(symbols, currency)
 
-  const positions = symbols.map((symbol) => {
-    const fifo = computeFifo(trades, symbol, portfolio.currency)
-    const asset = assets.find((a) => a.symbol === symbol)
-    const currentPrice = prices[symbol] ?? null
-    const currentValue = currentPrice !== null ? fifo.balance * currentPrice : null
-    const unrealizedPnL = currentValue !== null ? currentValue - fifo.totalCost : null
-    return {
-      symbol,
-      name: asset?.name ?? symbol,
-      assetForm: asset?.assetForm ?? null,
-      balance: fifo.balance,
-      avgCostBasis: fifo.avgCostBasis,
-      totalCost: fifo.totalCost,
-      realizedPnL: fifo.realizedPnL,
-      currentPrice,
-      currentValue,
-      unrealizedPnL,
-    }
-  }).sort((a, b) => {
-    if (a.balance > 1e-10 && b.balance <= 1e-10) return -1
-    if (b.balance > 1e-10 && a.balance <= 1e-10) return 1
-    return a.symbol.localeCompare(b.symbol)
-  })
-
-  const totalOpenCost = positions.reduce((s, p) => s + p.totalCost, 0)
-  const allHavePrices = positions.some((p) => p.balance > 1e-10) &&
-    positions.filter((p) => p.balance > 1e-10).every((p) => p.currentValue !== null)
-  const totalCurrentValue = allHavePrices
-    ? positions.reduce((s, p) => s + (p.currentValue ?? 0), 0)
-    : null
-  const totalRealizedPnL = positions.reduce((s, p) => s + p.realizedPnL, 0)
-  const totalUnrealizedPnL = totalCurrentValue !== null ? totalCurrentValue - totalOpenCost : null
+  const positions = buildPositions(trades, symbols, assets, prices, portfolio.currency)
+  const { totalOpenCost, totalCurrentValue, totalRealizedPnL, totalUnrealizedPnL } = summarizePositions(positions)
 
   const [members, editableIds] = await Promise.all([
     db.select({ groupName: portfolioMembers.groupName, role: portfolioMembers.role })
@@ -178,7 +150,7 @@ app.post("/:id/trades", validateJson(createCryptoTradeSchema), async (c) => {
   if (isSell || isSwap) {
     const existingTrades = await db.select().from(cryptoTrades).where(eq(cryptoTrades.portfolioId, portfolioId))
     const fifo = computeFifo(existingTrades, fromSym, baseCur)
-    if (parseFloat(body.fromAmount) > fifo.balance + 1e-8) {
+    if (exceedsBalance(body.fromAmount, fifo.balance)) {
       return c.json({ error: `Insufficient balance: have ${fifo.balance} ${fromSym}` }, 400)
     }
   }
