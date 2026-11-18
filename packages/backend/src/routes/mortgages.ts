@@ -5,6 +5,7 @@ import { mortgages, mortgageParts, mortgageExtraPayments, mortgageMembers } from
 import { computePartState } from "../services/amortization"
 import { getViewableMortgageIds, getEditableMortgageIds, toAccessContext, canEditMortgage } from "../services/accessControl"
 import type { AuthUser } from "../middleware/auth"
+import { isOwnerOrAdmin } from "../middleware/guards"
 import { validateJson } from "../middleware/validate"
 import { createDebtSchema, updateDebtSchema, createDebtPartSchema, updateDebtPartSchema, createDebtExtraPaymentSchema, addMemberSchema } from "@argent/shared"
 
@@ -83,7 +84,7 @@ app.get("/", async (c) => {
         totalCurrentBalance,
         totalMonthlyPayment,
         members,
-        isOwner: m.ownerSub === user.sub || user.isAdmin,
+        isOwner: isOwnerOrAdmin(m, user),
         canEdit: editableSet.has(m.id),
       }
     })
@@ -124,7 +125,7 @@ app.delete("/:id", async (c) => {
   const id = c.req.param("id")
   const existing = await db.query.mortgages.findFirst({ where: (m, { eq }) => eq(m.id, id) })
   if (!existing) return c.json({ error: "Not found" }, 404)
-  if (existing.ownerSub !== user.sub && !user.isAdmin) return c.json({ error: "Forbidden" }, 403)
+  if (!isOwnerOrAdmin(existing, user)) return c.json({ error: "Forbidden" }, 403)
   await db.delete(mortgages).where(eq(mortgages.id, id))
   return c.body(null, 204)
 })
@@ -236,7 +237,7 @@ app.post("/:id/members", validateJson(addMemberSchema), async (c) => {
   const mortgageId = c.req.param("id")
   const mortgage = await db.query.mortgages.findFirst({ where: (m, { eq }) => eq(m.id, mortgageId) })
   if (!mortgage) return c.json({ error: "Not found" }, 404)
-  if (mortgage.ownerSub !== user.sub && !user.isAdmin) return c.json({ error: "Forbidden" }, 403)
+  if (!isOwnerOrAdmin(mortgage, user)) return c.json({ error: "Forbidden" }, 403)
 
   const body = c.req.valid("json")
   const role = body.role ?? "viewer"
@@ -258,7 +259,7 @@ app.delete("/:id/members/:groupName", async (c) => {
   const { id: mortgageId, groupName } = c.req.param()
   const mortgage = await db.query.mortgages.findFirst({ where: (m, { eq }) => eq(m.id, mortgageId) })
   if (!mortgage) return c.json({ error: "Not found" }, 404)
-  if (mortgage.ownerSub !== user.sub && !user.isAdmin) return c.json({ error: "Forbidden" }, 403)
+  if (!isOwnerOrAdmin(mortgage, user)) return c.json({ error: "Forbidden" }, 403)
 
   await db.delete(mortgageMembers)
     .where(and(eq(mortgageMembers.mortgageId, mortgageId), eq(mortgageMembers.groupName, groupName)))

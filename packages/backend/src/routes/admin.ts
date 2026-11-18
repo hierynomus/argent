@@ -28,15 +28,17 @@ import {
   loanMembers,
 } from "../db/schema"
 import type { AuthUser } from "../middleware/auth"
+import { requireAdmin } from "../middleware/guards"
 import { validateJson } from "../middleware/validate"
 import { setAccountOwnerSchema, addMemberSchema } from "@argent/shared"
 
 const app = new Hono<{ Variables: { user: AuthUser } }>()
 
+// everything here is admin-only
+app.use("*", requireAdmin)
+
 // GET /api/admin/accounts — all accounts with their member list and resolved owner profile
 app.get("/accounts", async (c) => {
-  if (!c.get("user").isAdmin) return c.json({ error: "Forbidden" }, 403)
-
   const allAccounts = await db.select().from(accounts).orderBy(accounts.iban)
 
   const result = await Promise.all(
@@ -63,8 +65,6 @@ app.get("/accounts", async (c) => {
 
 // PATCH /api/admin/accounts/:id — update ownerSub (ownership transfer)
 app.patch("/accounts/:id", validateJson(setAccountOwnerSchema), async (c) => {
-  if (!c.get("user").isAdmin) return c.json({ error: "Forbidden" }, 403)
-
   const { ownerSub } = c.req.valid("json")
 
   const [updated] = await db
@@ -79,8 +79,6 @@ app.patch("/accounts/:id", validateJson(setAccountOwnerSchema), async (c) => {
 
 // POST /api/admin/accounts/:id/members — grant a group access to an account
 app.post("/accounts/:id/members", validateJson(addMemberSchema), async (c) => {
-  if (!c.get("user").isAdmin) return c.json({ error: "Forbidden" }, 403)
-
   const accountId = c.req.param("id")
   const { groupName, role } = c.req.valid("json")
   const memberRole = role ?? "viewer"
@@ -98,8 +96,6 @@ app.post("/accounts/:id/members", validateJson(addMemberSchema), async (c) => {
 
 // DELETE /api/admin/accounts/:id/members/:groupName — revoke a group's access
 app.delete("/accounts/:id/members/:groupName", async (c) => {
-  if (!c.get("user").isAdmin) return c.json({ error: "Forbidden" }, 403)
-
   const accountId = c.req.param("id")
   const groupName = c.req.param("groupName")
 
@@ -112,8 +108,6 @@ app.delete("/accounts/:id/members/:groupName", async (c) => {
 
 // GET /api/admin/sharing — consolidated read-only view of all sharing (portfolios, mortgages, loans)
 app.get("/sharing", async (c) => {
-  if (!c.get("user").isAdmin) return c.json({ error: "Forbidden" }, 403)
-
   const [
     allPortfolios,
     allPortfolioMembers,
@@ -166,8 +160,6 @@ app.get("/sharing", async (c) => {
 
 // GET /api/admin/backup — export all data as a JSON file
 app.get("/backup", async (c) => {
-  if (!c.get("user").isAdmin) return c.json({ error: "Forbidden" }, 403)
-
   const [
     allAccounts,
     allAccountMembers,
@@ -288,8 +280,6 @@ const restoreSchema = z.looseObject({
 
 // POST /api/admin/restore — wipe all data and restore from a backup JSON
 app.post("/restore", validateJson(restoreSchema), async (c) => {
-  if (!c.get("user").isAdmin) return c.json({ error: "Forbidden" }, 403)
-
   const body = c.req.valid("json")
 
   type Backup = {

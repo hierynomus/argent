@@ -1,4 +1,5 @@
 import { Hono } from "hono"
+import { config } from "./config"
 import { cors } from "hono/cors"
 import { logger } from "hono/logger"
 import { HTTPException } from "hono/http-exception"
@@ -34,7 +35,7 @@ export function createApp({
   if (logRequests) app.use(logger())
   app.use(
     cors({
-      origin: process.env.CORS_ORIGIN ?? "http://localhost:5173",
+      origin: config.corsOrigin,
       credentials: true,
     })
   )

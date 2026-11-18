@@ -6,6 +6,7 @@ import { getViewablePortfolioIds, getEditablePortfolioIds, toAccessContext, canE
 import { getStockPrice, getStockName } from "../services/priceService"
 import { computeFifo, investmentSymbols } from "../services/fifo"
 import type { AuthUser } from "../middleware/auth"
+import { isOwnerOrAdmin } from "../middleware/guards"
 import { validateJson } from "../middleware/validate"
 import { createPortfolioSchema, updatePortfolioSchema, addMemberSchema, createStockTradeSchema, createStockDividendSchema } from "@argent/shared"
 
@@ -30,7 +31,7 @@ app.get("/", async (c) => {
       return {
         ...p,
         members,
-        isOwner: p.ownerSub === user.sub || user.isAdmin,
+        isOwner: isOwnerOrAdmin(p, user),
         canEdit: editableSet.has(p.id),
       }
     })
@@ -135,7 +136,7 @@ app.get("/:id", async (c) => {
     totalUnrealizedPnL,
     totalDividends,
     members,
-    isOwner: portfolio.ownerSub === user.sub || user.isAdmin,
+    isOwner: isOwnerOrAdmin(portfolio, user),
     canEdit: editableIds.includes(id),
   })
 })
@@ -165,7 +166,7 @@ app.delete("/:id", async (c) => {
   const portfolio = await db.query.portfolios.findFirst({ where: (p, { eq }) => eq(p.id, id) })
   if (!portfolio) return c.json({ error: "Not found" }, 404)
   if (!(await canViewPortfolio(toAccessContext(user), "stocks", id))) return c.json({ error: "Not found" }, 404)
-  if (portfolio.ownerSub !== user.sub && !user.isAdmin) return c.json({ error: "Forbidden" }, 403)
+  if (!isOwnerOrAdmin(portfolio, user)) return c.json({ error: "Forbidden" }, 403)
 
   await db.delete(portfolios).where(eq(portfolios.id, id))
   return c.body(null, 204)
@@ -177,7 +178,7 @@ app.post("/:id/members", validateJson(addMemberSchema), async (c) => {
   const portfolioId = c.req.param("id")
   const portfolio = await db.query.portfolios.findFirst({ where: (p, { eq }) => eq(p.id, portfolioId) })
   if (!portfolio) return c.json({ error: "Not found" }, 404)
-  if (portfolio.ownerSub !== user.sub && !user.isAdmin) return c.json({ error: "Forbidden" }, 403)
+  if (!isOwnerOrAdmin(portfolio, user)) return c.json({ error: "Forbidden" }, 403)
 
   const body = c.req.valid("json")
   const role = body.role ?? "viewer"
@@ -199,7 +200,7 @@ app.delete("/:id/members/:groupName", async (c) => {
   const { id: portfolioId, groupName } = c.req.param()
   const portfolio = await db.query.portfolios.findFirst({ where: (p, { eq }) => eq(p.id, portfolioId) })
   if (!portfolio) return c.json({ error: "Not found" }, 404)
-  if (portfolio.ownerSub !== user.sub && !user.isAdmin) return c.json({ error: "Forbidden" }, 403)
+  if (!isOwnerOrAdmin(portfolio, user)) return c.json({ error: "Forbidden" }, 403)
 
   await db.delete(portfolioMembers)
     .where(and(eq(portfolioMembers.portfolioId, portfolioId), eq(portfolioMembers.groupName, groupName)))

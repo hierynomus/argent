@@ -5,6 +5,7 @@ import { loans, loanParts, loanExtraPayments, loanMembers } from "../db/schema"
 import { computePartState } from "../services/amortization"
 import { getViewableLoanIds, getEditableLoanIds, toAccessContext, canEditLoan } from "../services/accessControl"
 import type { AuthUser } from "../middleware/auth"
+import { isOwnerOrAdmin } from "../middleware/guards"
 import { validateJson } from "../middleware/validate"
 import { createDebtSchema, updateDebtSchema, createDebtPartSchema, updateDebtPartSchema, createDebtExtraPaymentSchema, addMemberSchema } from "@argent/shared"
 
@@ -83,7 +84,7 @@ app.get("/", async (c) => {
         totalCurrentBalance,
         totalMonthlyPayment,
         members,
-        isOwner: l.ownerSub === user.sub || user.isAdmin,
+        isOwner: isOwnerOrAdmin(l, user),
         canEdit: editableSet.has(l.id),
       }
     })
@@ -124,7 +125,7 @@ app.delete("/:id", async (c) => {
   const id = c.req.param("id")
   const existing = await db.query.loans.findFirst({ where: (l, { eq }) => eq(l.id, id) })
   if (!existing) return c.json({ error: "Not found" }, 404)
-  if (existing.ownerSub !== user.sub && !user.isAdmin) return c.json({ error: "Forbidden" }, 403)
+  if (!isOwnerOrAdmin(existing, user)) return c.json({ error: "Forbidden" }, 403)
   await db.delete(loans).where(eq(loans.id, id))
   return c.body(null, 204)
 })
@@ -236,7 +237,7 @@ app.post("/:id/members", validateJson(addMemberSchema), async (c) => {
   const loanId = c.req.param("id")
   const loan = await db.query.loans.findFirst({ where: (l, { eq }) => eq(l.id, loanId) })
   if (!loan) return c.json({ error: "Not found" }, 404)
-  if (loan.ownerSub !== user.sub && !user.isAdmin) return c.json({ error: "Forbidden" }, 403)
+  if (!isOwnerOrAdmin(loan, user)) return c.json({ error: "Forbidden" }, 403)
 
   const body = c.req.valid("json")
   const role = body.role ?? "viewer"
@@ -258,7 +259,7 @@ app.delete("/:id/members/:groupName", async (c) => {
   const { id: loanId, groupName } = c.req.param()
   const loan = await db.query.loans.findFirst({ where: (l, { eq }) => eq(l.id, loanId) })
   if (!loan) return c.json({ error: "Not found" }, 404)
-  if (loan.ownerSub !== user.sub && !user.isAdmin) return c.json({ error: "Forbidden" }, 403)
+  if (!isOwnerOrAdmin(loan, user)) return c.json({ error: "Forbidden" }, 403)
 
   await db.delete(loanMembers)
     .where(and(eq(loanMembers.loanId, loanId), eq(loanMembers.groupName, groupName)))

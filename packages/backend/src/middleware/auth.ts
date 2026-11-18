@@ -2,6 +2,7 @@ import { createMiddleware } from "hono/factory"
 import { createRemoteJWKSet, jwtVerify } from "jose"
 import { db } from "../db"
 import { userProfiles } from "../db/schema"
+import { config } from "../config"
 
 export interface AuthUser {
   sub: string
@@ -12,8 +13,8 @@ export interface AuthUser {
   canImport: boolean
 }
 
-const ADMIN_GROUP = process.env.AUTHENTIK_ADMIN_GROUP ?? "argent-admin"
-const IMPORT_GROUP = process.env.AUTHENTIK_IMPORT_GROUP ?? "argent-import"
+const ADMIN_GROUP = config.adminGroup
+const IMPORT_GROUP = config.importGroup
 
 // In-process session tracker: sub → last-synced iat (JWT issued-at)
 // Avoids a DB write on every request — only syncs once per login session.
@@ -36,7 +37,7 @@ function syncProfileOnce(sub: string, email: string | null, name: string | null,
 // ── Fake auth (local dev) ────────────────────────────────────────────────────
 // Set AUTH_MODE=fake to bypass JWT validation entirely. The middleware will
 // inject a static dev user so every request is treated as authenticated.
-if (process.env.AUTH_MODE === "fake") {
+if (config.authMode === "fake") {
   console.warn("[auth] AUTH_MODE=fake — JWT validation disabled. Do not use in production.")
 }
 
@@ -59,10 +60,7 @@ const fakeAuthMiddleware = createMiddleware<{
 
 // ── Real auth (JWKS) ─────────────────────────────────────────────────────────
 function createRealAuthMiddleware() {
-  const AUTHENTIK_ISSUER = process.env.AUTHENTIK_ISSUER
-  if (!AUTHENTIK_ISSUER) {
-    throw new Error("AUTHENTIK_ISSUER environment variable is required")
-  }
+  const AUTHENTIK_ISSUER = config.issuer! // loadConfig guarantees it for OIDC mode
 
   const JWKS = createRemoteJWKSet(new URL(`${AUTHENTIK_ISSUER}/jwks/`))
 
@@ -105,4 +103,4 @@ function createRealAuthMiddleware() {
 }
 
 export const authMiddleware =
-  process.env.AUTH_MODE === "fake" ? fakeAuthMiddleware : createRealAuthMiddleware()
+  config.authMode === "fake" ? fakeAuthMiddleware : createRealAuthMiddleware()

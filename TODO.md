@@ -16,7 +16,7 @@ Verify everything with `bun run check` (type-check all packages + all tests + "m
 
 ## Access control / backend coupling
 - [x] One generic access resolver instead of 8 near-identical functions; `canView*`/`canEdit*` single-resource checks; `toAccessContext(user)`
-- [ ] Extract owner-only / `requireAdmin` middleware instead of inline checks
+- [x] Extract owner-only / `requireAdmin` middleware instead of inline checks — `middleware/guards.ts` (`requireAdmin` on the admin router, `isOwnerOrAdmin` in the 5 shared-resource routes)
 - [ ] Route factory (or shared helpers) for shared resources: list-with-members, create, patch, owner delete, member add/remove (crypto/metals/stocks/mortgages/loans)
 - [ ] Extract `buildPositions(trades, assets, priceFn, currency)` shared by crypto + stocks routes
 - [ ] Fix N+1 member/part queries in list endpoints (one `inArray` query, group in memory)
@@ -56,9 +56,9 @@ Verify everything with `bun run check` (type-check all packages + all tests + "m
 ## Background jobs / ops
 - [~] Job runner: sequential, no overlap, errors logged (`services/backgroundJobs.ts`). Still open: named per-job scheduling/enable flags
 - [ ] Advisory lock (`pg_try_advisory_lock`) before running jobs with multiple replicas
-- [ ] Central validated `config.ts` for env vars
-- [ ] Resolve group naming mismatch (`argent-admin` code default vs `finance-admin` dev env); fail on startup in production if unset
-- [ ] Refuse `AUTH_MODE=fake` when `NODE_ENV=production`
+- [x] Central validated `config.ts` for env vars — `src/config.ts`, `loadConfig` with tests
+- [x] Resolve group naming mismatch (`argent-admin` code default vs `finance-admin` dev env); fail on startup in production if unset — production now requires `AUTHENTIK_ADMIN_GROUP`/`AUTHENTIK_IMPORT_GROUP`/`CORS_ORIGIN` (added to `k8s/secrets.yaml`)
+- [x] Refuse `AUTH_MODE=fake` when `NODE_ENV=production`
 - [ ] Log instead of swallowing errors in `syncProfileOnce`
 - [ ] Table registry driving backup/restore and the sharing overview (no hand-listed 23-table type; `BACKUP_TABLES` in `admin.ts` is a first step)
 
