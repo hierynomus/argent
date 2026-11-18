@@ -1,4 +1,5 @@
 export { default as Badge } from "./Badge.vue"
+export { default as Card } from "./Card.vue"
 export { default as Button, type ButtonVariant } from "./Button.vue"
 export { default as ConfirmButton } from "./ConfirmButton.vue"
 export { default as EmptyState } from "./EmptyState.vue"

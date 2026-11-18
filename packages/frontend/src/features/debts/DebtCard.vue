@@ -3,7 +3,7 @@ import { ref } from "vue"
 import { useMutation } from "@tanstack/vue-query"
 import { debtApis, useInvalidate, type Debt, type DebtKind } from "../../api"
 import SharingPanel from "../../components/SharingPanel.vue"
-import { Button, ConfirmButton } from "../../components/ui"
+import { Button, Card, ConfirmButton } from "../../components/ui"
 import { fmtCur } from "../../lib/format"
 import AddPartForm from "./AddPartForm.vue"
 import { DEBT_KINDS } from "./config"
@@ -34,7 +34,7 @@ const refresh = () => invalidate.debts(props.kind)
 </script>
 
 <template>
-  <div class="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 overflow-hidden">
+  <Card size="xl" class="overflow-hidden">
     <div class="px-6 py-5 border-b border-gray-100 dark:border-gray-800 flex items-start justify-between gap-4">
       <div>
         <p class="text-lg font-semibold text-gray-900 dark:text-gray-100">{{ debt.name }}</p>
@@ -89,5 +89,5 @@ const refresh = () => invalidate.debts(props.kind)
         <ConfirmButton :label="`Delete ${noun}`" :prompt="`Delete ${noun}?`" @confirm="remove.mutate()" />
       </div>
     </div>
-  </div>
+  </Card>
 </template>

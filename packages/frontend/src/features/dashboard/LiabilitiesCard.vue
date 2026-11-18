@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { Card } from "../../components/ui"
 import { computed } from "vue"
 import { fmtCur } from "../../lib/format"
 
@@ -7,7 +8,7 @@ const hasAny = computed(() => props.mortgageCount > 0 || props.loanCount > 0)
 </script>
 
 <template>
-  <div class="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-6">
+  <Card size="xl" class="p-6">
     <p class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4">Liabilities</p>
     <p v-if="!hasAny" class="text-sm text-gray-400 dark:text-gray-500">No mortgages or loans recorded.</p>
     <div v-else class="space-y-3">
@@ -33,5 +34,5 @@ const hasAny = computed(() => props.mortgageCount > 0 || props.loanCount > 0)
         </div>
       </div>
     </div>
-  </div>
+  </Card>
 </template>

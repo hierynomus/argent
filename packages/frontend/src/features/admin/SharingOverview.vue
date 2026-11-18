@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue"
 import type { AdminSharingResponse } from "@argent/shared"
-import { RoleBadge } from "../../components/ui"
+import { Card, RoleBadge } from "../../components/ui"
 
 /** Read-only view of every shared portfolio / mortgage / loan and the groups it is shared with. */
 const props = defineProps<{ sharing: AdminSharingResponse }>()
@@ -20,11 +20,11 @@ const TH = "px-5 py-2 text-left"
 </script>
 
 <template>
-  <div v-if="!hasAny" class="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 px-5 py-10 text-center text-gray-400 dark:text-gray-500 text-sm">
+  <Card v-if="!hasAny" class="px-5 py-10 text-center text-gray-400 dark:text-gray-500 text-sm">
     No resources are shared with groups yet.
-  </div>
+  </Card>
   <div v-else class="space-y-6">
-    <div v-for="s in sections" :key="s.title" class="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+    <Card v-for="s in sections" :key="s.title" class="overflow-hidden">
       <div class="px-5 py-3 border-b border-gray-100 dark:border-gray-800"><p class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ s.title }}</p></div>
       <table class="w-full text-sm">
         <thead>
@@ -46,6 +46,6 @@ const TH = "px-5 py-2 text-left"
           </template>
         </tbody>
       </table>
-    </div>
+    </Card>
   </div>
 </template>

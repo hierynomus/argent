@@ -3,7 +3,7 @@ import { ref } from "vue"
 import { useMutation } from "@tanstack/vue-query"
 import { portfolioApis, useInvalidate, type PortfolioKind } from "../../api"
 import SharingPanel, { type SharingMember } from "../../components/SharingPanel.vue"
-import { Button, ConfirmButton } from "../../components/ui"
+import { Button, Card, ConfirmButton } from "../../components/ui"
 
 /** Owner-only footer of a portfolio: share it with groups, or delete it. */
 const props = defineProps<{ kind: PortfolioKind; portfolio: { id: string; members: SharingMember[] } }>()
@@ -23,7 +23,7 @@ const remove = useMutation({
 </script>
 
 <template>
-  <div class="mt-4 bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+  <Card class="mt-4 overflow-hidden">
     <div class="px-4 py-3 flex items-center justify-between border-b border-gray-100 dark:border-gray-800">
       <Button variant="muted-link" @click="showAccess = !showAccess">{{ showAccess ? "Hide access" : "Share" }}</Button>
       <div class="flex items-center gap-3">
@@ -38,5 +38,5 @@ const remove = useMutation({
         :remove-member="(group) => portfolioApis[kind].removeMember(portfolio.id, group).then(refresh)"
       />
     </div>
-  </div>
+  </Card>
 </template>

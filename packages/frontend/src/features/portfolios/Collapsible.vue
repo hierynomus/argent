@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { Card } from "../../components/ui"
 import { ref } from "vue"
 
 /** A card whose header toggles its content (used for trade / dividend history). */
@@ -7,7 +8,7 @@ const open = ref(false)
 </script>
 
 <template>
-  <div class="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+  <Card class="overflow-hidden">
     <button
       type="button"
       :aria-expanded="open"
@@ -20,5 +21,5 @@ const open = ref(false)
       </svg>
     </button>
     <div v-if="open" class="overflow-x-auto border-t border-gray-100 dark:border-gray-800"><slot /></div>
-  </div>
+  </Card>
 </template>

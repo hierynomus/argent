@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { Card } from "../../components/ui"
 import { computed } from "vue"
 import { RouterLink } from "vue-router"
 import { fmtCur, fmtDayMonth } from "../../lib/format"
@@ -21,7 +22,7 @@ const visible = computed(() => props.transactions.filter((t) => !t.transferPeerI
 </script>
 
 <template>
-  <div class="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-6">
+  <Card size="xl" class="p-6">
     <div class="flex items-center justify-between mb-4">
       <p class="text-sm font-semibold text-gray-700 dark:text-gray-300">Recent Transactions</p>
       <RouterLink to="/overview" class="text-xs text-indigo-600 dark:text-indigo-400 hover:underline font-medium">View all →</RouterLink>
@@ -43,5 +44,5 @@ const visible = computed(() => props.transactions.filter((t) => !t.transferPeerI
         </span>
       </div>
     </div>
-  </div>
+  </Card>
 </template>

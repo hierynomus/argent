@@ -3,7 +3,7 @@ import { computed, reactive, ref } from "vue"
 import { useMutation } from "@tanstack/vue-query"
 import { createDebtSchema } from "@argent/shared"
 import { debtApis, useDebts, useInvalidate, type DebtKind } from "../../api"
-import { Button, EmptyState, ErrorText, Field, FieldGroup, Input, LoadingText, SegmentedControl } from "../../components/ui"
+import { Button, Card, EmptyState, ErrorText, Field, FieldGroup, Input, LoadingText, SegmentedControl } from "../../components/ui"
 import { useFormErrors } from "../../lib/validate"
 import { DEBT_KINDS } from "./config"
 import DebtCard from "./DebtCard.vue"
@@ -38,7 +38,7 @@ const create = useMutation({
       <Button v-if="!showCreate" size="md" class="rounded-lg" @click="showCreate = true">+ New {{ cfg.noun }}</Button>
     </div>
 
-    <div v-if="showCreate" class="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 px-6 py-5">
+    <Card size="xl" v-if="showCreate" class="px-6 py-5">
       <p class="text-sm font-medium text-gray-700 dark:text-gray-300 mb-4">New {{ cfg.noun }}</p>
       <div class="flex gap-3 flex-wrap items-end">
         <Field label="Name" :error="errors.name">
@@ -51,7 +51,7 @@ const create = useMutation({
         <Button variant="secondary" @click="showCreate = false">Cancel</Button>
       </div>
       <ErrorText :error="create.error.value" />
-    </div>
+    </Card>
 
     <EmptyState v-if="debts.length === 0 && !showCreate" :title="`No ${cfg.noun}s yet.`" :hint="cfg.emptyHint" />
     <div v-else class="space-y-6">

@@ -2,7 +2,7 @@
 import { computed, ref } from "vue"
 import { useMutation } from "@tanstack/vue-query"
 import { runSubscriptionDetection, useAccounts, useInvalidate, useSubscriptions } from "../api"
-import { Button, EmptyState, LoadingText } from "../components/ui"
+import { Button, Card, EmptyState, LoadingText } from "../components/ui"
 import AddSubscriptionForm from "../features/subscriptions/AddSubscriptionForm.vue"
 import CandidateCard from "../features/subscriptions/CandidateCard.vue"
 import SubscriptionRow from "../features/subscriptions/SubscriptionRow.vue"
@@ -60,13 +60,13 @@ const OFF = "border-transparent text-gray-500 dark:text-gray-400 hover:text-gray
     <LoadingText v-if="isLoading" />
     <div v-else-if="tab === 'confirmed'" class="flex flex-col gap-4">
       <AddSubscriptionForm v-if="showAddForm && accounts.length > 0" :accounts="accounts" @done="showAddForm = false" />
-      <div v-if="confirmed.length === 0" class="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 px-5 py-12 text-center">
+      <Card v-if="confirmed.length === 0" class="px-5 py-12 text-center">
         <p class="text-gray-500 dark:text-gray-400 text-sm mb-3">No confirmed subscriptions yet.</p>
         <Button v-if="candidates.length > 0" variant="link" class="font-normal" @click="tab = 'candidates'">
           {{ candidates.length }} suggestion{{ candidates.length !== 1 ? "s" : "" }} waiting in Discovered →
         </Button>
         <p v-else class="text-gray-400 dark:text-gray-500 text-xs">Import transactions and use the Discovered tab to find recurring patterns, or add one manually.</p>
-      </div>
+      </Card>
       <div v-else class="flex flex-col gap-3"><SubscriptionRow v-for="sub in confirmed" :key="sub.id" :sub="sub" /></div>
     </div>
     <div v-else class="flex flex-col gap-3">

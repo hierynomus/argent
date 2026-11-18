@@ -3,7 +3,7 @@ import { useMutation, useQueryClient } from "@tanstack/vue-query"
 import type { UserProfile } from "@argent/shared"
 import { queryKeys, updateMe, useMe } from "../api"
 import Icon, { type IconName } from "../components/Icon.vue"
-import { ErrorText, LoadingText } from "../components/ui"
+import { Card, ErrorText, LoadingText } from "../components/ui"
 
 type Theme = "light" | "dark" | "system"
 const THEMES: { value: Theme; label: string; description: string; icon: IconName }[] = [
@@ -27,7 +27,7 @@ const changeTheme = useMutation({
   <div v-else class="max-w-lg">
     <h1 class="text-2xl font-semibold text-gray-900 dark:text-gray-100 mb-6">Profile</h1>
 
-    <div class="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 divide-y divide-gray-100 dark:divide-gray-800 mb-6">
+    <Card class="divide-y divide-gray-100 dark:divide-gray-800 mb-6">
       <div class="px-5 py-4">
         <p class="text-xs text-gray-400 dark:text-gray-500 mb-0.5">Name</p>
         <p class="text-sm text-gray-900 dark:text-gray-100 font-medium">
@@ -48,9 +48,9 @@ const changeTheme = useMutation({
           <span v-if="!me?.isAdmin && !me?.canImport" class="text-sm text-gray-400">Viewer</span>
         </div>
       </div>
-    </div>
+    </Card>
 
-    <div class="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 px-5 py-4">
+    <Card class="px-5 py-4">
       <p class="text-sm font-medium text-gray-900 dark:text-gray-100 mb-3">Theme</p>
       <div class="flex gap-2">
         <button
@@ -68,6 +68,6 @@ const changeTheme = useMutation({
         </button>
       </div>
       <ErrorText :error="changeTheme.error.value" />
-    </div>
+    </Card>
   </div>
 </template>

@@ -3,7 +3,7 @@ import { ref } from "vue"
 import { useMutation } from "@tanstack/vue-query"
 import type { Subscription } from "@argent/shared"
 import { deleteSubscription, updateSubscription, useInvalidate } from "../../api"
-import { Button, ConfirmButton, ErrorText, Input, vFocus } from "../../components/ui"
+import { Button, Card, ConfirmButton, ErrorText, Input, vFocus } from "../../components/ui"
 import { fmtBalance } from "../../lib/format"
 import LinkedTransactions from "./LinkedTransactions.vue"
 
@@ -28,7 +28,7 @@ function startEdit() {
 </script>
 
 <template>
-  <div class="border border-gray-200 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 overflow-hidden">
+  <Card class="overflow-hidden">
     <div class="px-5 py-4 flex items-center gap-4 cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800/50" @click="expanded = !expanded">
       <div class="flex-1 min-w-0">
         <div v-if="editing" class="flex items-center gap-2" @click.stop>
@@ -92,5 +92,5 @@ function startEdit() {
     <div v-if="expanded" class="border-t border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/50 px-5 py-3">
       <LinkedTransactions :subscription-id="sub.id" empty-text="No linked transactions." divider-class="divide-gray-100 dark:divide-gray-700" />
     </div>
-  </div>
+  </Card>
 </template>

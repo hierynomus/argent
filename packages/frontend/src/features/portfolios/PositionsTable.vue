@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { Card } from "../../components/ui"
 import type { AssetPosition, StockPosition } from "@argent/shared"
 import { fmtSymbolCur, pnlColor, pnlFmt } from "../../lib/format"
 
@@ -20,7 +21,7 @@ const dividends = (pos: AssetPosition | StockPosition) => ("totalDividends" in p
 </script>
 
 <template>
-  <div class="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden mb-4 overflow-x-auto">
+  <Card class="overflow-hidden mb-4 overflow-x-auto">
     <table class="w-full text-sm" :class="minWidth">
       <thead>
         <tr class="border-b border-gray-100 dark:border-gray-800 text-xs text-gray-400 dark:text-gray-500 uppercase tracking-wide">
@@ -63,5 +64,5 @@ const dividends = (pos: AssetPosition | StockPosition) => ("totalDividends" in p
         </tr>
       </tbody>
     </table>
-  </div>
+  </Card>
 </template>

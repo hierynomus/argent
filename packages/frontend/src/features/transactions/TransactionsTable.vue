@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { Card } from "../../components/ui"
 import { computed } from "vue"
 import type { TransactionWithDetails } from "@argent/shared"
 import { fmtSignedAmount } from "../../lib/format"
@@ -18,7 +19,7 @@ const CHECKBOX = "w-4 h-4 accent-indigo-600 cursor-pointer"
 </script>
 
 <template>
-  <div class="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+  <Card class="overflow-hidden">
     <table class="w-full text-sm">
       <thead>
         <tr class="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">
@@ -75,5 +76,5 @@ const CHECKBOX = "w-4 h-4 accent-indigo-600 cursor-pointer"
         </tr>
       </tbody>
     </table>
-  </div>
+  </Card>
 </template>

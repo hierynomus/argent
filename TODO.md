@@ -73,7 +73,7 @@ Rewritten from React to Vue 3 (branch `feat/vue-frontend`) on top of the cleaned
 - [x] Route-level code splitting
 - [x] The 13 inline icon components are one `components/Icon.vue` keyed by name
 - [-] Typed client from Hono's `AppType`: **decided against** — the shared zod schemas + `src/api/` already give end-to-end types
-- [ ] Add a `Card` primitive (the white bordered panel is still spelled out ~30 times) and table primitives
+- [x] `Card` primitive (`components/ui/Card.vue`, `size` lg|xl, `as`) replaces the white bordered panel in 29 places. Table primitives still open.
 - [ ] Balance locale is inconsistent: Accounts tab / Settings pin `nl-NL`, Checking/Savings use the browser locale (kept as-is, now an explicit parameter). Decide one.
 - [ ] Remaining raw `<input>`/`<select>` class strings in `TransactionsTable`, `Layout`, `Subscriptions` filters
 - [ ] Accessibility pass: audit with axe

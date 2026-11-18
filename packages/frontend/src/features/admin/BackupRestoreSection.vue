@@ -2,7 +2,7 @@
 import { ref } from "vue"
 import { useMutation } from "@tanstack/vue-query"
 import { downloadBackup, restoreBackup, useInvalidate } from "../../api"
-import { Button, ErrorText } from "../../components/ui"
+import { Button, Card, ErrorText } from "../../components/ui"
 
 /** Admin → Backup & Restore: download everything as JSON, or replace everything from such a file. */
 const invalidate = useInvalidate()
@@ -44,7 +44,7 @@ const DANGER = "px-3 py-1 text-sm bg-red-600 text-white rounded-md hover:bg-red-
 </script>
 
 <template>
-  <div class="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 divide-y divide-gray-100 dark:divide-gray-800">
+  <Card class="divide-y divide-gray-100 dark:divide-gray-800">
     <div class="px-5 py-4">
       <div class="flex items-start justify-between gap-4">
         <div>
@@ -94,5 +94,5 @@ const DANGER = "px-3 py-1 text-sm bg-red-600 text-white rounded-md hover:bg-red-
         </ul>
       </div>
     </div>
-  </div>
+  </Card>
 </template>

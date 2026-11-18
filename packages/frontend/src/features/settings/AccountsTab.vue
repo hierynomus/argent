@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from "vue"
 import { useAccounts } from "../../api"
-import { Button, LoadingText } from "../../components/ui"
+import { Button, Card, LoadingText } from "../../components/ui"
 import { fmtBalance } from "../../lib/format"
 import AccountEditForm from "./AccountEditForm.vue"
 
@@ -18,7 +18,7 @@ const TYPE_BADGE = {
 
 <template>
   <LoadingText v-if="isLoading" />
-  <div v-else class="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 divide-y divide-gray-100 dark:divide-gray-800">
+  <Card v-else class="divide-y divide-gray-100 dark:divide-gray-800">
     <div v-for="acc in accounts" :key="acc.id" class="px-5 py-4">
       <div class="flex items-center gap-4">
         <div class="flex-1 min-w-0">
@@ -38,5 +38,5 @@ const TYPE_BADGE = {
       <AccountEditForm v-if="editingId === acc.id" :account="acc" @done="editingId = null" />
     </div>
     <div v-if="accounts.length === 0" class="px-5 py-10 text-center text-gray-400 dark:text-gray-500 text-sm">No accounts yet — import a CAMT.053 file to get started.</div>
-  </div>
+  </Card>
 </template>

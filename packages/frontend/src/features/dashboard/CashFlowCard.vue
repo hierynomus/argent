@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { Card } from "../../components/ui"
 import { computed } from "vue"
 import { fmtCur } from "../../lib/format"
 import Skeleton from "./Skeleton.vue"
@@ -8,7 +9,7 @@ const net = computed(() => props.income - props.expenses)
 </script>
 
 <template>
-  <div class="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 p-6">
+  <Card size="xl" class="p-6">
     <p class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-4">Cash Flow — {{ monthLabel }}</p>
     <div v-if="loading" class="space-y-3">
       <Skeleton class="h-5 w-full" />
@@ -29,5 +30,5 @@ const net = computed(() => props.income - props.expenses)
         <span class="text-sm font-bold tabular-nums" :class="net >= 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'">{{ net >= 0 ? "+" : "" }}{{ fmtCur(net) }}</span>
       </div>
     </div>
-  </div>
+  </Card>
 </template>

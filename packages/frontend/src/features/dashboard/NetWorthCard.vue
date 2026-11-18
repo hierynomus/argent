@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { Card } from "../../components/ui"
 import { fmtCur } from "../../lib/format"
 import Skeleton from "./Skeleton.vue"
 
@@ -6,7 +7,7 @@ defineProps<{ netWorth: number; totalAssets: number; totalLiabilities: number; l
 </script>
 
 <template>
-  <div class="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 px-8 py-7">
+  <Card size="xl" class="px-8 py-7">
     <p class="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-3">Net Worth</p>
     <div class="flex flex-wrap items-end gap-6">
       <div>
@@ -27,5 +28,5 @@ defineProps<{ netWorth: number; totalAssets: number; totalLiabilities: number; l
       </div>
     </div>
     <p v-if="hasNonEurAssets && !loading" class="text-xs text-amber-600 dark:text-amber-400 mt-3">* Non-EUR portfolios are excluded from this total.</p>
-  </div>
+  </Card>
 </template>

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { Card } from "../../../components/ui"
 import { ref } from "vue"
 import type { MetalLot } from "@argent/shared"
 import { capitalize, fmtSignificant, fmtSymbolCur, pnlColor, pnlFmt } from "../../../lib/format"
@@ -12,7 +13,7 @@ const sellingId = ref<string | null>(null)
 </script>
 
 <template>
-  <div class="bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden mb-4 overflow-x-auto">
+  <Card class="overflow-hidden mb-4 overflow-x-auto">
     <table class="w-full text-sm min-w-[860px]">
       <thead>
         <tr class="border-b border-gray-100 dark:border-gray-800 text-xs text-gray-400 dark:text-gray-500 uppercase tracking-wide">
@@ -80,5 +81,5 @@ const sellingId = ref<string | null>(null)
         </template>
       </tbody>
     </table>
-  </div>
+  </Card>
 </template>

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { Card } from "../../components/ui"
 import { computed } from "vue"
 import { RouterLink } from "vue-router"
 import type { Account } from "@argent/shared"
@@ -12,7 +13,7 @@ const txs = computed(() => data.value?.data ?? [])
 </script>
 
 <template>
-  <div class="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 overflow-hidden">
+  <Card size="xl" class="overflow-hidden">
     <RouterLink :to="`/overview?account=${account.id}`" class="block px-6 py-5 border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
       <div class="flex items-start justify-between gap-4">
         <div>
@@ -42,5 +43,5 @@ const txs = computed(() => data.value?.data ?? [])
         </tbody>
       </table>
     </div>
-  </div>
+  </Card>
 </template>

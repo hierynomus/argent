@@ -1,9 +1,9 @@
 import { describe, expect, test, vi } from "vitest"
 import { ref } from "vue"
 import { renderTemplate, screen, waitFor } from "../../../test/render"
-import { Badge, Button, ConfirmButton, EmptyState, ErrorText, Field, FieldGroup, Input, LoadingText, RoleBadge, SegmentedControl, Select } from "."
+import { Badge, Button, Card, ConfirmButton, EmptyState, ErrorText, Field, FieldGroup, Input, LoadingText, RoleBadge, SegmentedControl, Select } from "."
 
-const components = { Badge, Button, ConfirmButton, EmptyState, ErrorText, Field, FieldGroup, Input, LoadingText, RoleBadge, SegmentedControl, Select }
+const components = { Badge, Button, Card, ConfirmButton, EmptyState, ErrorText, Field, FieldGroup, Input, LoadingText, RoleBadge, SegmentedControl, Select }
 
 describe("Button", () => {
   test("is type=button by default so it never submits a form by accident", async () => {
@@ -236,5 +236,30 @@ describe("badges and states", () => {
     expect(screen.getByText("Nothing yet")).toBeInTheDocument()
     expect(screen.getByText("Add one")).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Go" })).toBeInTheDocument()
+  })
+})
+
+describe("Card", () => {
+  test("is the white bordered panel, with extra classes added on top", async () => {
+    await renderTemplate(`<Card class="p-4" data-testid="c">content</Card>`, { components })
+    const card = screen.getByTestId("c")
+    expect(card).toHaveTextContent("content")
+    expect(card.className).toContain("bg-white")
+    expect(card.className).toContain("rounded-lg")
+    expect(card.className).toContain("p-4")
+  })
+
+  test("size xl is the larger, softer variant", async () => {
+    await renderTemplate(`<Card size="xl" data-testid="c">x</Card>`, { components })
+    expect(screen.getByTestId("c").className).toContain("rounded-xl")
+    expect(screen.getByTestId("c").className).not.toContain("rounded-lg")
+  })
+
+  test("`as` swaps the element and listeners still reach it", async () => {
+    const onSubmit = vi.fn()
+    const { user } = await renderTemplate(`<Card as="form" @submit.prevent="onSubmit"><button type="submit">Go</button></Card>`, { components, setup: () => ({ onSubmit }) })
+    expect(document.querySelector("form")).not.toBeNull()
+    await user.click(screen.getByRole("button", { name: "Go" }))
+    expect(onSubmit).toHaveBeenCalledTimes(1)
   })
 })
