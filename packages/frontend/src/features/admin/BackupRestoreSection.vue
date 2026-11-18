@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from "vue"
+import { computed, ref } from "vue"
 import { useMutation } from "@tanstack/vue-query"
 import { downloadBackup, restoreBackup, useInvalidate } from "../../api"
 import { Button, Card, ErrorText } from "../../components/ui"
@@ -40,6 +40,8 @@ function confirmRestore() {
   confirming.value = false
   restore.mutate(file.value)
 }
+// the server reports every table; only the ones that had rows are interesting
+const restoredTables = computed(() => Object.entries(restore.data.value?.restored ?? {}).filter(([, count]) => count > 0))
 const DANGER = "px-3 py-1 text-sm bg-red-600 text-white rounded-md hover:bg-red-700"
 </script>
 
@@ -90,7 +92,7 @@ const DANGER = "px-3 py-1 text-sm bg-red-600 text-white rounded-md hover:bg-red-
       <div v-if="restore.data.value" class="mt-3 p-3 bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800 rounded-lg">
         <p class="text-sm font-medium text-green-700 dark:text-green-300 mb-1">Restore complete</p>
         <ul class="text-xs text-green-600 dark:text-green-400 space-y-0.5">
-          <li v-for="(v, k) in restore.data.value.restored" :key="k">{{ k }}: {{ v }}</li>
+          <li v-for="[k, v] in restoredTables" :key="k">{{ k }}: {{ v }}</li>
         </ul>
       </div>
     </div>

@@ -1,7 +1,9 @@
 import { and, eq, inArray, or, type SQL } from "drizzle-orm"
 import type { PgColumn, PgTable } from "drizzle-orm/pg-core"
 import { db } from "../db"
-import { accounts, accountMembers, portfolios, portfolioMembers, mortgages, mortgageMembers, loans, loanMembers, properties, propertyMembers, equityPlans, equityPlanMembers } from "../db/schema"
+import {
+  accountResource, equityResource, loanResource, mortgageResource, portfolioResource, propertyResource, type SharedResource,
+} from "./sharedResources"
 
 export interface AccessContext {
   groups: string[]
@@ -21,84 +23,7 @@ export function toAccessContext(user: AccessSubject): AccessContext {
   return { groups: user.groups ?? [], sub: user.sub, isAdmin: user.isAdmin }
 }
 
-/**
- * Describes a resource that is owned by one user and can be shared with groups
- * through a `*_members(resourceId, groupName, role)` table.
- */
-interface SharedResource {
-  table: PgTable
-  id: PgColumn
-  ownerSub: PgColumn
-  members: PgTable
-  memberResourceId: PgColumn
-  memberGroup: PgColumn
-  memberRole: PgColumn
-  /** Extra restriction on the resource rows (e.g. portfolio type). */
-  scope?: SQL
-}
-
 type Mode = "view" | "edit"
-
-const accountResource: SharedResource = {
-  table: accounts,
-  id: accounts.id,
-  ownerSub: accounts.ownerSub,
-  members: accountMembers,
-  memberResourceId: accountMembers.accountId,
-  memberGroup: accountMembers.groupName,
-  memberRole: accountMembers.role,
-}
-
-const portfolioResource = (type: string): SharedResource => ({
-  table: portfolios,
-  id: portfolios.id,
-  ownerSub: portfolios.ownerSub,
-  members: portfolioMembers,
-  memberResourceId: portfolioMembers.portfolioId,
-  memberGroup: portfolioMembers.groupName,
-  memberRole: portfolioMembers.role,
-  scope: eq(portfolios.type, type),
-})
-
-const mortgageResource: SharedResource = {
-  table: mortgages,
-  id: mortgages.id,
-  ownerSub: mortgages.ownerSub,
-  members: mortgageMembers,
-  memberResourceId: mortgageMembers.mortgageId,
-  memberGroup: mortgageMembers.groupName,
-  memberRole: mortgageMembers.role,
-}
-
-const loanResource: SharedResource = {
-  table: loans,
-  id: loans.id,
-  ownerSub: loans.ownerSub,
-  members: loanMembers,
-  memberResourceId: loanMembers.loanId,
-  memberGroup: loanMembers.groupName,
-  memberRole: loanMembers.role,
-}
-
-const propertyResource: SharedResource = {
-  table: properties,
-  id: properties.id,
-  ownerSub: properties.ownerSub,
-  members: propertyMembers,
-  memberResourceId: propertyMembers.propertyId,
-  memberGroup: propertyMembers.groupName,
-  memberRole: propertyMembers.role,
-}
-
-const equityResource: SharedResource = {
-  table: equityPlans,
-  id: equityPlans.id,
-  ownerSub: equityPlans.ownerSub,
-  members: equityPlanMembers,
-  memberResourceId: equityPlanMembers.planId,
-  memberGroup: equityPlanMembers.groupName,
-  memberRole: equityPlanMembers.role,
-}
 
 /**
  * WHERE clause selecting the resources `ctx` may access in the given mode:

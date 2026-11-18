@@ -88,6 +88,17 @@ describe("BackupRestoreSection: restore", () => {
     expect(screen.queryByRole("button", { name: "Restore" })).not.toBeInTheDocument() // the file was consumed
   })
 
+  test("tables that had no rows are not listed in the result", async () => {
+    const { user } = await setup({ "POST /admin/restore": { ok: true, restored: { accounts: 2, cryptoTrades: 0, equityGrants: 0, transactions: 7 } } })
+    await user.upload(fileInput(), backupFile('{"version":1}'))
+    await user.click(screen.getByRole("button", { name: "Restore" }))
+    await user.click(screen.getByRole("button", { name: "Yes, replace all data" }))
+    expect(await screen.findByText("accounts: 2")).toBeInTheDocument()
+    expect(screen.getByText("transactions: 7")).toBeInTheDocument()
+    expect(screen.queryByText(/cryptoTrades/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/equityGrants/)).not.toBeInTheDocument()
+  })
+
   test("after a restore every cached query is invalidated (the data on screen is all stale)", async () => {
     const { user, client } = await setup()
     const spy = vi.spyOn(client, "invalidateQueries")

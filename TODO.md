@@ -65,7 +65,7 @@ Verify everything with `bun run check` (type-check all packages + all tests + "m
 - [x] Resolve group naming mismatch (`argent-admin` code default vs `finance-admin` dev env); fail on startup in production if unset — production now requires `AUTHENTIK_ADMIN_GROUP`/`AUTHENTIK_IMPORT_GROUP`/`CORS_ORIGIN` (added to `k8s/secrets.yaml`)
 - [x] Refuse `AUTH_MODE=fake` when `NODE_ENV=production`
 - [ ] Log instead of swallowing errors in `syncProfileOnce`
-- [ ] **Table registry driving backup/restore and the sharing overview.** Every new feature (property, equity) meant editing `admin.ts` in ~8 places by hand (imports, backup query, backup object, `BACKUP_TABLES`, restore type, delete order, insert order, summary, sharing). 36 tables now; one forgotten line silently drops data from backups
+- [x] Table registry: backup, restore, restore counts, request validation and the sharing overview derive from `BACKUP_ORDER` / `SHARING_OVERVIEW`; a drift test fails on an unregistered or mis-ordered table. Restore also inserts in chunks now (more than ~4000 transactions used to exceed Postgres' parameter limit)
 
 ## Frontend
 Vue 3 (rewritten from React; merged). `api/`, `lib/`, the shared zod schemas and the fetch-level test fakes are framework-agnostic and were carried over unchanged.
