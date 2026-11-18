@@ -10,6 +10,7 @@ const sharing = {
   mortgages: [{ id: "m1", name: "House", members: [{ groupName: "family", role: "viewer" }] }],
   loans: [],
   properties: [{ id: "pr1", name: "Our flat", members: [{ groupName: "family", role: "viewer" }] }],
+  equity: [{ id: "eq1", name: "Acme BV", members: [{ groupName: "family", role: "editor" }] }],
 }
 
 const setup = async (profile = me({ isAdmin: true })) => {
@@ -65,10 +66,12 @@ describe("Admin: tabs", () => {
     expect(screen.getByText("Portfolios")).toBeInTheDocument()
     expect(screen.getByText("Property")).toBeInTheDocument()
     expect(screen.getByText("Our flat")).toBeInTheDocument()
+    expect(screen.getByText("Stock options")).toBeInTheDocument()
+    expect(screen.getByText("Acme BV")).toBeInTheDocument()
   })
 
   test("an empty sharing overview explains itself", async () => {
-    mockApi({ "GET /me": me({ isAdmin: true }), "GET /admin/accounts": [], "GET /admin/sharing": { portfolios: [], mortgages: [], loans: [], properties: [] } })
+    mockApi({ "GET /me": me({ isAdmin: true }), "GET /admin/accounts": [], "GET /admin/sharing": { portfolios: [], mortgages: [], loans: [], properties: [], equity: [] } })
     const { user } = await renderApp(AdminPage)
     await user.click(await screen.findByRole("button", { name: "Sharing Overview" }))
     expect(await screen.findByText("No resources are shared with groups yet.")).toBeInTheDocument()

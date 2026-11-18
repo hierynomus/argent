@@ -31,6 +31,10 @@ import {
   propertyMembers,
   propertyMortgages,
   propertyLoans,
+  equityPlans,
+  equityGrants,
+  equityPrices,
+  equityPlanMembers,
 } from "../db/schema"
 import type { AuthUser } from "../middleware/auth"
 import { requireAdmin } from "../middleware/guards"
@@ -122,6 +126,8 @@ app.get("/sharing", async (c) => {
     allLoanMembers,
     allProperties,
     allPropertyMembers,
+    allEquityPlans,
+    allEquityPlanMembers,
   ] = await Promise.all([
     db.select({ id: portfolios.id, name: portfolios.name, type: portfolios.type }).from(portfolios),
     db.select().from(portfolioMembers),
@@ -131,6 +137,8 @@ app.get("/sharing", async (c) => {
     db.select().from(loanMembers),
     db.select({ id: properties.id, name: properties.name }).from(properties),
     db.select().from(propertyMembers),
+    db.select({ id: equityPlans.id, name: equityPlans.name }).from(equityPlans),
+    db.select().from(equityPlanMembers),
   ])
 
   const portfolioResult = allPortfolios
@@ -174,7 +182,17 @@ app.get("/sharing", async (c) => {
         .map((pm) => ({ groupName: pm.groupName, role: pm.role })),
     }))
 
-  return c.json({ portfolios: portfolioResult, mortgages: mortgageResult, loans: loanResult, properties: propertyResult })
+  const equityResult = allEquityPlans
+    .filter((e) => allEquityPlanMembers.some((em) => em.planId === e.id))
+    .map((e) => ({
+      id: e.id,
+      name: e.name,
+      members: allEquityPlanMembers
+        .filter((em) => em.planId === e.id)
+        .map((em) => ({ groupName: em.groupName, role: em.role })),
+    }))
+
+  return c.json({ portfolios: portfolioResult, mortgages: mortgageResult, loans: loanResult, properties: propertyResult, equity: equityResult })
 })
 
 // GET /api/admin/backup — export all data as a JSON file
@@ -208,6 +226,10 @@ app.get("/backup", async (c) => {
     allPropertyMembers,
     allPropertyMortgages,
     allPropertyLoans,
+    allEquityPlans,
+    allEquityGrants,
+    allEquityPrices,
+    allEquityPlanMembers,
   ] = await Promise.all([
     db.select().from(accounts),
     db.select().from(accountMembers),
@@ -237,6 +259,10 @@ app.get("/backup", async (c) => {
     db.select().from(propertyMembers),
     db.select().from(propertyMortgages),
     db.select().from(propertyLoans),
+    db.select().from(equityPlans),
+    db.select().from(equityGrants),
+    db.select().from(equityPrices),
+    db.select().from(equityPlanMembers),
   ])
 
   const backup = {
@@ -270,6 +296,10 @@ app.get("/backup", async (c) => {
     propertyMembers: allPropertyMembers,
     propertyMortgages: allPropertyMortgages,
     propertyLoans: allPropertyLoans,
+    equityPlans: allEquityPlans,
+    equityGrants: allEquityGrants,
+    equityPrices: allEquityPrices,
+    equityPlanMembers: allEquityPlanMembers,
   }
 
   const filename = `argent-backup-${new Date().toISOString().slice(0, 10)}.json`
@@ -301,6 +331,7 @@ const BACKUP_TABLES = [
   "mortgages", "mortgageParts", "mortgageExtraPayments", "mortgageMembers",
   "loans", "loanParts", "loanExtraPayments", "loanMembers",
   "properties", "propertyValuations", "propertyMembers", "propertyMortgages", "propertyLoans",
+  "equityPlans", "equityGrants", "equityPrices", "equityPlanMembers",
 ] as const
 
 /**
@@ -346,6 +377,10 @@ app.post("/restore", validateJson(restoreSchema), async (c) => {
     propertyMembers: (typeof propertyMembers.$inferSelect)[]
     propertyMortgages: (typeof propertyMortgages.$inferSelect)[]
     propertyLoans: (typeof propertyLoans.$inferSelect)[]
+    equityPlans: (typeof equityPlans.$inferSelect)[]
+    equityGrants: (typeof equityGrants.$inferSelect)[]
+    equityPrices: (typeof equityPrices.$inferSelect)[]
+    equityPlanMembers: (typeof equityPlanMembers.$inferSelect)[]
   }
   const data = body as unknown as Backup // rows are validated by the database inside the transaction
 
@@ -379,6 +414,10 @@ app.post("/restore", validateJson(restoreSchema), async (c) => {
     await tx.delete(propertyMembers)         // FK → properties
     await tx.delete(propertyValuations)      // FK → properties
     await tx.delete(properties)
+    await tx.delete(equityGrants)            // FK → equityPlans
+    await tx.delete(equityPrices)            // FK → equityPlans
+    await tx.delete(equityPlanMembers)       // FK → equityPlans
+    await tx.delete(equityPlans)
 
     // Insert in FK dependency order
     if (data.accounts?.length) await tx.insert(accounts).values(withDates(data.accounts, ["createdAt"]))
@@ -414,6 +453,10 @@ app.post("/restore", validateJson(restoreSchema), async (c) => {
     if (data.propertyMembers?.length) await tx.insert(propertyMembers).values(data.propertyMembers)
     if (data.propertyMortgages?.length) await tx.insert(propertyMortgages).values(data.propertyMortgages)
     if (data.propertyLoans?.length) await tx.insert(propertyLoans).values(data.propertyLoans)
+    if (data.equityPlans?.length) await tx.insert(equityPlans).values(withDates(data.equityPlans, ["createdAt"]))
+    if (data.equityGrants?.length) await tx.insert(equityGrants).values(withDates(data.equityGrants, ["createdAt"]))
+    if (data.equityPrices?.length) await tx.insert(equityPrices).values(withDates(data.equityPrices, ["createdAt"]))
+    if (data.equityPlanMembers?.length) await tx.insert(equityPlanMembers).values(data.equityPlanMembers)
 
     // Transactions have a self-reference (transferPeerId); insert without it first, then patch
     if (data.transactions?.length) {
@@ -449,6 +492,8 @@ app.post("/restore", validateJson(restoreSchema), async (c) => {
       loans: data.loans?.length ?? 0,
       properties: data.properties?.length ?? 0,
       propertyValuations: data.propertyValuations?.length ?? 0,
+      equityPlans: data.equityPlans?.length ?? 0,
+      equityGrants: data.equityGrants?.length ?? 0,
     },
   })
 })

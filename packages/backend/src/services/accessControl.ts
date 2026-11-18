@@ -1,7 +1,7 @@
 import { and, eq, inArray, or, type SQL } from "drizzle-orm"
 import type { PgColumn, PgTable } from "drizzle-orm/pg-core"
 import { db } from "../db"
-import { accounts, accountMembers, portfolios, portfolioMembers, mortgages, mortgageMembers, loans, loanMembers, properties, propertyMembers } from "../db/schema"
+import { accounts, accountMembers, portfolios, portfolioMembers, mortgages, mortgageMembers, loans, loanMembers, properties, propertyMembers, equityPlans, equityPlanMembers } from "../db/schema"
 
 export interface AccessContext {
   groups: string[]
@@ -90,6 +90,16 @@ const propertyResource: SharedResource = {
   memberRole: propertyMembers.role,
 }
 
+const equityResource: SharedResource = {
+  table: equityPlans,
+  id: equityPlans.id,
+  ownerSub: equityPlans.ownerSub,
+  members: equityPlanMembers,
+  memberResourceId: equityPlanMembers.planId,
+  memberGroup: equityPlanMembers.groupName,
+  memberRole: equityPlanMembers.role,
+}
+
 /**
  * WHERE clause selecting the resources `ctx` may access in the given mode:
  *   - admins: everything (within scope)
@@ -164,3 +174,10 @@ export const getViewablePropertyIds = (ctx: AccessContext) => resolveIds(propert
 export const getEditablePropertyIds = (ctx: AccessContext) => resolveIds(propertyResource, ctx, "edit")
 export const canViewProperty = (ctx: AccessContext, id: string) => hasAccess(propertyResource, ctx, "view", id)
 export const canEditProperty = (ctx: AccessContext, id: string) => hasAccess(propertyResource, ctx, "edit", id)
+
+// ── Equity compensation ──────────────────────────────────────────────────────
+
+export const getViewableEquityPlanIds = (ctx: AccessContext) => resolveIds(equityResource, ctx, "view")
+export const getEditableEquityPlanIds = (ctx: AccessContext) => resolveIds(equityResource, ctx, "edit")
+export const canViewEquityPlan = (ctx: AccessContext, id: string) => hasAccess(equityResource, ctx, "view", id)
+export const canEditEquityPlan = (ctx: AccessContext, id: string) => hasAccess(equityResource, ctx, "edit", id)

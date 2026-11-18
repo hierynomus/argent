@@ -255,3 +255,44 @@ export const setPropertyLinksSchema = z.object({
   mortgageIds: z.array(z.uuid({ error: "mortgageIds must be ids" })).default([]),
   loanIds: z.array(z.uuid({ error: "loanIds must be ids" })).default([]),
 })
+
+// ─── Equity compensation (stock options) ───────────────────────────────────
+
+export const VESTING_TYPES = ["time", "exit"] as const
+export const vestingTypeSchema = z.enum(VESTING_TYPES, { error: "vestingType must be time or exit" })
+
+const wholeMonths = (what: string, min: number) =>
+  z.number({ error: `${what} must be a number` }).int(`${what} must be a whole number`).min(min, `${what} must be at least ${min}`).max(1200, `${what} is too large`)
+
+const equityGrantFields = {
+  label: optionalText(200),
+  grantDate: isoDate("grantDate"),
+  options: positiveDecimalString("options"),
+  strikePrice: nonNegativeDecimalString("strikePrice"),
+  vestingType: vestingTypeSchema.optional(),
+  /** time vesting: when vesting starts (usually the grant date), the cliff and the total months until fully vested */
+  vestStart: isoDate("vestStart").optional(),
+  cliffMonths: wholeMonths("cliffMonths", 0).optional(),
+  vestMonths: wholeMonths("vestMonths", 1).optional(),
+}
+
+/** Time-vested grants need a vesting start and duration (the cliff cannot be longer than that). */
+const checkVesting = (g: { vestingType?: "time" | "exit"; vestStart?: string; vestMonths?: number; cliffMonths?: number }, ctx: z.RefinementCtx) => {
+  if ((g.vestingType ?? "time") !== "time") return
+  if (!g.vestStart) ctx.addIssue({ code: "custom", path: ["vestStart"], message: "vestStart is required for time vesting" })
+  if (g.vestMonths === undefined) ctx.addIssue({ code: "custom", path: ["vestMonths"], message: "vestMonths is required for time vesting" })
+  else if ((g.cliffMonths ?? 0) > g.vestMonths) ctx.addIssue({ code: "custom", path: ["cliffMonths"], message: "cliffMonths cannot be longer than vestMonths" })
+}
+
+export const createEquityPlanSchema = z.object({ name: requiredString("name"), currency: currencySchema.optional() })
+export const updateEquityPlanSchema = z.object({
+  name: z.string().trim().min(1, "name must not be empty").max(200).optional(),
+  currency: currencySchema.optional(),
+})
+export const createEquityGrantSchema = z.object(equityGrantFields).superRefine(checkVesting)
+export const updateEquityGrantSchema = z.object(Object.fromEntries(Object.entries(equityGrantFields).map(([k, v]) => [k, (v as z.ZodType).optional()])) as { [K in keyof typeof equityGrantFields]: z.ZodOptional<(typeof equityGrantFields)[K]> })
+export const createEquityPriceSchema = z.object({
+  priceDate: isoDate("priceDate"),
+  price: positiveDecimalString("price"),
+  note: optionalText(200),
+})

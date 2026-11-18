@@ -31,6 +31,9 @@ export const queryKeys = {
   /** price history of one asset: its own prefix, so portfolio refreshes don't refetch it */
   assetHistory: (kind: "crypto" | "stocks", symbol: string, currency: string, range: string) => ["history", kind, symbol, currency, range] as const,
 
+  /** every equity plan with its grants (and their vesting state) and share prices */
+  equity: ["equity"] as const,
+
   /** every property with its valuations, linked liabilities, debt and equity */
   properties: ["properties"] as const,
 

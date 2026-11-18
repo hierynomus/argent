@@ -1,7 +1,7 @@
 /** Typed API fixtures — checked against @argent/shared, so test data can't silently drift from the real shapes. */
 import type {
   Account, Category, LoanPart, LoanWithParts, MetalLot, MetalPortfolioDetail, MortgagePart, MortgageWithParts,
-  PortfolioDetail, PortfolioWithAccess, PropertyWithDetails, StockPortfolioDetail, StockPosition, Subscription,
+  EquityPlanWithDetails, PortfolioDetail, PortfolioWithAccess, PropertyWithDetails, StockPortfolioDetail, StockPosition, Subscription,
 } from "@argent/shared"
 
 /** A mortgage part or a loan part (identical shapes apart from the parent's foreign key). */
@@ -84,4 +84,28 @@ export const property = (over: Partial<PropertyWithDetails> = {}): PropertyWithD
   currentValue: 520000, currentValueDate: "2024-01-01", gainSincePurchase: 120000,
   liabilities: [{ kind: "mortgage", id: "d1", name: "House", balance: 300000, monthlyPayment: 1500 }],
   debt: 300000, equity: 220000, members: [], isOwner: true, canEdit: true, ...over,
+})
+
+/** A company with 4800 options (24 of 48 months vested), 1000 more only on exit, and a share price of 12 against a strike of 2. */
+export const equityPlan = (over: Partial<EquityPlanWithDetails> = {}): EquityPlanWithDetails => ({
+  id: "eq1", name: "Acme BV", ownerSub: "dev-user", currency: "EUR", createdAt: "2023-01-01T00:00:00Z",
+  prices: [
+    { id: "p1", planId: "eq1", priceDate: "2023-01-01", price: "5.000000", note: "Seed", createdAt: "2023-01-01T00:00:00Z" },
+    { id: "p2", planId: "eq1", priceDate: "2024-06-01", price: "12.000000", note: "Series A", createdAt: "2024-06-01T00:00:00Z" },
+  ],
+  currentPrice: 12, currentPriceDate: "2024-06-01",
+  grants: [
+    {
+      id: "g1", planId: "eq1", label: "2023 grant", grantDate: "2023-01-01", options: "4800.00", strikePrice: "2.000000", vestingType: "time", vestStart: "2023-01-01",
+      cliffMonths: 12, vestMonths: 48, createdAt: "2023-01-01T00:00:00Z", vested: 2400, unvested: 2400, onExit: 0, nextVestingDate: "2025-02-01",
+      valuePerOption: 10, vestedValue: 24000, unvestedValue: 24000, onExitValue: 0,
+    },
+    {
+      id: "g2", planId: "eq1", label: "Exit tranche", grantDate: "2023-06-01", options: "1000.00", strikePrice: "2.000000", vestingType: "exit", vestStart: null,
+      cliffMonths: 0, vestMonths: null, createdAt: "2023-06-01T00:00:00Z", vested: 0, unvested: 0, onExit: 1000, nextVestingDate: null,
+      valuePerOption: 10, vestedValue: 0, unvestedValue: 0, onExitValue: 10000,
+    },
+  ],
+  totals: { granted: 5800, vested: 2400, unvested: 2400, onExit: 1000, vestedValue: 24000, unvestedValue: 24000, onExitValue: 10000 },
+  members: [], isOwner: true, canEdit: true, ...over,
 })

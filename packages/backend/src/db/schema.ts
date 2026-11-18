@@ -322,6 +322,47 @@ export const propertyLoans = pgTable("property_loans", {
   loanId: uuid("loan_id").notNull().references(() => loans.id, { onDelete: "cascade" }),
 }, (t) => ({ pk: primaryKey({ columns: [t.propertyId, t.loanId] }), property_loans_loan_idx: index("property_loans_loan_idx").on(t.loanId) }))
 
+// ─── Equity compensation (stock options) ──────────────────────────────────
+// One plan per company, holding the grants received from it. A grant either vests over time (start,
+// cliff, months) or only on an exit event. Share prices are dated, manually entered estimates (a funding
+// round, a valuation); the latest one counts. Value per option = max(0, price − strike).
+export const equityPlans = pgTable("equity_plans", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  name: text("name").notNull(), // the company
+  ownerSub: text("owner_sub"),
+  currency: text("currency").notNull().default("EUR"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (t) => ({ equity_plans_owner_idx: index("equity_plans_owner_idx").on(t.ownerSub) }))
+
+export const equityGrants = pgTable("equity_grants", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  planId: uuid("plan_id").notNull().references(() => equityPlans.id, { onDelete: "cascade" }),
+  label: text("label"), // e.g. "2023 grant", "Retention tranche"
+  grantDate: date("grant_date").notNull(),
+  options: numeric("options", { precision: 15, scale: 2 }).notNull(),
+  strikePrice: numeric("strike_price", { precision: 15, scale: 6 }).notNull(),
+  vestingType: text("vesting_type").notNull().default("time"), // "time" | "exit"
+  vestStart: date("vest_start"), // time vesting only
+  cliffMonths: integer("cliff_months").notNull().default(0),
+  vestMonths: integer("vest_months"), // time vesting only: total months until fully vested
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (t) => ({ equity_grants_plan_idx: index("equity_grants_plan_idx").on(t.planId) }))
+
+export const equityPrices = pgTable("equity_prices", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  planId: uuid("plan_id").notNull().references(() => equityPlans.id, { onDelete: "cascade" }),
+  priceDate: date("price_date").notNull(),
+  price: numeric("price", { precision: 15, scale: 6 }).notNull(), // per share/option base
+  note: text("note"), // "Series A round", "409A valuation", …
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (t) => ({ equity_prices_plan_idx: index("equity_prices_plan_idx").on(t.planId, t.priceDate) }))
+
+export const equityPlanMembers = pgTable("equity_plan_members", {
+  planId: uuid("plan_id").notNull().references(() => equityPlans.id, { onDelete: "cascade" }),
+  groupName: text("group_name").notNull(),
+  role: text("role").notNull().default("viewer"), // "viewer" | "editor"
+}, (t) => ({ pk: primaryKey({ columns: [t.planId, t.groupName] }), equity_plan_members_group_idx: index("equity_plan_members_group_idx").on(t.groupName) }))
+
 // Relations for Drizzle query builder
 export const accountRelations = relations(accounts, ({ many }) => ({
   transactions: many(transactions),

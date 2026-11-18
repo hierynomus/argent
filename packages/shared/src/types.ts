@@ -445,6 +445,7 @@ export interface AdminSharingResponse {
   mortgages: AdminSharingEntry[]
   loans: AdminSharingEntry[]
   properties: AdminSharingEntry[]
+  equity: AdminSharingEntry[]
 }
 
 // ─── Property ───────────────────────────────────────────────────────────────
@@ -502,6 +503,73 @@ export interface PropertyWithDetails extends Property {
   canEdit: boolean
 }
 
+// ─── Equity compensation ────────────────────────────────────────────────────
+
+export type VestingType = "time" | "exit"
+
+export interface EquityPrice {
+  id: string
+  planId: string
+  priceDate: string
+  price: string
+  note: string | null
+  createdAt: string
+}
+
+/** One grant with what it is worth today. Options are counts; values are in the plan's currency. */
+export interface EquityGrantWithState {
+  id: string
+  planId: string
+  label: string | null
+  grantDate: string
+  options: string
+  strikePrice: string
+  vestingType: VestingType
+  vestStart: string | null
+  cliffMonths: number
+  vestMonths: number | null
+  createdAt: string
+  /** options vested today (always 0 for exit-only grants) */
+  vested: number
+  /** options not vested yet that vest over time (0 for exit-only grants) */
+  unvested: number
+  /** options that only vest on an exit (0 for time-vested grants) */
+  onExit: number
+  /** the next date more options vest, null when fully vested or exit-only */
+  nextVestingDate: string | null
+  /** max(0, price − strike) with the current price; null without a price */
+  valuePerOption: number | null
+  vestedValue: number | null
+  unvestedValue: number | null
+  onExitValue: number | null
+}
+
+export interface EquityPlanWithDetails {
+  id: string
+  name: string
+  ownerSub: string | null
+  currency: string
+  createdAt: string
+  prices: EquityPrice[]
+  /** latest share price dated today or earlier, flat until the next; null without one */
+  currentPrice: number | null
+  currentPriceDate: string | null
+  grants: EquityGrantWithState[]
+  totals: {
+    granted: number
+    vested: number
+    unvested: number
+    onExit: number
+    /** counts in net worth: vested options × (price − strike) */
+    vestedValue: number | null
+    unvestedValue: number | null
+    onExitValue: number | null
+  }
+  members: PortfolioMember[]
+  isOwner: boolean
+  canEdit: boolean
+}
+
 // ─── Request bodies ─────────────────────────────────────────────────────────
 // Derived from the runtime schemas in `schemas.ts` (the single source of truth
 // the backend validates against). `z.input` = what a client is allowed to send.
@@ -531,6 +599,11 @@ export type AddLoanMemberBody = Body<typeof S.addMemberSchema>
 export type CreateLoanPartBody = Body<typeof S.createDebtPartSchema>
 export type UpdateLoanPartBody = Body<typeof S.updateDebtPartSchema>
 export type CreateLoanExtraPaymentBody = Body<typeof S.createDebtExtraPaymentSchema>
+export type CreateEquityPlanBody = Body<typeof S.createEquityPlanSchema>
+export type UpdateEquityPlanBody = Body<typeof S.updateEquityPlanSchema>
+export type CreateEquityGrantBody = Body<typeof S.createEquityGrantSchema>
+export type UpdateEquityGrantBody = Body<typeof S.updateEquityGrantSchema>
+export type CreateEquityPriceBody = Body<typeof S.createEquityPriceSchema>
 export type CreatePropertyBody = Body<typeof S.createPropertySchema>
 export type UpdatePropertyBody = Body<typeof S.updatePropertySchema>
 export type CreatePropertyValuationBody = Body<typeof S.createPropertyValuationSchema>

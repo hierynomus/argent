@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest"
-import { account, debt, portfolio, property, transaction } from "../../../test/fixtures"
+import { account, debt, equityPlan, portfolio, property, transaction } from "../../../test/fixtures"
 import { bankingLabel, summarize, toHoldings, unrealizedLabel, type DashboardInput, type Holding } from "./summarize"
 
 const empty: DashboardInput = { accounts: [], mortgages: [], loans: [], crypto: [], metals: [], stocks: [], monthTransactions: [] }
@@ -181,5 +181,37 @@ describe("summarize: property", () => {
 
   test("callers that do not pass properties get zeros", () => {
     expect(summarize(empty).properties).toEqual({ value: 0, debt: 0, equity: 0, count: 0, loading: false })
+  })
+})
+
+describe("summarize: stock options", () => {
+  test("only the vested value counts in net worth; still-vesting and on-exit value are reported but not counted", () => {
+    const s = summarize({ ...empty, equity: [equityPlan()] })
+    expect(s.equity).toEqual({ vestedValue: 24_000, unvestedValue: 24_000, onExitValue: 10_000, count: 1, loading: false })
+    expect(s.totalAssets).toBe(24_000)
+    expect(s.netWorth).toBe(24_000)
+  })
+
+  test("plans add up; an unpriced plan counts as 0", () => {
+    const unpriced = equityPlan({ id: "eq2", totals: { granted: 100, vested: 50, unvested: 50, onExit: 0, vestedValue: null, unvestedValue: null, onExitValue: null } })
+    const s = summarize({ ...empty, equity: [equityPlan(), equityPlan({ id: "eq3" }), unpriced] })
+    expect(s.equity).toMatchObject({ vestedValue: 48_000, onExitValue: 20_000, count: 3 })
+  })
+
+  test("a plan in another currency is left out and flagged", () => {
+    const s = summarize({ ...empty, equity: [equityPlan({ currency: "USD" })] })
+    expect(s.equity.vestedValue).toBe(0)
+    expect(s.totalAssets).toBe(0)
+    expect(s.hasExcludedNonEur).toBe(true)
+  })
+
+  test("it sits next to a house and a mortgage in one net worth", () => {
+    const s = summarize({ ...empty, properties: [property({ currentValue: 520_000 })], mortgages: [debt({ totalCurrentBalance: 300_000 })], equity: [equityPlan()] })
+    expect(s.netWorth).toBe(520_000 + 24_000 - 300_000)
+  })
+
+  test("net worth is loading while the plans are, and callers without equity get zeros", () => {
+    expect(summarize({ ...empty, equityLoading: true }).netWorthLoading).toBe(true)
+    expect(summarize(empty).equity).toEqual({ vestedValue: 0, unvestedValue: 0, onExitValue: 0, count: 0, loading: false })
   })
 })

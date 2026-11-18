@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest"
 import { mockApi, respond } from "../../test/fakeApi"
-import { account, category, debt, me, page, portfolio, property, cryptoDetail, subscription, transaction } from "../../test/fixtures"
+import { account, category, debt, equityPlan, me, page, portfolio, property, cryptoDetail, subscription, transaction } from "../../test/fixtures"
 import { renderApp, screen, waitFor } from "../../test/render"
 import Layout from "../components/Layout.vue"
 import DashboardPage from "./Dashboard.vue"
@@ -22,7 +22,7 @@ describe("Dashboard", () => {
       "GET /loans": [debt({ id: "l1", name: "Car", totalCurrentBalance: 100 })],
       "GET /crypto": [portfolio({ id: "c1" })],
       "GET /crypto/:id": cryptoDetail({ id: "c1", totalCurrentValueEur: 500 }),
-      "GET /metals": [], "GET /stocks": [], "GET /properties": [],
+      "GET /metals": [], "GET /stocks": [], "GET /properties": [], "GET /equity": [],
       "GET /transactions": page([transaction()]),
     })
     await renderApp(DashboardPage)
@@ -34,7 +34,7 @@ describe("Dashboard", () => {
   })
 
   test("copes with a brand new, empty account", async () => {
-    const api = mockApi({ "GET /accounts": [], "GET /mortgages": [], "GET /loans": [], "GET /crypto": [], "GET /metals": [], "GET /stocks": [], "GET /properties": [], "GET /transactions": page([]) })
+    const api = mockApi({ "GET /accounts": [], "GET /mortgages": [], "GET /loans": [], "GET /crypto": [], "GET /metals": [], "GET /stocks": [], "GET /properties": [], "GET /equity": [], "GET /transactions": page([]) })
     await renderApp(DashboardPage)
     expect(await screen.findByRole("heading", { name: "Dashboard" })).toBeInTheDocument()
     expect(api.unmatched).toEqual([])
@@ -189,7 +189,7 @@ describe("Dashboard: non-EUR items", () => {
     mockApi({
       "GET /accounts": [account({ balance: "1000.00" })], "GET /mortgages": [], "GET /loans": [],
       "GET /crypto": [portfolio({ id: "c1", currency: "USD" })], "GET /crypto/:id": usd.crypto,
-      "GET /metals": [], "GET /stocks": [], "GET /properties": [], "GET /transactions": page([]),
+      "GET /metals": [], "GET /stocks": [], "GET /properties": [], "GET /equity": [], "GET /transactions": page([]),
     })
     await renderApp(DashboardPage)
     expect(await screen.findByText(/Non-EUR portfolios are excluded from this total/)).toBeInTheDocument()
@@ -199,7 +199,7 @@ describe("Dashboard: non-EUR items", () => {
   })
 
   test("no note when everything is in euros", async () => {
-    mockApi({ "GET /accounts": [account()], "GET /mortgages": [], "GET /loans": [], "GET /crypto": [], "GET /metals": [], "GET /stocks": [], "GET /properties": [], "GET /transactions": page([]) })
+    mockApi({ "GET /accounts": [account()], "GET /mortgages": [], "GET /loans": [], "GET /crypto": [], "GET /metals": [], "GET /stocks": [], "GET /properties": [], "GET /equity": [], "GET /transactions": page([]) })
     await renderApp(DashboardPage)
     await screen.findByText("Net Worth")
     await waitFor(() => expect(screen.queryByText(/Non-EUR portfolios are excluded/)).not.toBeInTheDocument())
@@ -211,7 +211,7 @@ describe("Dashboard: property", () => {
     mockApi({
       "GET /accounts": [], "GET /mortgages": [debt({ totalCurrentBalance: 300_000, totalMonthlyPayment: 1500 })], "GET /loans": [],
       "GET /crypto": [], "GET /metals": [], "GET /stocks": [], "GET /transactions": page([]),
-      "GET /properties": [property({ currentValue: 520_000, debt: 300_000, equity: 220_000 })],
+      "GET /properties": [property({ currentValue: 520_000, debt: 300_000, equity: 220_000 })], "GET /equity": [],
     })
     await renderApp(DashboardPage)
     // net worth = 520.000 (house) − 300.000 (mortgage)
@@ -226,10 +226,24 @@ describe("Dashboard: property", () => {
   test("without any property the tile shows a dash and the net worth is the debt", async () => {
     mockApi({
       "GET /accounts": [], "GET /mortgages": [debt({ totalCurrentBalance: 300_000 })], "GET /loans": [],
-      "GET /crypto": [], "GET /metals": [], "GET /stocks": [], "GET /transactions": page([]), "GET /properties": [],
+      "GET /crypto": [], "GET /metals": [], "GET /stocks": [], "GET /transactions": page([]), "GET /properties": [], "GET /equity": [],
     })
     await renderApp(DashboardPage)
     const hero = (await screen.findByText("Net Worth")).closest("div")!
     await waitFor(() => expect(hero.querySelector("p.text-5xl")!.className).toContain("text-red-600"))
+  })
+})
+
+describe("Dashboard: stock options", () => {
+  test("the vested value counts in net worth and the options tile shows what is on exit", async () => {
+    mockApi({
+      "GET /accounts": [], "GET /mortgages": [], "GET /loans": [], "GET /crypto": [], "GET /metals": [], "GET /stocks": [], "GET /transactions": page([]),
+      "GET /properties": [], "GET /equity": [equityPlan()],
+    })
+    await renderApp(DashboardPage)
+    const hero = (await screen.findByText("Net Worth")).closest("div")!
+    await waitFor(() => expect(hero.querySelector("p.text-5xl")!).toHaveTextContent("24.000,00"))
+    expect(screen.getByText("Options")).toBeInTheDocument()
+    expect(screen.getByText(/Vested · .*10\.000,00 on exit/)).toBeInTheDocument()
   })
 })

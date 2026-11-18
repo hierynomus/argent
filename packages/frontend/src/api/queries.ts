@@ -4,6 +4,7 @@ import { getAccounts } from "./accounts"
 import { getAdminAccounts, getAdminSharing } from "./admin"
 import { getCategories } from "./categories"
 import { debtApis, type Debt } from "./debts"
+import { equityApi } from "./equity"
 import { queryKeys, type DebtKind, type PortfolioKind } from "./keys"
 import { getMe } from "./me"
 import { portfolioApis, type HistoryParams, type PortfolioDetailByKind } from "./portfolios"
@@ -104,6 +105,7 @@ export function useAssetHistory(kind: "crypto" | "stocks", symbol: MaybeRefOrGet
   })
 }
 
+export const useEquityPlans = () => useQuery({ queryKey: queryKeys.equity, queryFn: equityApi.list })
 export const useProperties = () => useQuery({ queryKey: queryKeys.properties, queryFn: propertiesApi.list })
 
 export const useDebts = (kind: DebtKind) => useQuery<Debt[]>({ queryKey: queryKeys.debts(kind), queryFn: debtApis[kind].list })
@@ -122,6 +124,7 @@ export function useInvalidate() {
     // a property's debt and equity come from its linked mortgages/loans, so those refresh with them
     debts: (kind: DebtKind) => Promise.all([qc.invalidateQueries({ queryKey: queryKeys.debts(kind) }), qc.invalidateQueries({ queryKey: queryKeys.properties })]),
     properties: () => qc.invalidateQueries({ queryKey: queryKeys.properties }),
+    equity: () => qc.invalidateQueries({ queryKey: queryKeys.equity }),
     admin: () => qc.invalidateQueries({ queryKey: ["admin"] }),
     /** everything — after the whole database was replaced (restore) */
     everything: () => qc.invalidateQueries(),

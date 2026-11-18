@@ -1,4 +1,4 @@
-import type { Account, PortfolioWithAccess, PropertyWithDetails, TransactionWithDetails } from "@argent/shared"
+import type { Account, EquityPlanWithDetails, PortfolioWithAccess, PropertyWithDetails, TransactionWithDetails } from "@argent/shared"
 import type { Debt } from "../../api"
 
 /** An investment portfolio reduced to what the dashboard needs. `null` = no value yet (still loading, or no live price). */
@@ -36,6 +36,9 @@ export interface DashboardInput {
   /** houses, cars, …: counted at their latest valuation */
   properties?: PropertyWithDetails[]
   propertiesLoading?: boolean
+  /** stock options: the vested value counts, the rest is only shown */
+  equity?: EquityPlanWithDetails[]
+  equityLoading?: boolean
 }
 
 export interface AssetClassSummary {
@@ -54,6 +57,8 @@ export interface DashboardSummary {
   stocks: AssetClassSummary
   /** EUR properties at their current value; `equity` is value minus what is owed on them (their linked mortgages/loans) */
   properties: { value: number; debt: number; equity: number; count: number; loading: boolean }
+  /** EUR option plans: `vestedValue` counts in net worth; `unvestedValue` (still vesting) and `onExitValue` do not */
+  equity: { vestedValue: number; unvestedValue: number; onExitValue: number; count: number; loading: boolean }
   mortgages: { balance: number; monthly: number; count: number }
   loans: { balance: number; monthly: number; count: number }
   totalAssets: number
@@ -104,11 +109,21 @@ export function summarize(input: DashboardInput): DashboardSummary {
   const propertyDebt = sum(eurProperties, (p) => p.debt)
   const properties = { value: propertyValue, debt: propertyDebt, equity: propertyValue - propertyDebt, count: (input.properties ?? []).length, loading: input.propertiesLoading ?? false }
 
+  const eurPlans = (input.equity ?? []).filter((p) => p.currency === EUR)
+  const equity = {
+    // an unpriced plan has no value yet (null) and counts as 0
+    vestedValue: sum(eurPlans, (p) => p.totals.vestedValue ?? 0),
+    unvestedValue: sum(eurPlans, (p) => p.totals.unvestedValue ?? 0),
+    onExitValue: sum(eurPlans, (p) => p.totals.onExitValue ?? 0),
+    count: (input.equity ?? []).length,
+    loading: input.equityLoading ?? false,
+  }
+
   // a linked mortgage stays in the liabilities below: the property is the asset on the other side of it
-  const totalAssets = accountsTotal + crypto.total + metals.total + stocks.total + propertyValue
+  const totalAssets = accountsTotal + crypto.total + metals.total + stocks.total + propertyValue + equity.vestedValue
   const totalLiabilities = mortgages.balance + loans.balance
 
-  const anyNonEur = [...input.accounts, ...input.crypto, ...input.metals, ...input.stocks, ...input.mortgages, ...input.loans, ...(input.properties ?? [])].some(
+  const anyNonEur = [...input.accounts, ...input.crypto, ...input.metals, ...input.stocks, ...input.mortgages, ...input.loans, ...(input.properties ?? []), ...(input.equity ?? [])].some(
     (x) => x.currency !== EUR,
   )
 
@@ -122,12 +137,13 @@ export function summarize(input: DashboardInput): DashboardSummary {
     metals,
     stocks,
     properties,
+    equity,
     mortgages,
     loans,
     totalAssets,
     totalLiabilities,
     netWorth: totalAssets - totalLiabilities,
-    netWorthLoading: crypto.loading || metals.loading || stocks.loading || properties.loading,
+    netWorthLoading: crypto.loading || metals.loading || stocks.loading || properties.loading || equity.loading,
     hasExcludedNonEur: anyNonEur,
     cashFlow: { income, expenses, net: income - expenses },
   }

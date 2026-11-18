@@ -15,6 +15,7 @@ const sections = computed(() =>
     { title: "Mortgages", items: props.sharing.mortgages as SharedItem[], withType: false },
     { title: "Loans", items: props.sharing.loans as SharedItem[], withType: false },
     { title: "Property", items: (props.sharing.properties ?? []) as SharedItem[], withType: false },
+    { title: "Stock options", items: (props.sharing.equity ?? []) as SharedItem[], withType: false },
   ].filter((s) => s.items.length > 0),
 )
 const TH = "px-5 py-2 text-left"

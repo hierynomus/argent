@@ -2,7 +2,7 @@ import axe from "axe-core"
 import { describe, expect, test } from "vitest"
 import { createMemoryHistory } from "vue-router"
 import { mockApi } from "../test/fakeApi"
-import { account, category, cryptoDetail, debt, lot, me, metalDetail, page, portfolio, property, stockDetail, stockPosition, subscription, transaction } from "../test/fixtures"
+import { account, category, cryptoDetail, debt, equityPlan, lot, me, metalDetail, page, portfolio, property, stockDetail, stockPosition, subscription, transaction } from "../test/fixtures"
 import { createFakeAuth } from "./auth"
 import { renderApp, screen, waitFor } from "../test/render"
 import App from "./App.vue"
@@ -31,7 +31,7 @@ const mockAll = () =>
     "GET /stocks": [portfolio({ id: "s1", type: "stocks", broker: "DEGIRO" })], "GET /stocks/:id": stockDetail({ id: "s1", positions: [stockPosition()] }),
     "GET /admin/accounts": [{ ...account(), members: [{ groupName: "family", role: "editor" }], ownerProfile: null }],
     "GET /admin/sharing": { portfolios: [], mortgages: [], loans: [], properties: [] },
-    "GET /properties": [property()],
+    "GET /properties": [property()], "GET /equity": [equityPlan()],
   })
 
 async function open(route: string, ready: string | RegExp) {
@@ -56,6 +56,7 @@ describe("accessibility (axe)", () => {
     ["/metals", "Open cost"],
     ["/stocks", "AAPL"],
     ["/property", "Our house"],
+    ["/equity", "Acme BV"],
     ["/profile", "Dev User"],
     ["/admin", "family"],
   ] as const)("%s has no violations", async (route, ready) => {
@@ -130,6 +131,21 @@ describe("accessibility (axe)", () => {
     await user.click(screen.getByRole("button", { name: "Link mortgage / loan" }))
     expect(await violations()).toEqual([])
     await user.click(screen.getByRole("button", { name: "+ Add valuation" }))
+    expect(await violations()).toEqual([])
+  })
+
+  test("the options forms (company, grant, edit grant, price, rename) have no violations", async () => {
+    const { user } = await open("/equity", "Acme BV")
+    await user.click(screen.getByRole("button", { name: "+ New company" }))
+    expect(await violations()).toEqual([])
+    await user.click(screen.getByRole("button", { name: "Cancel" }))
+    await user.click(screen.getByRole("button", { name: "Rename" }))
+    expect(await violations()).toEqual([])
+    await user.click(screen.getByRole("button", { name: "+ Add grant" }))
+    expect(await violations()).toEqual([])
+    await user.click(screen.getByRole("button", { name: "Edit 2023 grant" }))
+    expect(await violations()).toEqual([])
+    await user.click(screen.getByRole("button", { name: "+ Add price" }))
     expect(await violations()).toEqual([])
   })
 })
