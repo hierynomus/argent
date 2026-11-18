@@ -17,7 +17,7 @@ Verify everything with `bun run check` (type-check all packages + all tests + "m
 ## Access control / backend coupling
 - [x] One generic access resolver instead of 8 near-identical functions; `canView*`/`canEdit*` single-resource checks; `toAccessContext(user)`
 - [x] Extract owner-only / `requireAdmin` middleware instead of inline checks — `middleware/guards.ts` (`requireAdmin` on the admin router, `isOwnerOrAdmin` in the 5 shared-resource routes)
-- [ ] Route factory (or shared helpers) for shared resources: list-with-members, create, patch, owner delete, member add/remove (crypto/metals/stocks/mortgages/loans)
+- [ ] Route factory (or shared helpers) for shared resources: owner delete and member add/remove are now copy-pasted in 7 routers (crypto/metals/stocks/mortgages/loans/properties/equity)
 - [ ] Extract `buildPositions(trades, assets, priceFn, currency)` shared by crypto + stocks routes
 - [x] N+1 member/part/payment queries in the list endpoints: one `inArray` query per table, grouped in memory (`lib/groupBy.ts`)
 
@@ -53,6 +53,11 @@ Verify everything with `bun run check` (type-check all packages + all tests + "m
 - [ ] Transfer linker: avoid per-transaction queries (load candidates once, match in memory); share the ±3 day window helper
 - [ ] Consider `pg_trgm` if description search becomes slow
 
+## Deployment readiness
+- [ ] CI has never run on GitHub (`.github/workflows/ci.yml`; frontend tests now run through Vitest)
+- [ ] Set the `k8s/` placeholders (registry, domain, `AUTHENTIK_*` groups, optional `COINGECKO_API_KEY`) and try the real Authentik login
+- [ ] Dev uses an in-memory PGlite that `bun --hot` recreates on every backend change: consider a persistent dev database or a seed script, since data entered during testing is lost
+
 ## Background jobs / ops
 - [~] Job runner: sequential, no overlap, errors logged (`services/backgroundJobs.ts`). Still open: named per-job scheduling/enable flags
 - [ ] Advisory lock (`pg_try_advisory_lock`) before running jobs with multiple replicas
@@ -60,10 +65,10 @@ Verify everything with `bun run check` (type-check all packages + all tests + "m
 - [x] Resolve group naming mismatch (`argent-admin` code default vs `finance-admin` dev env); fail on startup in production if unset — production now requires `AUTHENTIK_ADMIN_GROUP`/`AUTHENTIK_IMPORT_GROUP`/`CORS_ORIGIN` (added to `k8s/secrets.yaml`)
 - [x] Refuse `AUTH_MODE=fake` when `NODE_ENV=production`
 - [ ] Log instead of swallowing errors in `syncProfileOnce`
-- [ ] Table registry driving backup/restore and the sharing overview (no hand-listed 23-table type; `BACKUP_TABLES` in `admin.ts` is a first step)
+- [ ] **Table registry driving backup/restore and the sharing overview.** Every new feature (property, equity) meant editing `admin.ts` in ~8 places by hand (imports, backup query, backup object, `BACKUP_TABLES`, restore type, delete order, insert order, summary, sharing). 36 tables now; one forgotten line silently drops data from backups
 
 ## Frontend
-Rewritten from React to Vue 3 (branch `feat/vue-frontend`) on top of the cleaned-up architecture: `api/`, `lib/`, the shared zod schemas and the fetch-level test fakes carried over unchanged; components, composables, auth, router and tests were ported. 444 tests (the React version had 426). Initial bundle is ~130 kB (was 372 kB).
+Vue 3 (rewritten from React; merged). `api/`, `lib/`, the shared zod schemas and the fetch-level test fakes are framework-agnostic and were carried over unchanged.
 - [x] `lib/format.ts` (all number/currency/date/P&L formatting) with tests
 - [x] API layer split by domain under `src/api/`; `api/keys.ts` + `api/queries.ts` own every query key, read composable and cache refresh (`useInvalidate`)
 - [x] Mortgages and Loans are one `DebtPage`; Crypto/Metals/Stocks share `PortfolioPage` (scoped slot), `PortfolioActions`, `SummaryTiles`, `PositionsTable`, `TradeHistory`, form chrome
@@ -79,13 +84,14 @@ Rewritten from React to Vue 3 (branch `feat/vue-frontend`) on top of the cleaned
 - [x] Accessibility: `src/a11y.test.ts` runs axe-core on every page and the main interactive states (contrast excluded: no layout in happy-dom); fixed unlabeled navs, empty table headers, unlabeled file input
 - [ ] Try the app against a real Authentik (the OIDC flow was ported to `oidc-client-ts` directly and is only covered by fake-auth tests)
 
-- [x] Investment overview tab (all visible portfolios, per currency) and per-asset price chart with trade markers. Open: metals have no price history source; stock history uses today's FX rate; a portfolio-value-over-time chart
-
-- [x] Property as an asset (valuations, linked mortgage/loan, equity) counted in net worth. Open: equity-over-time chart (needs the debt's balance history), automatic valuation sources (WOZ), appreciation vs repayments split
-
-- [x] Stock options: plans, time/exit grants, manual share prices, vested value in net worth. Open: other vesting shapes (quarterly/yearly, accelerated), tax estimate, exit-scenario calculator, expiry dates
+## Features (done, with what is deliberately not built)
+- [x] Investment **overview tab** (all visible portfolios, per currency) and per-asset **price chart** with trade markers. Not built: metals history (no free source), historical FX for stock charts, portfolio-value-over-time
+- [x] **Property** as an asset: manual dated valuations (flat until the next), linked mortgages/loans, equity, counted in net worth. Not built: equity-over-time chart (needs the debt's balance history), automatic valuation (WOZ), repayments-vs-appreciation split
+- [x] **Stock options**: plans per company, time/exit grants, manual share prices, vested value in net worth. Not built: quarterly/yearly or accelerated vesting, tax estimate, exit-scenario calculator, expiry dates
+- [x] **Loans/mortgages**: nominal or effective rate, day-aware payment dates, extra payments shorten the term, term entered in months
+- [x] **Crypto**: any ticker via CoinGecko search, sub-cent prices, rate-limit resilience (backoff, Yahoo fallback, stale data)
 
 ## Hygiene
 - [x] All migrations from now on come from `db:generate` (0018 does); `db:check` runs in `bun run check` and CI
-- [ ] `packages/frontend/tsconfig.tsbuildinfo` is tracked in git (a build artifact that `tsc -b` rewrites) — untrack and gitignore it
+- [x] `tsconfig.tsbuildinfo` is no longer tracked (the Vue build does not emit it)
 - [ ] Root `package.json` was reformatted by tooling (workspaces array is expanded) — cosmetic
