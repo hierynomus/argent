@@ -12,24 +12,24 @@ describe("NetWorthCard", () => {
   test("shows net worth, assets and liabilities", async () => {
     await renderApp(NetWorthCard, { props: { ...props } })
     expect(screen.getByText("Net Worth")).toBeInTheDocument()
-    expect(screen.getByText(/^[^\d]*1,500\.00$/)).toBeInTheDocument()
-    expect(screen.getByText(/^[^\d]*2,000\.00$/)).toBeInTheDocument()
-    expect(screen.getByText(/^[^\d]*500\.00$/)).toBeInTheDocument()
+    expect(screen.getByText(/^[^\d]*1\.500,00$/)).toBeInTheDocument()
+    expect(screen.getByText(/^[^\d]*2\.000,00$/)).toBeInTheDocument()
+    expect(screen.getByText(/^[^\d]*500,00$/)).toBeInTheDocument()
   })
 
   test("a negative net worth is shown in red", async () => {
     await renderApp(NetWorthCard, { props: { ...props, netWorth: -300 } })
-    expect(screen.getByText(/300\.00/, { selector: "p" }).className).toContain("text-red-600")
+    expect(screen.getByText(/300,00/, { selector: "p" }).className).toContain("text-red-600")
   })
 
   test("a positive net worth is not", async () => {
     await renderApp(NetWorthCard, { props: { ...props } })
-    expect(screen.getByText(/1,500\.00/, { selector: "p" }).className).not.toContain("text-red-600")
+    expect(screen.getByText(/1\.500,00/, { selector: "p" }).className).not.toContain("text-red-600")
   })
 
   test("while loading, the numbers are replaced by placeholders", async () => {
     await renderApp(NetWorthCard, { props: { ...props, loading: true } })
-    expect(screen.queryByText(/1,500\.00/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/1\.500,00/)).not.toBeInTheDocument()
     expect(document.querySelectorAll(".animate-pulse").length).toBeGreaterThan(0)
   })
 
@@ -68,21 +68,21 @@ describe("CashFlowCard", () => {
   test("income, expenses and a positive net (with a plus sign)", async () => {
     await renderApp(CashFlowCard, { props: { income: 2000, expenses: 500, loading: false, monthLabel: "November 2026" } })
     expect(screen.getByText("Cash Flow — November 2026")).toBeInTheDocument()
-    expect(screen.getByText(/^[^\d]*2,000\.00$/)).toBeInTheDocument()
-    expect(screen.getByText(/^[^\d]*500\.00$/)).toBeInTheDocument()
-    expect(screen.getByText(/^\+[^\d]*1,500\.00$/)).toHaveClass("text-green-600")
+    expect(screen.getByText(/^[^\d]*2\.000,00$/)).toBeInTheDocument()
+    expect(screen.getByText(/^[^\d]*500,00$/)).toBeInTheDocument()
+    expect(screen.getByText(/^\+[^\d]*1\.500,00$/)).toHaveClass("text-green-600")
   })
 
   test("a negative net is red and not prefixed with a plus", async () => {
     await renderApp(CashFlowCard, { props: { income: 100, expenses: 400, loading: false, monthLabel: "x" } })
-    const net = screen.getByText(/300\.00/, { selector: "span.font-bold" })
+    const net = screen.getByText(/300,00/, { selector: "span.font-bold" })
     expect(net.className).toContain("text-red-600")
     expect(net.textContent).not.toContain("+")
   })
 
   test("breaking even counts as positive", async () => {
     await renderApp(CashFlowCard, { props: { income: 100, expenses: 100, loading: false, monthLabel: "x" } })
-    expect(screen.getByText(/\+.*0\.00/)).toHaveClass("text-green-600")
+    expect(screen.getByText(/\+.*0,00/)).toHaveClass("text-green-600")
   })
 
   test("while loading, no figures are shown", async () => {
@@ -104,16 +104,16 @@ describe("LiabilitiesCard", () => {
     expect(screen.getByText("Mortgages")).toBeInTheDocument()
     expect(screen.getByText("(1)")).toBeInTheDocument()
     expect(screen.getByText("(2)")).toBeInTheDocument()
-    expect(screen.getAllByText(/200,000\.00/).length).toBeGreaterThan(0)
-    expect(screen.getByText(/900\.00\/mo/)).toBeInTheDocument()
-    expect(screen.getByText(/150\.00\/mo/)).toBeInTheDocument()
+    expect(screen.getAllByText(/200\.000,00/).length).toBeGreaterThan(0)
+    expect(screen.getByText(/900,00\/mo/)).toBeInTheDocument()
+    expect(screen.getByText(/150,00\/mo/)).toBeInTheDocument()
   })
 
   test("a total row appears only when both kinds exist", async () => {
     const { rerender } = await renderApp(LiabilitiesCard, { props: { ...props } })
     expect(screen.getByText("Total")).toBeInTheDocument()
-    expect(screen.getByText(/205,000\.00/)).toBeInTheDocument()
-    expect(screen.getByText(/1,050\.00\/mo/)).toBeInTheDocument()
+    expect(screen.getByText(/205\.000,00/)).toBeInTheDocument()
+    expect(screen.getByText(/1\.050,00\/mo/)).toBeInTheDocument()
     await rerender({ ...props, loanCount: 0 })
     expect(screen.queryByText("Total")).not.toBeInTheDocument()
     expect(screen.queryByText("Loans")).not.toBeInTheDocument()
@@ -126,8 +126,8 @@ describe("RecentTransactionsCard", () => {
   test("lists transactions with a signed amount and a link to everything", async () => {
     await renderApp(RecentTransactionsCard, { props: { loading: false, transactions: [tx(), tx({ id: "u", creditDebitIndicator: "CRDT", amount: "2000.00", counterpartyName: "Employer" })] } })
     expect(screen.getByText("Roastery")).toBeInTheDocument()
-    expect(screen.getByText(/−.*12\.50/)).toBeInTheDocument()
-    expect(screen.getByText(/\+.*2,000\.00/)).toBeInTheDocument()
+    expect(screen.getByText(/−.*12,50/)).toBeInTheDocument()
+    expect(screen.getByText(/\+.*2\.000,00/)).toBeInTheDocument()
     expect(screen.getByRole("link", { name: /View all/ })).toHaveAttribute("href", "/overview")
   })
 

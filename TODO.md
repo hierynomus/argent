@@ -74,9 +74,9 @@ Rewritten from React to Vue 3 (branch `feat/vue-frontend`) on top of the cleaned
 - [x] The 13 inline icon components are one `components/Icon.vue` keyed by name
 - [-] Typed client from Hono's `AppType`: **decided against** — the shared zod schemas + `src/api/` already give end-to-end types
 - [x] `Card` primitive (`components/ui/Card.vue`, `size` lg|xl, `as`) replaces the white bordered panel in 29 places. Table primitives still open.
-- [ ] Balance locale is inconsistent: Accounts tab / Settings pin `nl-NL`, Checking/Savings use the browser locale (kept as-is, now an explicit parameter). Decide one.
-- [ ] Remaining raw `<input>`/`<select>` class strings in `TransactionsTable`, `Layout`, `Subscriptions` filters
-- [ ] Accessibility pass: audit with axe
+- [x] Balance locale: one `APP_LOCALE` (`nl-NL`) in `lib/format.ts` for every number and date. (was: Balance locale is inconsistent: Accounts tab / Settings pin `nl-NL`, Checking/Savings use the browser locale (kept as-is, now an explicit parameter). Decide one.)
+- [x] Raw checkbox styling is the `Checkbox` primitive; header cells are `Th` (body cells `Td` still hand-written)
+- [x] Accessibility: `src/a11y.test.ts` runs axe-core on every page and the main interactive states (contrast excluded: no layout in happy-dom); fixed unlabeled navs, empty table headers, unlabeled file input
 - [ ] Try the app against a real Authentik (the OIDC flow was ported to `oidc-client-ts` directly and is only covered by fake-auth tests)
 
 ## Hygiene

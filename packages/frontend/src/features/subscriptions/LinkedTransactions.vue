@@ -14,7 +14,7 @@ const { data: txs, isLoading } = useSubscriptionTransactions(() => props.subscri
     <div v-for="tx in txs" :key="tx.id" class="flex items-center justify-between py-1.5 text-xs">
       <span class="text-gray-500 dark:text-gray-400 w-24 shrink-0">{{ tx.bookingDate }}</span>
       <span class="text-gray-600 dark:text-gray-400 flex-1 truncate px-3">{{ tx.description ?? "—" }}</span>
-      <span class="text-red-600 dark:text-red-400 font-mono font-medium whitespace-nowrap">{{ fmtBalance(tx.amount, tx.currency, "nl-NL") }}</span>
+      <span class="text-red-600 dark:text-red-400 font-mono font-medium whitespace-nowrap">{{ fmtBalance(tx.amount, tx.currency) }}</span>
     </div>
   </div>
 </template>

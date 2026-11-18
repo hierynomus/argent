@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { CryptoTrade, StockTrade } from "@argent/shared"
-import { Badge } from "../../components/ui"
+import { Badge, Th } from "../../components/ui"
 import Collapsible from "./Collapsible.vue"
 
 /**
@@ -23,11 +23,11 @@ const kindOf = (t: CryptoTrade | StockTrade, currency: string) => (t.fromSymbol 
     <table class="w-full text-sm min-w-[560px]">
       <thead>
         <tr class="text-xs text-gray-400 dark:text-gray-500 uppercase tracking-wide border-b border-gray-100 dark:border-gray-800">
-          <th class="px-4 py-2 text-left">Date</th>
-          <th class="px-4 py-2 text-left">Type</th>
-          <th class="px-4 py-2 text-right">From</th>
-          <th class="px-4 py-2 text-right">To</th>
-          <th class="px-4 py-2 text-left">Notes</th>
+          <Th dense align="left">Date</Th>
+          <Th dense align="left">Type</Th>
+          <Th dense align="right">From</Th>
+          <Th dense align="right">To</Th>
+          <Th dense align="left">Notes</Th>
         </tr>
       </thead>
       <tbody class="divide-y divide-gray-50 dark:divide-gray-800">

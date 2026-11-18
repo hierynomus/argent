@@ -153,9 +153,9 @@ describe("crypto page: positions and trades", () => {
   test("shows summary tiles and positions with P&L formatting", async () => {
     await setup()
     expect(await screen.findByText("Bitcoin")).toBeInTheDocument()
-    expect(screen.getByText("€30,000.00", { selector: "p" })).toBeInTheDocument() // open cost tile
-    expect(screen.getByText("+€20,000.00", { selector: "p" })).toBeInTheDocument() // unrealized tile
-    expect(screen.getByText("€-150.00", { selector: "p" })).toBeInTheDocument() // realized tile (negative)
+    expect(screen.getByText("€30.000,00", { selector: "p" })).toBeInTheDocument() // open cost tile
+    expect(screen.getByText("+€20.000,00", { selector: "p" })).toBeInTheDocument() // unrealized tile
+    expect(screen.getByText("€-150,00", { selector: "p" })).toBeInTheDocument() // realized tile (negative)
     expect(screen.getByText("BTC")).toBeInTheDocument()
   })
 
@@ -250,7 +250,7 @@ describe("stocks page: positions, trades and dividends", () => {
   test("shows the position, its dividends and the dividend tile", async () => {
     await setup()
     expect(await screen.findByText("Apple Inc.")).toBeInTheDocument()
-    expect(screen.getAllByText("$12.50").length).toBeGreaterThan(0)
+    expect(screen.getAllByText("$12,50").length).toBeGreaterThan(0)
     expect(screen.getByText("Dividends", { selector: "p" })).toBeInTheDocument()
   })
 

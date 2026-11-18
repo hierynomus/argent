@@ -48,7 +48,7 @@ const OFF = "border-transparent text-gray-500 dark:text-gray-400 hover:text-gray
     </div>
 
     <div class="border-b border-gray-200 dark:border-gray-700 mb-6">
-      <nav class="flex -mb-px">
+      <nav class="flex -mb-px" aria-label="Subscription views">
         <button type="button" :class="[TAB, tab === 'confirmed' ? ON : OFF]" @click="tab = 'confirmed'">My Subscriptions</button>
         <button type="button" :class="[TAB, tab === 'candidates' ? ON : OFF]" @click="tab = 'candidates'">
           Discovered

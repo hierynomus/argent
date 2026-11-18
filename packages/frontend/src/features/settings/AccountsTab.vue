@@ -30,7 +30,7 @@ const TYPE_BADGE = {
         </div>
         <div class="flex items-center gap-3 shrink-0">
           <span class="text-xs px-2 py-0.5 rounded-full font-medium border" :class="TYPE_BADGE[acc.type === 'savings' ? 'savings' : 'checking']">{{ acc.type === "savings" ? "Savings" : "Checking" }}</span>
-          <span class="text-sm font-mono font-semibold text-gray-900 dark:text-gray-100">{{ fmtBalance(acc.balance ?? "0", acc.currency, "nl-NL") }}</span>
+          <span class="text-sm font-mono font-semibold text-gray-900 dark:text-gray-100">{{ fmtBalance(acc.balance ?? "0", acc.currency) }}</span>
           <span class="text-xs text-gray-400 dark:text-gray-500 uppercase">{{ acc.currency }}</span>
           <Button v-if="editingId !== acc.id" variant="link" size="xs" @click="editingId = acc.id">Edit</Button>
         </div>

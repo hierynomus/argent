@@ -37,7 +37,7 @@ for (const k of kinds) {
       expect(screen.getByText("Part A")).toBeInTheDocument()
       expect(screen.getByText("Annuity")).toBeInTheDocument()
       expect(screen.getByText("3.50%")).toBeInTheDocument()
-      expect(screen.getAllByText(/180,000/).length).toBeGreaterThan(0) // balance
+      expect(screen.getAllByText(/180\.000/).length).toBeGreaterThan(0) // balance
       expect(api.unmatched).toEqual([])
     })
 

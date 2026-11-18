@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Card } from "../../components/ui"
+import { Card, Th } from "../../components/ui"
 import { computed, ref } from "vue"
 import type { ImportResult } from "@argent/shared"
 import { importCamt053, importCamt053Zip, useInvalidate } from "../../api"
@@ -63,7 +63,7 @@ const errored = computed(() => items.value.filter(failed))
       <p class="text-gray-500 dark:text-gray-400 mb-2">Drag &amp; drop CAMT.053 XML or ZIP files here</p>
       <p class="text-sm text-gray-400 dark:text-gray-500">or click to select files</p>
       <!-- the input sits inside the clickable drop zone: its own click must not bubble up and re-trigger it -->
-      <input ref="input" type="file" accept=".xml,.zip" multiple class="hidden" @click.stop @change="handleFiles(($event.target as HTMLInputElement).files)" />
+      <input ref="input" type="file" aria-label="CAMT.053 files" accept=".xml,.zip" multiple class="hidden" @click.stop @change="handleFiles(($event.target as HTMLInputElement).files)" />
     </div>
 
     <div v-if="items.length > 0" class="mt-6">
@@ -71,11 +71,11 @@ const errored = computed(() => items.value.filter(failed))
         <table class="w-full text-sm">
           <thead>
             <tr class="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">
-              <th class="px-4 py-3">File</th>
-              <th class="px-4 py-3">Account</th>
-              <th class="px-4 py-3 text-right">Imported</th>
-              <th class="px-4 py-3 text-right">Skipped</th>
-              <th class="px-4 py-3">Status</th>
+              <Th>File</Th>
+              <Th>Account</Th>
+              <Th align="right">Imported</Th>
+              <Th align="right">Skipped</Th>
+              <Th>Status</Th>
             </tr>
           </thead>
           <tbody class="divide-y divide-gray-100 dark:divide-gray-800">

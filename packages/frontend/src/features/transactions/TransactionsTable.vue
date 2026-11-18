@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Card } from "../../components/ui"
+import { Card, Checkbox, Th } from "../../components/ui"
 import { computed } from "vue"
 import type { TransactionWithDetails } from "@argent/shared"
 import { fmtSignedAmount } from "../../lib/format"
@@ -15,7 +15,6 @@ const props = defineProps<{
 const emit = defineEmits<{ open: [tx: TransactionWithDetails]; toggle: [id: string]; toggleAll: []; openSubscriptions: [] }>()
 
 const allSelected = computed(() => props.rows.length > 0 && props.rows.every((r) => props.selectedIds.has(r.id)))
-const CHECKBOX = "w-4 h-4 accent-indigo-600 cursor-pointer"
 </script>
 
 <template>
@@ -23,13 +22,13 @@ const CHECKBOX = "w-4 h-4 accent-indigo-600 cursor-pointer"
     <table class="w-full text-sm">
       <thead>
         <tr class="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">
-          <th class="px-4 py-3 w-10"><input type="checkbox" aria-label="Select all on this page" :checked="allSelected" :class="CHECKBOX" @change="emit('toggleAll')" /></th>
-          <th class="px-4 py-3">Date</th>
-          <th class="px-4 py-3">Account</th>
-          <th class="px-4 py-3">Counterparty</th>
-          <th class="px-4 py-3">Description</th>
-          <th class="px-4 py-3 text-right">Amount</th>
-          <th class="px-4 py-3">Label</th>
+          <Th class="w-10"><Checkbox aria-label="Select all on this page" :checked="allSelected" @change="emit('toggleAll')" /></Th>
+          <Th>Date</Th>
+          <Th>Account</Th>
+          <Th>Counterparty</Th>
+          <Th>Description</Th>
+          <Th align="right">Amount</Th>
+          <Th>Label</Th>
         </tr>
       </thead>
       <tbody class="divide-y divide-gray-100 dark:divide-gray-800">
@@ -41,7 +40,7 @@ const CHECKBOX = "w-4 h-4 accent-indigo-600 cursor-pointer"
           @click="emit('open', tx)"
         >
           <td class="px-4 py-3 w-10" @click.stop>
-            <input type="checkbox" :aria-label="`Select transaction ${tx.description ?? tx.id}`" :checked="selectedIds.has(tx.id)" :class="CHECKBOX" @change="emit('toggle', tx.id)" />
+            <Checkbox :aria-label="`Select transaction ${tx.description ?? tx.id}`" :checked="selectedIds.has(tx.id)" @change="emit('toggle', tx.id)" />
           </td>
           <td class="px-4 py-3 whitespace-nowrap text-gray-600 dark:text-gray-400">{{ tx.bookingDate }}</td>
           <td class="px-4 py-3 text-gray-500 dark:text-gray-400 text-xs max-w-[120px] truncate">{{ tx.account.name ?? tx.account.iban }}</td>

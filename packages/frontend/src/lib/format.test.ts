@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest"
 import {
-  capitalize, fmt, fmtAmount, fmtBalance, fmtCur, fmtDate, fmtDayMonth, fmtMaxDecimals, fmtSignedAmount, fmtMonthLabel, fmtMonthYear,
+  APP_LOCALE, capitalize, fmt, fmtAmount, fmtBalance, fmtCur, fmtDate, fmtDayMonth, fmtMaxDecimals, fmtSignedAmount, fmtMonthLabel, fmtMonthYear,
   fmtRate, fmtSignificant, fmtSymbolCur, pnlColor, pnlFmt,
 } from "./format"
 
@@ -9,33 +9,33 @@ const norm = (s: string) => s.replace(/[  ]/g, " ")
 
 describe("fmt", () => {
   test("fixed two decimals with thousands separators", () => {
-    expect(fmt(1234.5)).toBe("1,234.50")
-    expect(fmt(0)).toBe("0.00")
-    expect(fmt(1_000_000)).toBe("1,000,000.00")
+    expect(fmt(1234.5)).toBe("1.234,50")
+    expect(fmt(0)).toBe("0,00")
+    expect(fmt(1_000_000)).toBe("1.000.000,00")
   })
   test("rounds half up at the requested precision", () => {
-    expect(fmt(1.005, 2)).toBe("1.01")
+    expect(fmt(1.005, 2)).toBe("1,01")
     expect(fmt(2.5, 0)).toBe("3")
-    expect(fmt(0.123456789, 8)).toBe("0.12345679")
+    expect(fmt(0.123456789, 8)).toBe("0,12345679")
   })
   test("negative numbers keep their sign", () => {
-    expect(fmt(-42.1)).toBe("-42.10")
+    expect(fmt(-42.1)).toBe("-42,10")
   })
 })
 
 describe("fmtSymbolCur / pnlFmt", () => {
   test("USD gets $, everything else €", () => {
-    expect(fmtSymbolCur(1234.5, "USD")).toBe("$1,234.50")
-    expect(fmtSymbolCur(1234.5, "EUR")).toBe("€1,234.50")
-    expect(fmtSymbolCur(1, "GBP")).toBe("€1.00") // only EUR/USD are supported currencies
+    expect(fmtSymbolCur(1234.5, "USD")).toBe("$1.234,50")
+    expect(fmtSymbolCur(1234.5, "EUR")).toBe("€1.234,50")
+    expect(fmtSymbolCur(1, "GBP")).toBe("€1,00") // only EUR/USD are supported currencies
   })
   test("negative amounts put the sign after the symbol", () => {
-    expect(fmtSymbolCur(-5, "EUR")).toBe("€-5.00")
+    expect(fmtSymbolCur(-5, "EUR")).toBe("€-5,00")
   })
   test("pnlFmt prefixes + for gains and zero, and relies on the number's own sign for losses", () => {
-    expect(pnlFmt(120, "EUR")).toBe("+€120.00")
-    expect(pnlFmt(0, "EUR")).toBe("+€0.00")
-    expect(pnlFmt(-45.5, "USD")).toBe("$-45.50")
+    expect(pnlFmt(120, "EUR")).toBe("+€120,00")
+    expect(pnlFmt(0, "EUR")).toBe("+€0,00")
+    expect(pnlFmt(-45.5, "USD")).toBe("$-45,50")
   })
 })
 
@@ -54,6 +54,11 @@ describe("fmtBalance", () => {
   test("explicit locale: Dutch formatting", () => {
     expect(norm(fmtBalance("1234.56", "EUR", "nl-NL"))).toBe("€ 1.234,56")
     expect(norm(fmtBalance("-10", "EUR", "nl-NL"))).toBe("€ -10,00")
+  })
+  test("the app locale is Dutch, whatever the browser says", () => {
+    expect(APP_LOCALE).toBe("nl-NL")
+    expect(norm(fmtBalance("1234.56", "EUR"))).toBe("€ 1.234,56")
+    expect(norm(fmtCur(1234.56))).toBe("€ 1.234,56")
   })
   test("explicit locale: US formatting", () => {
     expect(fmtBalance("1234.56", "USD", "en-US")).toBe("$1,234.56")
@@ -132,14 +137,14 @@ describe("dates", () => {
 
 describe("quantities", () => {
   test("fmtSignificant limits significant digits, not decimals", () => {
-    expect(fmtSignificant(0.123456789, 8)).toBe("0.12345679")
-    expect(fmtSignificant(1234.56789, 6)).toBe("1,234.57")
-    expect(fmtSignificant(1_000_000, 8)).toBe("1,000,000")
+    expect(fmtSignificant(0.123456789, 8)).toBe("0,12345679")
+    expect(fmtSignificant(1234.56789, 6)).toBe("1.234,57")
+    expect(fmtSignificant(1_000_000, 8)).toBe("1.000.000")
   })
   test("fmtMaxDecimals trims trailing zeros", () => {
     expect(fmtMaxDecimals(10)).toBe("10")
-    expect(fmtMaxDecimals(12.34567)).toBe("12.3457")
-    expect(fmtMaxDecimals(0.5, 1)).toBe("0.5")
+    expect(fmtMaxDecimals(12.34567)).toBe("12,3457")
+    expect(fmtMaxDecimals(0.5, 1)).toBe("0,5")
   })
   test("capitalize", () => {
     expect(capitalize("gold")).toBe("Gold")

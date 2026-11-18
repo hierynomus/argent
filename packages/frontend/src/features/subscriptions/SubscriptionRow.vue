@@ -50,7 +50,7 @@ function startEdit() {
         <div class="font-mono text-xs text-gray-400 dark:text-gray-500 mt-0.5 truncate">{{ sub.counterpartyIban }}</div>
       </div>
 
-      <div class="text-red-600 dark:text-red-400 font-mono font-medium whitespace-nowrap">{{ fmtBalance(sub.medianAmount, sub.currency, "nl-NL") }}</div>
+      <div class="text-red-600 dark:text-red-400 font-mono font-medium whitespace-nowrap">{{ fmtBalance(sub.medianAmount, sub.currency) }}</div>
 
       <span v-if="sub.intervalLabel" class="text-xs px-2 py-0.5 rounded-full bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 font-medium border border-indigo-200 dark:border-indigo-800">
         {{ sub.intervalLabel }}

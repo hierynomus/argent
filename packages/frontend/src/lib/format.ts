@@ -4,21 +4,26 @@
  * Money from the API arrives as decimal strings (Postgres `numeric`); amounts computed
  * by the backend (P&L, valuations) arrive as numbers. Both are handled here so pages
  * never re-implement formatting.
+ *
+ * Everything is formatted in ONE locale, `APP_LOCALE`, so every screen reads the same for every user
+ * (the data is Dutch: IBANs, ING exports, euro amounts). Change it here to change it everywhere.
  */
 
-/** Fixed-decimals number, e.g. `1,234.50`. */
+export const APP_LOCALE = "nl-NL"
+
+/** Fixed-decimals number, e.g. `1.234,50`. */
 export function fmt(n: number, decimals = 2): string {
-  return n.toLocaleString("en-EU", { minimumFractionDigits: decimals, maximumFractionDigits: decimals })
+  return n.toLocaleString(APP_LOCALE, { minimumFractionDigits: decimals, maximumFractionDigits: decimals })
 }
 
 /** Quantity with at most `digits` significant digits, e.g. `0.12345678` BTC (crypto balances). */
 export function fmtSignificant(n: number, digits = 8): string {
-  return n.toLocaleString("en-US", { maximumSignificantDigits: digits })
+  return n.toLocaleString(APP_LOCALE, { maximumSignificantDigits: digits })
 }
 
 /** Quantity with at most `max` decimals, e.g. `12.3457` shares. */
 export function fmtMaxDecimals(n: number, max = 4): string {
-  return n.toLocaleString("en-US", { maximumFractionDigits: max })
+  return n.toLocaleString(APP_LOCALE, { maximumFractionDigits: max })
 }
 
 /** `gold` → `Gold`. */
@@ -26,12 +31,12 @@ export function capitalize(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1)
 }
 
-/** Currency via `Intl` in the browser's locale, e.g. `€1,234.50` / `1.234,50 €`. */
+/** Currency via `Intl`, e.g. `€ 1.234,50`. */
 export function fmtCur(n: number, currency = "EUR"): string {
-  return new Intl.NumberFormat(undefined, { style: "currency", currency }).format(n)
+  return new Intl.NumberFormat(APP_LOCALE, { style: "currency", currency }).format(n)
 }
 
-/** Investment-style amount: a `$` / `€` prefix followed by `fmt(n)`, e.g. `€1,234.50`. */
+/** Investment-style amount: a `$` / `€` prefix followed by `fmt(n)`, e.g. `€1.234,50`. */
 export function fmtSymbolCur(n: number, currency: string): string {
   return (currency === "USD" ? "$" : "€") + fmt(n)
 }
@@ -43,16 +48,13 @@ export function pnlColor(n: number): string {
   return "text-gray-500 dark:text-gray-400"
 }
 
-/** Signed profit/loss, e.g. `+€120.00` / `-€45.50`. Zero counts as positive. */
+/** Signed profit/loss, e.g. `+€120,00` / `-€45,50`. Zero counts as positive. */
 export function pnlFmt(n: number, currency: string): string {
   return (n >= 0 ? "+" : "") + fmtSymbolCur(n, currency)
 }
 
-/**
- * Account balance from a decimal string. `locale` defaults to the browser's; the admin
- * and settings screens pin `nl-NL` so balances read the same for everyone.
- */
-export function fmtBalance(balance: string, currency: string, locale?: string): string {
+/** Account balance from a decimal string. */
+export function fmtBalance(balance: string, currency: string, locale = APP_LOCALE): string {
   return new Intl.NumberFormat(locale, { style: "currency", currency }).format(parseFloat(balance))
 }
 
@@ -66,7 +68,7 @@ export function fmtAmount(amount: string, indicator: "CRDT" | "DBIT", currency: 
  * Amount with an explicit sign taken from the debit/credit indicator, in Dutch format:
  * credits `€ +12,50`, debits `€ -12,50`. (Used where amounts are listed next to each other.)
  */
-export function fmtSignedAmount(amount: string, indicator: string, currency: string, locale = "nl-NL"): string {
+export function fmtSignedAmount(amount: string, indicator: string, currency: string, locale = APP_LOCALE): string {
   const n = parseFloat(amount)
   return new Intl.NumberFormat(locale, { style: "currency", currency, signDisplay: "always" }).format(indicator === "DBIT" ? -n : n)
 }
@@ -78,22 +80,22 @@ export function fmtRate(rate: string): string {
 
 const parseDay = (date: string) => new Date(date + "T00:00:00")
 
-/** `Mar 5, 2024` (locale-dependent). Input: `YYYY-MM-DD`. */
+/** `Mar 5, 2024` (in the app locale). Input: `YYYY-MM-DD`. */
 export function fmtDate(date: string): string {
-  return parseDay(date).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" })
+  return parseDay(date).toLocaleDateString(APP_LOCALE, { year: "numeric", month: "short", day: "numeric" })
 }
 
-/** `05 Mar` (locale-dependent). Input: `YYYY-MM-DD`. */
+/** `05 Mar` (in the app locale). Input: `YYYY-MM-DD`. */
 export function fmtDayMonth(date: string): string {
-  return parseDay(date).toLocaleDateString(undefined, { day: "2-digit", month: "short" })
+  return parseDay(date).toLocaleDateString(APP_LOCALE, { day: "2-digit", month: "short" })
 }
 
-/** `Mar 2024` (locale-dependent). Input: `YYYY-MM-DD`. */
+/** `Mar 2024` (in the app locale). Input: `YYYY-MM-DD`. */
 export function fmtMonthYear(date: string): string {
-  return parseDay(date).toLocaleDateString(undefined, { year: "numeric", month: "short" })
+  return parseDay(date).toLocaleDateString(APP_LOCALE, { year: "numeric", month: "short" })
 }
 
-/** `March 2024` (locale-dependent). */
+/** `March 2024` (in the app locale). */
 export function fmtMonthLabel(d: Date): string {
-  return d.toLocaleDateString(undefined, { month: "long", year: "numeric" })
+  return d.toLocaleDateString(APP_LOCALE, { month: "long", year: "numeric" })
 }

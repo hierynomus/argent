@@ -12,7 +12,7 @@ import PartRow from "./PartRow.vue"
 /** One mortgage/loan: totals, its parts, sharing (owner only) and add/delete actions. */
 const props = defineProps<{ kind: DebtKind; debt: Debt }>()
 
-const HEADERS: Array<{ label: string; align: "left" | "right" }> = [
+const HEADERS: Array<{ label: string; align: "left" | "right"; srOnly?: boolean }> = [
   { label: "Name", align: "left" },
   { label: "Type", align: "left" },
   { label: "Original", align: "right" },
@@ -21,7 +21,7 @@ const HEADERS: Array<{ label: string; align: "left" | "right" }> = [
   { label: "Monthly", align: "right" },
   { label: "Term", align: "left" },
   { label: "Progress", align: "left" },
-  { label: "", align: "left" },
+  { label: "Actions", align: "left", srOnly: true }, // the column of edit/delete buttons has no visible title
 ]
 
 const noun = DEBT_KINDS[props.kind].noun
@@ -61,7 +61,7 @@ const refresh = () => invalidate.debts(props.kind)
               class="px-4 py-2 text-xs font-medium text-gray-500 dark:text-gray-400"
               :class="h.align === 'right' ? 'text-right' : 'text-left'"
             >
-              {{ h.label }}
+              <span :class="h.srOnly && 'sr-only'">{{ h.label }}</span>
             </th>
           </tr>
         </thead>

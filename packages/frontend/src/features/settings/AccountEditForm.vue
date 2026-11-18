@@ -51,7 +51,7 @@ const submit = () => check(updateAccountSchema, body()) && save.mutate()
     </div>
     <ErrorText :error="save.error.value" />
     <p v-if="account.openingBalanceDate" class="mt-2 text-xs text-gray-400 dark:text-gray-500">
-      Balance calculated from {{ account.openingBalanceDate }}<template v-if="opening !== 0"> (opening: {{ fmtBalance(account.openingBalance, account.currency, "nl-NL") }})</template>
+      Balance calculated from {{ account.openingBalanceDate }}<template v-if="opening !== 0"> (opening: {{ fmtBalance(account.openingBalance, account.currency) }})</template>
     </p>
   </div>
 </template>

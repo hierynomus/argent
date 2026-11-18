@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Card } from "../../../components/ui"
+import { Card, Th } from "../../../components/ui"
 import { ref } from "vue"
 import type { MetalLot } from "@argent/shared"
 import { capitalize, fmtSignificant, fmtSymbolCur, pnlColor, pnlFmt } from "../../../lib/format"
@@ -17,17 +17,17 @@ const sellingId = ref<string | null>(null)
     <table class="w-full text-sm min-w-[860px]">
       <thead>
         <tr class="border-b border-gray-100 dark:border-gray-800 text-xs text-gray-400 dark:text-gray-500 uppercase tracking-wide">
-          <th class="px-4 py-3 text-left">Item</th>
-          <th class="px-4 py-3 text-left">Metal</th>
-          <th class="px-4 py-3 text-left">Form</th>
-          <th class="px-4 py-3 text-right">Qty</th>
-          <th class="px-4 py-3 text-right">Weight/pc</th>
-          <th class="px-4 py-3 text-right">Remaining</th>
-          <th class="px-4 py-3 text-right">Cost/pc</th>
-          <th class="px-4 py-3 text-right">Value/pc</th>
-          <th class="px-4 py-3 text-right">Unr. P&amp;L</th>
-          <th class="px-4 py-3 text-right">Real. P&amp;L</th>
-          <th class="px-4 py-3"></th>
+          <Th align="left">Item</Th>
+          <Th align="left">Metal</Th>
+          <Th align="left">Form</Th>
+          <Th align="right">Qty</Th>
+          <Th align="right">Weight/pc</Th>
+          <Th align="right">Remaining</Th>
+          <Th align="right">Cost/pc</Th>
+          <Th align="right">Value/pc</Th>
+          <Th align="right">Unr. P&amp;L</Th>
+          <Th align="right">Real. P&amp;L</Th>
+          <Th><span class="sr-only">Actions</span></Th>
         </tr>
       </thead>
       <tbody class="divide-y divide-gray-50 dark:divide-gray-800">

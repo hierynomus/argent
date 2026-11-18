@@ -2,7 +2,7 @@
 import { useMutation } from "@tanstack/vue-query"
 import type { StockDividend } from "@argent/shared"
 import { stocksApi, useInvalidate } from "../../../api"
-import { Button } from "../../../components/ui"
+import { Button, Th } from "../../../components/ui"
 import { fmtSymbolCur } from "../../../lib/format"
 import Collapsible from "../Collapsible.vue"
 
@@ -21,11 +21,11 @@ const remove = useMutation({
     <table class="w-full text-sm min-w-[480px]">
       <thead>
         <tr class="text-xs text-gray-400 dark:text-gray-500 uppercase tracking-wide border-b border-gray-100 dark:border-gray-800">
-          <th class="px-4 py-2 text-left">Date</th>
-          <th class="px-4 py-2 text-left">Symbol</th>
-          <th class="px-4 py-2 text-right">Amount</th>
-          <th class="px-4 py-2 text-left">Notes</th>
-          <th v-if="canEdit" class="px-4 py-2" />
+          <Th dense align="left">Date</Th>
+          <Th dense align="left">Symbol</Th>
+          <Th dense align="right">Amount</Th>
+          <Th dense align="left">Notes</Th>
+          <Th v-if="canEdit" dense />
         </tr>
       </thead>
       <tbody class="divide-y divide-gray-50 dark:divide-gray-800">

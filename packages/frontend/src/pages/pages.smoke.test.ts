@@ -29,7 +29,7 @@ describe("Dashboard", () => {
     expect(await screen.findByRole("heading", { name: "Dashboard" })).toBeInTheDocument()
     expect(await screen.findByText("Net Worth")).toBeInTheDocument()
     // 1000 (bank) + 500 (crypto) − 400 (mortgage) − 100 (loan) = 1000
-    await waitFor(() => expect(screen.getAllByText(/1,000\.00/).length).toBeGreaterThan(0))
+    await waitFor(() => expect(screen.getAllByText(/1\.000,00/).length).toBeGreaterThan(0))
     expect(api.unmatched).toEqual([])
   })
 
@@ -194,8 +194,8 @@ describe("Dashboard: non-EUR items", () => {
     await renderApp(DashboardPage)
     expect(await screen.findByText(/Non-EUR portfolios are excluded from this total/)).toBeInTheDocument()
     // net worth is the €1,000 account only — the $50,000 crypto portfolio is not added to it
-    await waitFor(() => expect(screen.getAllByText(/1,000\.00/).length).toBeGreaterThan(0))
-    expect(screen.queryByText(/51,000\.00/)).not.toBeInTheDocument()
+    await waitFor(() => expect(screen.getAllByText(/1\.000,00/).length).toBeGreaterThan(0))
+    expect(screen.queryByText(/51\.000,00/)).not.toBeInTheDocument()
   })
 
   test("no note when everything is in euros", async () => {

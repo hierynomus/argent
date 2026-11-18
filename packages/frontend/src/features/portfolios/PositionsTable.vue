@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Card } from "../../components/ui"
+import { Card, Th } from "../../components/ui"
 import type { AssetPosition, StockPosition } from "@argent/shared"
 import { fmtSymbolCur, pnlColor, pnlFmt } from "../../lib/format"
 
@@ -25,15 +25,15 @@ const dividends = (pos: AssetPosition | StockPosition) => ("totalDividends" in p
     <table class="w-full text-sm" :class="minWidth">
       <thead>
         <tr class="border-b border-gray-100 dark:border-gray-800 text-xs text-gray-400 dark:text-gray-500 uppercase tracking-wide">
-          <th class="px-4 py-3 text-left">Symbol</th>
-          <th class="px-4 py-3 text-left">Name</th>
-          <th class="px-4 py-3 text-right">{{ balanceHeader }}</th>
-          <th class="px-4 py-3 text-right">Avg cost</th>
-          <th class="px-4 py-3 text-right">Current</th>
-          <th class="px-4 py-3 text-right">Value</th>
-          <th class="px-4 py-3 text-right">Unrealized</th>
-          <th class="px-4 py-3 text-right">Realized</th>
-          <th v-if="showDividends" class="px-4 py-3 text-right">Dividends</th>
+          <Th align="left">Symbol</Th>
+          <Th align="left">Name</Th>
+          <Th align="right">{{ balanceHeader }}</Th>
+          <Th align="right">Avg cost</Th>
+          <Th align="right">Current</Th>
+          <Th align="right">Value</Th>
+          <Th align="right">Unrealized</Th>
+          <Th align="right">Realized</Th>
+          <Th v-if="showDividends" align="right">Dividends</Th>
         </tr>
       </thead>
       <tbody class="divide-y divide-gray-50 dark:divide-gray-800">
