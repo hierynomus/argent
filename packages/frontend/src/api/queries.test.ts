@@ -194,3 +194,40 @@ describe("useInvalidate", () => {
     await waitFor(() => expect(api.calls("GET", "/accounts")).toHaveLength(2))
   })
 })
+
+describe("a refetch always fetches the entry it belongs to, even after the parameter moved on", () => {
+  const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
+
+  test("portfolio detail: refreshing the first portfolio's entry while the second one is selected", async () => {
+    mockApi({
+      "GET /crypto/:id": async ({ params }: any) => { await sleep(20); return cryptoDetail({ id: params.id, name: `Detail of ${params.id}` }) },
+    })
+    const client = newClient()
+    const id = ref<string | null>("p1")
+    const { result } = await runComposable(() => ({ detail: usePortfolio("crypto", id), invalidate: useInvalidate() }), { client })
+    await waitFor(() => expect(result.detail.data.value?.name).toBe("Detail of p1"))
+
+    // the selection moves to p2 and p1's cached entry is refreshed at the same moment
+    const refreshing = result.invalidate.portfolios("crypto")
+    id.value = "p2"
+    await refreshing
+    await waitFor(() => expect(result.detail.data.value?.name).toBe("Detail of p2"))
+
+    // p1's entry holds p1's data (it used to receive p2's)
+    expect((client.getQueryData(queryKeys.portfolio("crypto", "p1")) as any)?.name).toBe("Detail of p1")
+    expect((client.getQueryData(queryKeys.portfolio("crypto", "p2")) as any)?.name).toBe("Detail of p2")
+  })
+
+  test("subscription transactions: the same guarantee", async () => {
+    mockApi({ "GET /subscriptions/:id/transactions": async ({ params }: any) => { await sleep(20); return [{ id: `tx-of-${params.id}` }] } })
+    const client = newClient()
+    const id = ref("s1")
+    const { result } = await runComposable(() => ({ q: useSubscriptionTransactions(id, true), invalidate: useInvalidate() }), { client })
+    await waitFor(() => expect((result.q.data.value as any)?.[0]?.id).toBe("tx-of-s1"))
+    const refreshing = result.invalidate.subscriptions()
+    id.value = "s2"
+    await refreshing
+    await waitFor(() => expect((result.q.data.value as any)?.[0]?.id).toBe("tx-of-s2"))
+    expect((client.getQueryData(queryKeys.subscriptionTransactions("s1")) as any)?.[0]?.id).toBe("tx-of-s1")
+  })
+})

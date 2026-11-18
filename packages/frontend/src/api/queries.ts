@@ -15,6 +15,12 @@ import { getTransactions, getTransferSuggestions, type TransactionQuery } from "
  * has exactly one key and one fetcher — and `useInvalidate` below knows how to refresh it.
  *
  * Parameters can be plain values, refs or getters; the query re-runs when a reactive one changes.
+ *
+ * IMPORTANT: a `queryFn` must take its parameters from its own `queryKey` (the context argument), never
+ * from the reactive source. A cached entry can be refetched at any moment (e.g. by an invalidation) after
+ * the reactive value has moved on to something else; reading the live value would then store the data of
+ * the *new* selection under the *old* entry's key (this once emptied the first portfolio after a second
+ * one was created).
  * Authentication is guaranteed by the route guard, so there is no `enabled: !!token` dance.
  */
 type Enabled = { enabled?: MaybeRefOrGetter<boolean> }
@@ -29,7 +35,7 @@ export const useSubscriptions = () => useQuery({ queryKey: queryKeys.subscriptio
 export const useSubscriptionTransactions = (id: MaybeRefOrGetter<string>, enabled: MaybeRefOrGetter<boolean>) =>
   useQuery({
     queryKey: computed(() => queryKeys.subscriptionTransactions(toValue(id))),
-    queryFn: () => getSubscriptionTransactions(toValue(id)),
+    queryFn: ({ queryKey }) => getSubscriptionTransactions(queryKey[1] as string),
     enabled: computed(() => toValue(enabled)),
   })
 
@@ -39,7 +45,7 @@ export const useAdminSharing = (options: Enabled = {}) => useQuery({ queryKey: q
 export const useTransactions = (filters: MaybeRefOrGetter<TransactionQuery>, options: Enabled = {}) =>
   useQuery({
     queryKey: computed(() => queryKeys.transactionList(toValue(filters))),
-    queryFn: () => getTransactions(toValue(filters)),
+    queryFn: ({ queryKey }) => getTransactions(queryKey[2] as TransactionQuery),
     enabled: enabledOf(options),
   })
 
@@ -47,7 +53,7 @@ export const useTransactions = (filters: MaybeRefOrGetter<TransactionQuery>, opt
 export const useTransferSuggestions = (id: MaybeRefOrGetter<string>, enabled: MaybeRefOrGetter<boolean>) =>
   useQuery({
     queryKey: computed(() => queryKeys.transferSuggestions(toValue(id))),
-    queryFn: () => getTransferSuggestions(toValue(id)),
+    queryFn: ({ queryKey }) => getTransferSuggestions(queryKey[2] as string),
     enabled: computed(() => toValue(enabled)),
   })
 
@@ -55,9 +61,9 @@ export const useTransferSuggestions = (id: MaybeRefOrGetter<string>, enabled: Ma
 export const useRecentTransactions = (pageSize: number, accountId?: MaybeRefOrGetter<string | undefined>) =>
   useQuery({
     queryKey: computed(() => [...queryKeys.transactionsRecent(toValue(accountId)), pageSize]),
-    queryFn: () => {
-      const id = toValue(accountId)
-      return getTransactions({ pageSize, ...(id ? { accountIds: [id] } : {}) })
+    queryFn: ({ queryKey }) => {
+      const id = queryKey[2] as string | null
+      return getTransactions({ pageSize: queryKey[3] as number, ...(id ? { accountIds: [id] } : {}) })
     },
   })
 
@@ -70,7 +76,7 @@ export const usePortfolios = (kind: PortfolioKind) => useQuery({ queryKey: query
 export function usePortfolio<K extends PortfolioKind>(kind: K, id: MaybeRefOrGetter<string | null>) {
   return useQuery<PortfolioDetailByKind[K]>({
     queryKey: computed(() => queryKeys.portfolio(kind, toValue(id))),
-    queryFn: () => portfolioApis[kind].get(toValue(id)!) as Promise<PortfolioDetailByKind[K]>,
+    queryFn: ({ queryKey }) => portfolioApis[kind].get(queryKey[2] as string) as Promise<PortfolioDetailByKind[K]>,
     enabled: computed(() => !!toValue(id)),
   })
 }
