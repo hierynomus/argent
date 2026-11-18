@@ -1,4 +1,4 @@
-import { useState } from "react"
+import { ref } from "vue"
 import type { z } from "zod"
 
 /** Messages by form field (the schema's top-level property name). `_form` holds errors not tied to a field. */
@@ -26,19 +26,21 @@ export function validate<S extends z.ZodType>(schema: S, value: unknown): Valida
  * Form-level validation state.
  *
  *   const { errors, check } = useFormErrors()
- *   function submit(e) { e.preventDefault(); if (!check(schema, body)) return; save.mutate() }
- *   <Field label="Name" error={errors.name}>…</Field>
+ *   function submit() { if (!check(schema, body)) return; save.mutate() }
+ *   <Field label="Name" :error="errors.name">…</Field>
  */
 export function useFormErrors() {
-  const [errors, setErrors] = useState<FieldErrors>({})
+  const errors = ref<FieldErrors>({})
   return {
     errors,
     /** Validates and stores the errors; returns true when the values are valid. */
     check<S extends z.ZodType>(schema: S, value: unknown): boolean {
       const result = validate(schema, value)
-      setErrors(result.ok ? {} : result.errors)
+      errors.value = result.ok ? {} : result.errors
       return result.ok
     },
-    clear: () => setErrors({}),
+    clear: () => {
+      errors.value = {}
+    },
   }
 }

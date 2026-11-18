@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test"
+import { describe, expect, test } from "vitest"
 import { createDebtPartSchema, createStockTradeSchema } from "@argent/shared"
 import { validate } from "./validate"
 

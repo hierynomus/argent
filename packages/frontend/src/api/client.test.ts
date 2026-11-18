@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, test } from "bun:test"
+import { afterEach, beforeEach, describe, expect, test } from "vitest"
 import { mockApi, respond } from "../../test/fakeApi"
 import { ApiError, download, http, request, setTokenGetter } from "./client"
 

@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test"
+import { describe, expect, test } from "vitest"
 import {
   capitalize, fmt, fmtAmount, fmtBalance, fmtCur, fmtDate, fmtDayMonth, fmtMaxDecimals, fmtSignedAmount, fmtMonthLabel, fmtMonthYear,
   fmtRate, fmtSignificant, fmtSymbolCur, pnlColor, pnlFmt,

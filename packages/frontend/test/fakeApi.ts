@@ -11,7 +11,7 @@
  *   ...
  *   expect(api.calls("POST", "/mortgages")[0].body).toEqual({ name: "House", currency: "EUR" })
  */
-import { afterEach } from "bun:test"
+import { afterEach } from "vitest"
 
 export interface MockRequest {
   method: string

@@ -1,16 +1,9 @@
 {
   "extends": "./tsconfig.json",
   "compilerOptions": {
-    "types": [
-      "bun"
-    ],
+    "types": ["vite/client", "vitest/globals", "@testing-library/jest-dom/vitest"],
     "noEmit": true
   },
-  "include": [
-    "src",
-    "test"
-  ],
-  "exclude": [
-    "node_modules"
-  ]
+  "include": ["src/**/*.ts", "src/**/*.vue", "test/**/*.ts"],
+  "exclude": ["node_modules"]
 }

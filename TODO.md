@@ -11,7 +11,7 @@ Verify everything with `bun run check` (type-check all packages + all tests + "m
 - [x] Schema (validation) unit tests in `@argent/shared`; formatting tests in the frontend
 - [x] CI workflow (`.github/workflows/ci.yml`: `bun run check` + frontend build). *Not yet run on GitHub — verify after the first push.*
 - [x] All three packages type-check cleanly (`bun run typecheck`); test files are type-checked too
-- [x] Frontend component/page tests (426; see Frontend)
+- [x] Frontend component/page tests (444 on Vue; see Frontend)
 - [ ] Tests for `camt053` edge cases with real bank exports (samples from several Dutch banks)
 
 ## Access control / backend coupling
@@ -63,22 +63,21 @@ Verify everything with `bun run check` (type-check all packages + all tests + "m
 - [ ] Table registry driving backup/restore and the sharing overview (no hand-listed 23-table type; `BACKUP_TABLES` in `admin.ts` is a first step)
 
 ## Frontend
-Largest page went from 911 to 119 lines; per-component `useState`s from 15–19 to at most 4; 5,982 source lines (was ~8,600) and 426 frontend tests.
+Rewritten from React to Vue 3 (branch `feat/vue-frontend`) on top of the cleaned-up architecture: `api/`, `lib/`, the shared zod schemas and the fetch-level test fakes carried over unchanged; components, composables, auth, router and tests were ported. 444 tests (the React version had 426). Initial bundle is ~130 kB (was 372 kB).
 - [x] `lib/format.ts` (all number/currency/date/P&L formatting) with tests
-- [x] API layer split by domain under `src/api/`; the `token` argument is gone (`ApiAuthBridge` feeds a token getter); `api/keys.ts` + `api/queries.ts` own every query key, read hook and cache refresh (`useInvalidate`)
-- [x] Mortgages and Loans are one `DebtPage` (two 10-line pages); Crypto/Metals/Stocks share `PortfolioPage`, `PortfolioActions`, `SummaryTiles`, `PositionsTable`, `TradeHistory`, form chrome
-- [x] `SharingPanel`, `Pagination`, `AccountsByType`, `ImportPanel` are shared components
-- [x] UI primitives in `components/ui`: `Button`, `Input`/`Select`, `Field` (label properly associated + inline error), `FieldGroup`, `SegmentedControl`, `ConfirmButton`, `RoleBadge`, `LoadingText`/`ErrorText`/`EmptyState`
-- [x] Client-side validation with the same `@argent/shared` schemas the backend enforces (`lib/validate.ts`, `useFormErrors`) on every investment/debt/subscription/account/label form
-- [x] Component/page tests (happy-dom + Testing Library) against a fake API at the `fetch` level (`test/fakeApi.ts`); every page and feature is covered
-- [x] Route-level code splitting (initial bundle 562 kB → 372 kB; zod loads with the form pages)
-- [x] Dead duplicates removed: `pages/Import.tsx`, `pages/Accounts.tsx`, `pages/Categories.tsx`, `pages/Transactions.tsx` (`/transactions` now redirects to `/overview`)
-- [-] Typed client from Hono's `AppType`: **decided against** — it needs every route written as one chained expression; the shared zod schemas + `src/api/` already give end-to-end types
+- [x] API layer split by domain under `src/api/`; `api/keys.ts` + `api/queries.ts` own every query key, read composable and cache refresh (`useInvalidate`)
+- [x] Mortgages and Loans are one `DebtPage`; Crypto/Metals/Stocks share `PortfolioPage` (scoped slot), `PortfolioActions`, `SummaryTiles`, `PositionsTable`, `TradeHistory`, form chrome
+- [x] UI primitives in `components/ui` (`Field` associates label and control through provide/inject)
+- [x] Client-side validation with the same `@argent/shared` schemas the backend enforces (`useFormErrors`)
+- [x] Component/page tests (Vitest + happy-dom + Testing Library) against a fake API at the `fetch` level
+- [x] Route-level code splitting
+- [x] The 13 inline icon components are one `components/Icon.vue` keyed by name
+- [-] Typed client from Hono's `AppType`: **decided against** — the shared zod schemas + `src/api/` already give end-to-end types
 - [ ] Add a `Card` primitive (the white bordered panel is still spelled out ~30 times) and table primitives
-- [ ] Move the 13 inline SVG icon components out of `components/Layout.tsx` (373 lines, the largest file) into `components/icons.tsx`
 - [ ] Balance locale is inconsistent: Accounts tab / Settings pin `nl-NL`, Checking/Savings use the browser locale (kept as-is, now an explicit parameter). Decide one.
 - [ ] Remaining raw `<input>`/`<select>` class strings in `TransactionsTable`, `Layout`, `Subscriptions` filters
-- [ ] Accessibility pass: the app had unlabeled form controls and icon-only buttons (fixed where touched); audit the rest with axe
+- [ ] Accessibility pass: audit with axe
+- [ ] Try the app against a real Authentik (the OIDC flow was ported to `oidc-client-ts` directly and is only covered by fake-auth tests)
 
 ## Hygiene
 - [x] All migrations from now on come from `db:generate` (0018 does); `db:check` runs in `bun run check` and CI

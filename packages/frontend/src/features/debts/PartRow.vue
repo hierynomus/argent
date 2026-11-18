@@ -1,0 +1,97 @@
+<script setup lang="ts">
+import { reactive, ref } from "vue"
+import { useMutation } from "@tanstack/vue-query"
+import { updateDebtPartSchema } from "@argent/shared"
+import { debtApis, useInvalidate, type Debt, type DebtKind, type DebtPart } from "../../api"
+import { Button, ConfirmButton, ErrorText, Field, Input } from "../../components/ui"
+import { fmtCur, fmtMonthYear, fmtRate } from "../../lib/format"
+import { useFormErrors } from "../../lib/validate"
+import ExtraPaymentsPanel from "./ExtraPaymentsPanel.vue"
+import TypeBadge from "./TypeBadge.vue"
+
+/** One part of a mortgage/loan as a table row, plus its optional edit row and extra-payments panel. */
+const props = defineProps<{ kind: DebtKind; debt: Debt; part: DebtPart; canEdit: boolean }>()
+const COLUMNS = 9
+
+const invalidate = useInvalidate()
+const { errors, check } = useFormErrors()
+const showPayments = ref(false)
+const editing = ref(false)
+// rates are stored as a fraction (0.035) but edited as a percentage (3.5)
+const form = reactive({
+  name: props.part.name,
+  annualInterestRate: (parseFloat(props.part.annualInterestRate) * 100).toFixed(4),
+  endDate: props.part.endDate,
+})
+const body = () => ({ name: form.name, annualInterestRate: (parseFloat(form.annualInterestRate) / 100).toFixed(6), endDate: form.endDate })
+
+const update = useMutation({
+  mutationFn: () => debtApis[props.kind].updatePart(props.debt.id, props.part.id, body()),
+  onSuccess: () => {
+    invalidate.debts(props.kind)
+    editing.value = false
+  },
+})
+const remove = useMutation({
+  mutationFn: () => debtApis[props.kind].removePart(props.debt.id, props.part.id),
+  onSuccess: () => invalidate.debts(props.kind),
+})
+
+const progressPct = () => Math.round((props.part.monthsElapsed / props.part.totalMonths) * 100)
+</script>
+
+<template>
+  <tr class="hover:bg-gray-50 dark:hover:bg-gray-800/50">
+    <td class="px-4 py-3 text-sm font-medium text-gray-900 dark:text-gray-100">{{ part.name }}</td>
+    <td class="px-4 py-3"><TypeBadge :type="part.type" /></td>
+    <td class="px-4 py-3 text-sm text-right tabular-nums text-gray-600 dark:text-gray-400">{{ fmtCur(parseFloat(part.principal), debt.currency) }}</td>
+    <td class="px-4 py-3 text-sm text-right tabular-nums font-semibold text-gray-900 dark:text-gray-100">{{ fmtCur(part.currentBalance, debt.currency) }}</td>
+    <td class="px-4 py-3 text-sm text-right tabular-nums text-gray-600 dark:text-gray-400">{{ fmtRate(part.annualInterestRate) }}</td>
+    <td class="px-4 py-3 text-sm text-right tabular-nums text-gray-900 dark:text-gray-100">
+      <span class="font-medium">{{ fmtCur(part.monthlyPayment, debt.currency) }}</span>
+      <span class="text-xs text-gray-400 dark:text-gray-500 ml-1">/mo</span>
+    </td>
+    <td class="px-4 py-3 text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
+      <span class="text-gray-400 dark:text-gray-500">{{ fmtMonthYear(part.startDate) }}</span>{{ " → " }}{{ fmtMonthYear(part.endDate) }}
+    </td>
+    <td class="px-4 py-3 w-32">
+      <div class="flex items-center gap-2">
+        <div class="flex-1 bg-gray-200 dark:bg-gray-700 rounded-full h-1.5 overflow-hidden">
+          <div class="h-full bg-indigo-500 rounded-full" :style="{ width: `${progressPct()}%` }" />
+        </div>
+        <span class="text-xs text-gray-400 dark:text-gray-500 whitespace-nowrap">{{ part.monthsRemaining }}mo</span>
+      </div>
+    </td>
+    <td class="px-4 py-3 text-right">
+      <div class="flex items-center justify-end gap-2">
+        <Button variant="link" size="xs" title="Extra payments" @click="showPayments = !showPayments">{{ showPayments ? "Hide" : "Payments" }}</Button>
+        <template v-if="canEdit">
+          <Button variant="muted-link" size="xs" @click="editing = !editing">Edit</Button>
+          <!-- keyed on `editing` so opening the edit form also dismisses a pending delete confirmation -->
+          <ConfirmButton :key="String(editing)" label="Delete" @start="editing = false" @confirm="remove.mutate()" />
+        </template>
+      </div>
+    </td>
+  </tr>
+
+  <tr v-if="editing && canEdit" class="bg-indigo-50 dark:bg-indigo-950/30">
+    <td :colspan="COLUMNS" class="px-4 py-3">
+      <div class="flex gap-3 flex-wrap items-end">
+        <Field label="Name" :error="errors.name"><Input v-model="form.name" density="sm" type="text" class="w-40" /></Field>
+        <Field label="Rate (%)" :error="errors.annualInterestRate">
+          <Input v-model="form.annualInterestRate" density="sm" type="number" min="0" step="0.001" class="w-24" />
+        </Field>
+        <Field label="End date" :error="errors.endDate"><Input v-model="form.endDate" density="sm" type="date" class="w-36" /></Field>
+        <Button :disabled="update.isPending.value" @click="check(updateDebtPartSchema, body()) && update.mutate()">Save</Button>
+        <Button variant="secondary" @click="editing = false">Cancel</Button>
+      </div>
+      <ErrorText :error="update.error.value" />
+    </td>
+  </tr>
+
+  <tr v-if="showPayments">
+    <td :colspan="COLUMNS" class="p-0">
+      <ExtraPaymentsPanel :kind="kind" :debt="debt" :part="part" :can-edit="canEdit" />
+    </td>
+  </tr>
+</template>

@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test"
+import { describe, expect, test } from "vitest"
 import { account, debt, portfolio, transaction } from "../../../test/fixtures"
 import { bankingLabel, summarize, toHoldings, unrealizedLabel, type DashboardInput, type Holding } from "./summarize"
 

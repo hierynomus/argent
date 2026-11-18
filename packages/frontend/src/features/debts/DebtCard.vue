@@ -1,0 +1,93 @@
+<script setup lang="ts">
+import { ref } from "vue"
+import { useMutation } from "@tanstack/vue-query"
+import { debtApis, useInvalidate, type Debt, type DebtKind } from "../../api"
+import SharingPanel from "../../components/SharingPanel.vue"
+import { Button, ConfirmButton } from "../../components/ui"
+import { fmtCur } from "../../lib/format"
+import AddPartForm from "./AddPartForm.vue"
+import { DEBT_KINDS } from "./config"
+import PartRow from "./PartRow.vue"
+
+/** One mortgage/loan: totals, its parts, sharing (owner only) and add/delete actions. */
+const props = defineProps<{ kind: DebtKind; debt: Debt }>()
+
+const HEADERS: Array<{ label: string; align: "left" | "right" }> = [
+  { label: "Name", align: "left" },
+  { label: "Type", align: "left" },
+  { label: "Original", align: "right" },
+  { label: "Balance", align: "right" },
+  { label: "Rate", align: "right" },
+  { label: "Monthly", align: "right" },
+  { label: "Term", align: "left" },
+  { label: "Progress", align: "left" },
+  { label: "", align: "left" },
+]
+
+const noun = DEBT_KINDS[props.kind].noun
+const invalidate = useInvalidate()
+const showAddPart = ref(false)
+const showAccess = ref(false)
+
+const remove = useMutation({ mutationFn: () => debtApis[props.kind].remove(props.debt.id), onSuccess: () => invalidate.debts(props.kind) })
+const refresh = () => invalidate.debts(props.kind)
+</script>
+
+<template>
+  <div class="bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 overflow-hidden">
+    <div class="px-6 py-5 border-b border-gray-100 dark:border-gray-800 flex items-start justify-between gap-4">
+      <div>
+        <p class="text-lg font-semibold text-gray-900 dark:text-gray-100">{{ debt.name }}</p>
+        <div class="flex items-center gap-2 mt-0.5">
+          <p class="text-xs text-gray-400 dark:text-gray-500">{{ debt.currency }}</p>
+          <span v-if="!debt.isOwner" class="text-xs px-1.5 py-0.5 rounded bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400">
+            {{ debt.canEdit ? "editor" : "viewer" }}
+          </span>
+        </div>
+      </div>
+      <div class="text-right flex-shrink-0">
+        <p class="text-2xl font-bold text-gray-900 dark:text-gray-100">{{ fmtCur(debt.totalCurrentBalance, debt.currency) }}</p>
+        <p class="text-sm text-gray-500 dark:text-gray-400">{{ fmtCur(debt.totalMonthlyPayment, debt.currency) }}<span class="text-xs">/mo</span></p>
+      </div>
+    </div>
+
+    <div v-if="debt.parts.length > 0" class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="border-b border-gray-100 dark:border-gray-800">
+            <th
+              v-for="(h, i) in HEADERS"
+              :key="i"
+              class="px-4 py-2 text-xs font-medium text-gray-500 dark:text-gray-400"
+              :class="h.align === 'right' ? 'text-right' : 'text-left'"
+            >
+              {{ h.label }}
+            </th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-50 dark:divide-gray-800/50">
+          <PartRow v-for="part in debt.parts" :key="part.id" :kind="kind" :debt="debt" :part="part" :can-edit="debt.canEdit" />
+        </tbody>
+      </table>
+    </div>
+
+    <div v-if="debt.isOwner && showAccess" class="px-6 py-4 border-t border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-800/30">
+      <SharingPanel
+        :members="debt.members"
+        :add-member="(m) => debtApis[kind].addMember(debt.id, m).then(refresh)"
+        :remove-member="(group) => debtApis[kind].removeMember(debt.id, group).then(refresh)"
+      />
+    </div>
+
+    <AddPartForm v-if="showAddPart" :kind="kind" :debt="debt" @done="showAddPart = false" />
+    <div v-else class="px-6 py-3 flex items-center justify-between border-t border-gray-100 dark:border-gray-800 flex-wrap gap-2">
+      <div class="flex items-center gap-3">
+        <Button v-if="debt.canEdit" variant="link" @click="showAddPart = true">+ Add part</Button>
+        <Button v-if="debt.isOwner" variant="muted-link" @click="showAccess = !showAccess">{{ showAccess ? "Hide access" : "Share" }}</Button>
+      </div>
+      <div v-if="debt.isOwner" class="flex items-center gap-3">
+        <ConfirmButton :label="`Delete ${noun}`" :prompt="`Delete ${noun}?`" @confirm="remove.mutate()" />
+      </div>
+    </div>
+  </div>
+</template>

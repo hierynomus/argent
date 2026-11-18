@@ -29,3 +29,11 @@ export const DEBT_KINDS: Record<DebtKind, DebtKindConfig> = {
     paymentNotesPlaceholder: "optional",
   },
 }
+
+import type { DebtPart } from "../../api"
+
+export const PART_TYPE_LABELS: Record<DebtPart["type"], string> = {
+  linear: "Linear",
+  annuity: "Annuity",
+  interest_only: "Interest-only",
+}

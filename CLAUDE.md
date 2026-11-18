@@ -3,7 +3,7 @@
 Self-hosted personal finance app. Repo dir is `finance`, but the root package is `argent` and workspace packages are `@argent/*`.
 
 ## Stack
-- Bun workspaces monorepo: `packages/shared` (`@argent/shared`: types + zod request schemas, also used by the frontend for validation), `packages/backend` (Hono + Drizzle + Postgres), `packages/frontend` (React + Vite + Tailwind + react-oidc-context).
+- Bun workspaces monorepo: `packages/shared` (`@argent/shared`: types + zod request schemas, also used by the frontend for validation), `packages/backend` (Hono + Drizzle + Postgres), `packages/frontend` (Vue 3 + Vite + Tailwind + vue-router + TanStack Query for Vue + oidc-client-ts).
 - Auth: Authentik OIDC. The SPA runs the auth code flow; the backend validates the Bearer JWT via JWKS (`jose`).
 - Deploy: Docker images (`docker/`), k8s manifests (`k8s/`) for k3s/RKE2 with Traefik IngressRoute, cert-manager, CloudNativePG. Migrations run as a k8s init container.
 - CI: `.github/workflows/ci.yml` runs `bun run check` and the frontend build.
@@ -19,7 +19,7 @@ Self-hosted personal finance app. Repo dir is `finance`, but the root package is
 
 ## Local dev mode
 - Backend `.env.development`: `AUTH_MODE=fake` injects a static dev user. With `DATABASE_URL` unset it uses PGlite (in-memory Postgres WASM) and auto-migrates.
-- Frontend `.env.development`: `VITE_AUTH_MODE=fake` uses `FakeAuthProvider`, which feeds the real `AuthContext`, so `useAuth()` works unchanged.
+- Frontend `.env.development`: `VITE_AUTH_MODE=fake` uses `createFakeAuth()`, which is the same `Auth` object the real OIDC flow produces, so `useAuth()` works unchanged.
 - PGlite is a devDependency and is not in the production image.
 
 ## Database / migrations (important)
@@ -43,7 +43,7 @@ Self-hosted personal finance app. Repo dir is `finance`, but the root package is
 ## Testing (`bun test`)
 - Backend tests live next to the code (`*.test.ts`) and run on in-memory PGlite. `test/setup.ts` (a `bunfig.toml` preload) forces `DATABASE_URL=memory` and installs `test/fakeFetch.ts`, so **no test can touch a real database or the network**.
 - All test files in a run share one database (one process), so tests create their own uniquely-named data and assert only on it, never on global counts. `test/helpers.ts` has `api/get/post/...` (real app as the fake admin), `clientAs(user(...))` (real app as any user/role), `camt(...)` (CAMT.053 builder), `upload(...)` (waits for background jobs to settle).
-- `bun run check` also runs the shared (`schemas.test.ts`) and frontend (`lib/format.test.ts`) tests.
+- `bun run check` also runs the shared (`schemas.test.ts`) and all frontend tests.
 - Modules with in-process caches (priceService) are loaded fresh per test with `import("./x.ts?fresh=N")`.
 - Backup/restore replaces ALL data, which is fine inside the suite because the round trip restores what it backed up.
 
@@ -61,27 +61,27 @@ Self-hosted personal finance app. Repo dir is `finance`, but the root package is
 - Importing a new IBAN creates the account with no access, and an admin assigns groups later. Importing an existing IBAN requires editor access, otherwise 403.
 
 ## Frontend layout (`packages/frontend/src`)
-Pages are thin: they pick a feature and pass configuration. Real UI lives in `features/<area>/` and shared pieces in `components/`.
-- `api/`: the only place that talks HTTP. `client.ts` (`http.get/post/...`, `ApiError`, token getter set by `ApiAuthBridge`), one module per domain (`accounts`, `transactions`, `admin`, …), **generic factories** `portfolioApis` (crypto/metals/stocks) and `debtApis` (mortgages/loans), `keys.ts` (every query key) and `queries.ts` (read hooks + `useInvalidate`). **Never pass a token, never write `useQuery({ queryKey: [...] })` or `invalidateQueries({ queryKey: [...] })` in a page** — add a hook/key in `api/` so a resource has one key and refreshes everywhere. Keys are hierarchical (e.g. everything transaction-related is under `["transactions"]`).
-- `components/ui/`: primitives — `Button` (type="button" by default), `Input`/`Select` (`density`), `Field` (associates label↔control, shows `error`), `FieldGroup`, `SegmentedControl`, `ConfirmButton` (inline confirm; never use `window.confirm/alert`), `RoleBadge`, `LoadingText/ErrorText/EmptyState`, `cx`. `components/SharingPanel.tsx`, `components/Pagination.tsx` are shared widgets.
-- `features/debts/` (`DebtPage` serves both Mortgages and Loans via `DEBT_KINDS`), `features/portfolios/` (`PortfolioPage` shell + `crypto/`, `stocks/`, `metals/` views), `features/transactions/`, `features/subscriptions/`, `features/dashboard/` (`summarize.ts` is the pure net-worth logic), `features/admin/`, `features/settings/`, `features/import/`, `features/accounts/`.
-- Forms validate with the **same zod schemas the backend uses**: build the request body, `check(schema, body)` from `useFormErrors()` (`lib/validate.ts`), show `errors.<field>` via `<Field error=…>`, and only then `mutate()`.
+Vue 3 (`<script setup lang="ts">` SFCs). Pages are thin: they pick a feature and pass configuration. Real UI lives in `features/<area>/` and shared pieces in `components/`.
+- `api/`: the only place that talks HTTP. `client.ts` (`http.get/post/...`, `ApiError`, token getter set by the auth object), one module per domain (`accounts`, `transactions`, `admin`, …), **generic factories** `portfolioApis` (crypto/metals/stocks) and `debtApis` (mortgages/loans), `keys.ts` (every query key) and `queries.ts` (`use*` composables + `useInvalidate`). **Never write `useQuery({ queryKey: [...] })` or `invalidateQueries({ queryKey: [...] })` in a page/component** — add a composable/key in `api/` so a resource has one key and refreshes everywhere. Keys are hierarchical (everything transaction-related is under `["transactions"]`). Query composables return refs: use `.value` in script, destructure the top-level refs for templates; reactive params are `MaybeRefOrGetter`.
+- `auth/`: `createOidcAuth(settings)` / `createFakeAuth()` build a reactive `Auth` object (`user`, `isLoading`, `error`, `isAuthenticated`, `ready`, `signinRedirect/Callback`, `signoutRedirect`) and point the API token getter at it; `authPlugin(auth)` provides it, `useAuth()` injects it. `config.ts` reads OIDC config from `window.__ENV__`.
+- `router.ts`: `createAppRouter(history, auth)` with lazy routes; the `beforeEach` guard awaits `auth.ready` and starts the sign-in when there is no session (`/auth/callback` is `meta.public`). `/transactions` redirects to `/overview`. `App.vue` is the loading/error gate plus `Layout` around `<RouterView>`.
+- `components/ui/`: primitives — `Button` (type="button" by default), `Input`/`Select` (`density`, `v-model`; `Input` keeps the raw string even for type=number), `Field` (provide/inject associates label↔control, shows `error`), `FieldGroup`, `SegmentedControl`, `ConfirmButton` (inline confirm; never use `window.confirm/alert`), `RoleBadge`, `LoadingText/ErrorText/EmptyState`, `vFocus` (autofocus directive). `components/SharingPanel.vue`, `Pagination.vue`, `Icon.vue` (named inline SVGs), `Layout.vue` are shared widgets.
+- `features/debts/` (`DebtPage` serves both Mortgages and Loans via `DEBT_KINDS`), `features/portfolios/` (`PortfolioPage` shell with a scoped slot `{ portfolio }` + `crypto/`, `stocks/`, `metals/` views), `features/transactions/`, `features/subscriptions/`, `features/dashboard/` (`summarize.ts` is the pure net-worth logic), `features/admin/`, `features/settings/`, `features/import/`, `features/accounts/`.
+- Forms validate with the **same zod schemas the backend uses**: build the request body, `check(schema, body)` from `useFormErrors()` (`lib/validate.ts`; `errors` is a ref), show `errors.<field>` via `<Field :error="…">`, and only then `mutate()`.
 - `lib/format.ts`: all number/currency/date/P&L formatting. Don't define `fmt*` helpers inside components.
-- Pages are lazy-loaded in `App.tsx` (`AppRoutes` is exported for tests). `/transactions` redirects to `/overview`.
-- `auth.ts` reads OIDC config from `window.__ENV__`. In production, `docker/env.sh` (nginx entrypoint) writes it to `/env-config.js` so one image works in every environment.
-- `components/Layout.tsx`: collapsible sidebar with sections Banking, Liabilities, Investments, and Admin/Profile.
-- Frontend `tsconfig` has `noUnusedLocals` on. Test files are type-checked separately (`tsconfig.test.json`).
+- Tailwind `content` includes `.vue`. `vue-tsc` is the type checker (`noUnusedLocals` on); test files are checked separately (`tsconfig.test.json`).
 
-## Frontend testing (`bun test` in `packages/frontend`)
-- happy-dom + Testing Library (`test/setup.ts` preload). `renderApp(ui, { route })` from `test/render.tsx` wraps auth (fake), `ApiAuthBridge`, query client and a `MemoryRouter`.
+## Frontend testing (`bun run test` in `packages/frontend` = Vitest)
+- Vitest + happy-dom + Testing Library for Vue (`test/setup.ts`). Use `bunx vitest run`, not `bun test` (that is Bun's own runner).
+- `await renderApp(Component, { props, slots, route, routes, auth, client, router })` from `test/render.ts` wraps vue-query, a memory router (with a catch-all blank route; pass `routes` to assert navigation via `router.currentRoute.value`), and fake auth. It is async because the router must finish its first navigation. `renderTemplate` renders a template string; `runComposable` runs a composable in an app context. Pass component events as `onFoo` props.
 - The API is faked at the `fetch` level: `mockApi({ "GET /x": data, "POST /x/:id": ({ body, params }) => … })` (`test/fakeApi.ts`); assert with `api.calls("POST", "/x")` and `api.unmatched` (requests nobody mocked). Because tests go through the real network layer, they survive refactors of `src/api/`.
-- `test/fixtures.ts` has fixtures typed against `@argent/shared`; `test/dom.ts#field(label)` finds a control by label text.
-- The token getter in `api/client.ts` is module-level state: tests that set it must reset it.
-- Run in random order (`bun test --randomize`) when touching shared test state.
+- `test/fixtures.ts` has fixtures typed against `@argent/shared`; find controls with `screen.getByLabelText`.
+- The token getter in `api/client.ts` is module-level state (set when an auth object is created): tests that set it must reset it.
+- Run in random order (`bunx vitest run --sequence.shuffle`) when touching shared test state.
 
 ## Env vars
 - Backend: `DATABASE_URL`, `AUTHENTIK_ISSUER`, `CORS_ORIGIN`, `AUTHENTIK_ADMIN_GROUP`, `AUTHENTIK_IMPORT_GROUP`.
-- Frontend: `VITE_AUTHENTIK_AUTHORITY`, `VITE_AUTHENTIK_CLIENT_ID`.
+- Frontend: `VITE_AUTHENTIK_AUTHORITY`, `VITE_AUTHENTIK_CLIENT_ID`, `VITE_AUTH_MODE=fake` (dev only).
 
 ## Open deployment TODOs
 - Replace the `your-registry/finance-*` image refs and `finance.example.com` in `k8s/`.
