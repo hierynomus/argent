@@ -221,3 +221,37 @@ export const historyQuerySchema = z.object({
   range: z.enum(HISTORY_RANGES, { error: `range must be one of ${HISTORY_RANGES.join(", ")}` }).default("1y"),
   currency: z.enum(["EUR", "USD"], { error: "currency must be EUR or USD" }).default("EUR"),
 })
+
+// ─── Property (house, car, business share, …) ───────────────────────────────
+
+export const PROPERTY_TYPES = ["house", "apartment", "land", "vehicle", "business", "other"] as const
+export const propertyTypeSchema = z.enum(PROPERTY_TYPES, { error: `type must be one of ${PROPERTY_TYPES.join(", ")}` })
+
+export const createPropertySchema = z.object({
+  name: requiredString("name"),
+  type: propertyTypeSchema.optional(),
+  currency: currencySchema.optional(),
+  purchasePrice: positiveDecimalString("purchasePrice").optional(),
+  purchaseDate: isoDate("purchaseDate").optional(),
+  /** today's value: recorded as a first valuation dated today */
+  currentValue: positiveDecimalString("currentValue").optional(),
+})
+
+export const updatePropertySchema = z.object({
+  name: z.string().trim().min(1, "name must not be empty").max(200).optional(),
+  type: propertyTypeSchema.optional(),
+  purchasePrice: positiveDecimalString("purchasePrice").nullable().optional(),
+  purchaseDate: isoDate("purchaseDate").nullable().optional(),
+})
+
+export const createPropertyValuationSchema = z.object({
+  valuationDate: isoDate("valuationDate"),
+  value: positiveDecimalString("value"),
+  note: optionalText(200),
+})
+
+/** Replaces the links between a property and the mortgages/loans that finance it. */
+export const setPropertyLinksSchema = z.object({
+  mortgageIds: z.array(z.uuid({ error: "mortgageIds must be ids" })).default([]),
+  loanIds: z.array(z.uuid({ error: "loanIds must be ids" })).default([]),
+})

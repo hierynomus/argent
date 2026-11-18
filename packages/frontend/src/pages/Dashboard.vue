@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue"
-import { useAccounts, useDebts, usePortfolioDetails, usePortfolios, useRecentTransactions, useTransactionsBetween } from "../api"
+import { useAccounts, useDebts, usePortfolioDetails, usePortfolios, useProperties, useRecentTransactions, useTransactionsBetween } from "../api"
 import { fmtCur, fmtMonthLabel } from "../lib/format"
 import CashFlowCard from "../features/dashboard/CashFlowCard.vue"
 import LiabilitiesCard from "../features/dashboard/LiabilitiesCard.vue"
@@ -21,6 +21,7 @@ const { data: loansData } = useDebts("loans")
 const { data: cryptoData } = usePortfolios("crypto")
 const { data: metalData } = usePortfolios("metals")
 const { data: stockData } = usePortfolios("stocks")
+const { data: propertyData, isLoading: propertiesLoading } = useProperties()
 const accounts = computed(() => accountsData.value ?? [])
 const cryptoList = computed(() => cryptoData.value ?? [])
 const metalList = computed(() => metalData.value ?? [])
@@ -43,6 +44,8 @@ const summary = computed(() =>
     metals: toHoldings(metalList.value, metalDetails.value, (d) => d.totalCurrentValueOpen),
     stocks: toHoldings(stockList.value, stockDetails.value, (d) => d.totalCurrentValueEur),
     monthTransactions: monthlyData.value?.data ?? [],
+    properties: propertyData.value ?? [],
+    propertiesLoading: propertiesLoading.value,
   }),
 )
 const cashFlow = computed(() => summary.value.cashFlow)
@@ -57,11 +60,17 @@ const tile = (list: unknown[], s: { total: number }) => (list.length === 0 ? "â€
 
     <NetWorthCard :net-worth="summary.netWorth" :total-assets="summary.totalAssets" :total-liabilities="summary.totalLiabilities" :loading="summary.netWorthLoading" :has-non-eur-assets="summary.hasExcludedNonEur" />
 
-    <div class="grid grid-cols-2 lg:grid-cols-5 gap-4">
+    <div class="grid grid-cols-2 lg:grid-cols-6 gap-4">
       <SummaryTile label="Banking" :value="fmtCur(summary.accountsTotal)" :sub="bankingLabel(accounts)" />
       <SummaryTile label="Crypto" :value="tile(cryptoList, summary.crypto)" :sub="unrealizedLabel(summary.crypto, fmtCur)" :loading="summary.crypto.loading && cryptoList.length > 0" />
       <SummaryTile label="Metals" :value="tile(metalList, summary.metals)" :sub="unrealizedLabel(summary.metals, fmtCur)" :loading="summary.metals.loading && metalList.length > 0" />
       <SummaryTile label="Stocks" :value="tile(stockList, summary.stocks)" :sub="unrealizedLabel(summary.stocks, fmtCur)" :loading="summary.stocks.loading && stockList.length > 0" />
+      <SummaryTile
+        label="Property"
+        :value="summary.properties.count === 0 ? 'â€”' : fmtCur(summary.properties.value)"
+        :sub="summary.properties.count === 0 ? undefined : `Equity ${fmtCur(summary.properties.equity)}`"
+        :loading="summary.properties.loading"
+      />
       <SummaryTile
         label="This month"
         :value="`${cashFlow.net >= 0 ? '+' : ''}${fmtCur(cashFlow.net)}`"

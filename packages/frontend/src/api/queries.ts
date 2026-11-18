@@ -7,6 +7,7 @@ import { debtApis, type Debt } from "./debts"
 import { queryKeys, type DebtKind, type PortfolioKind } from "./keys"
 import { getMe } from "./me"
 import { portfolioApis, type HistoryParams, type PortfolioDetailByKind } from "./portfolios"
+import { propertiesApi } from "./properties"
 import { getSubscriptions, getSubscriptionTransactions } from "./subscriptions"
 import { getTransactions, getTransferSuggestions, type TransactionQuery } from "./transactions"
 
@@ -103,6 +104,8 @@ export function useAssetHistory(kind: "crypto" | "stocks", symbol: MaybeRefOrGet
   })
 }
 
+export const useProperties = () => useQuery({ queryKey: queryKeys.properties, queryFn: propertiesApi.list })
+
 export const useDebts = (kind: DebtKind) => useQuery<Debt[]>({ queryKey: queryKeys.debts(kind), queryFn: debtApis[kind].list })
 
 /** Cache refreshers, named for what changed. Prefix keys mean one call refreshes every dependent view. */
@@ -116,7 +119,9 @@ export function useInvalidate() {
     me: () => qc.invalidateQueries({ queryKey: queryKeys.me }),
     /** the portfolio list and every portfolio's detail of this kind */
     portfolios: (kind: PortfolioKind) => qc.invalidateQueries({ queryKey: queryKeys.portfolios(kind) }),
-    debts: (kind: DebtKind) => qc.invalidateQueries({ queryKey: queryKeys.debts(kind) }),
+    // a property's debt and equity come from its linked mortgages/loans, so those refresh with them
+    debts: (kind: DebtKind) => Promise.all([qc.invalidateQueries({ queryKey: queryKeys.debts(kind) }), qc.invalidateQueries({ queryKey: queryKeys.properties })]),
+    properties: () => qc.invalidateQueries({ queryKey: queryKeys.properties }),
     admin: () => qc.invalidateQueries({ queryKey: ["admin"] }),
     /** everything — after the whole database was replaced (restore) */
     everything: () => qc.invalidateQueries(),

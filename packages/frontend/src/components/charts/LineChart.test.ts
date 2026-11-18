@@ -100,4 +100,11 @@ describe("LineChart", () => {
     await renderApp(LineChart, { props: { ...props, points: [{ t: T0, v: 7 }] } })
     expect(document.querySelector("svg path[stroke-width='2']")!.getAttribute("d")).not.toContain("NaN")
   })
+
+  test("a step line holds each value until the next date, then jumps", async () => {
+    await renderApp(LineChart, { props: { ...props, step: true } })
+    const d = document.querySelector("svg path[stroke-width='2']")!.getAttribute("d")!
+    expect(d).toMatch(/^M[\d. ]+( H[\d.]+ V[\d.]+){4}$/) // M start, then H (to the next date) V (to the next value) per point
+    expect(d).not.toContain("L")
+  })
 })

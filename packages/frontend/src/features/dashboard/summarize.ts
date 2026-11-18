@@ -1,4 +1,4 @@
-import type { Account, PortfolioWithAccess, TransactionWithDetails } from "@argent/shared"
+import type { Account, PortfolioWithAccess, PropertyWithDetails, TransactionWithDetails } from "@argent/shared"
 import type { Debt } from "../../api"
 
 /** An investment portfolio reduced to what the dashboard needs. `null` = no value yet (still loading, or no live price). */
@@ -33,6 +33,9 @@ export interface DashboardInput {
   stocks: Holding[]
   /** this month's transactions */
   monthTransactions: TransactionWithDetails[]
+  /** houses, cars, …: counted at their latest valuation */
+  properties?: PropertyWithDetails[]
+  propertiesLoading?: boolean
 }
 
 export interface AssetClassSummary {
@@ -49,6 +52,8 @@ export interface DashboardSummary {
   crypto: AssetClassSummary
   metals: AssetClassSummary
   stocks: AssetClassSummary
+  /** EUR properties at their current value; `equity` is value minus what is owed on them (their linked mortgages/loans) */
+  properties: { value: number; debt: number; equity: number; count: number; loading: boolean }
   mortgages: { balance: number; monthly: number; count: number }
   loans: { balance: number; monthly: number; count: number }
   totalAssets: number
@@ -94,10 +99,16 @@ export function summarize(input: DashboardInput): DashboardSummary {
   const mortgages = summarizeDebts(input.mortgages)
   const loans = summarizeDebts(input.loans)
 
-  const totalAssets = accountsTotal + crypto.total + metals.total + stocks.total
+  const eurProperties = (input.properties ?? []).filter((p) => p.currency === EUR)
+  const propertyValue = sum(eurProperties, (p) => p.currentValue ?? 0)
+  const propertyDebt = sum(eurProperties, (p) => p.debt)
+  const properties = { value: propertyValue, debt: propertyDebt, equity: propertyValue - propertyDebt, count: (input.properties ?? []).length, loading: input.propertiesLoading ?? false }
+
+  // a linked mortgage stays in the liabilities below: the property is the asset on the other side of it
+  const totalAssets = accountsTotal + crypto.total + metals.total + stocks.total + propertyValue
   const totalLiabilities = mortgages.balance + loans.balance
 
-  const anyNonEur = [...input.accounts, ...input.crypto, ...input.metals, ...input.stocks, ...input.mortgages, ...input.loans].some(
+  const anyNonEur = [...input.accounts, ...input.crypto, ...input.metals, ...input.stocks, ...input.mortgages, ...input.loans, ...(input.properties ?? [])].some(
     (x) => x.currency !== EUR,
   )
 
@@ -110,12 +121,13 @@ export function summarize(input: DashboardInput): DashboardSummary {
     crypto,
     metals,
     stocks,
+    properties,
     mortgages,
     loans,
     totalAssets,
     totalLiabilities,
     netWorth: totalAssets - totalLiabilities,
-    netWorthLoading: crypto.loading || metals.loading || stocks.loading,
+    netWorthLoading: crypto.loading || metals.loading || stocks.loading || properties.loading,
     hasExcludedNonEur: anyNonEur,
     cashFlow: { income, expenses, net: income - expenses },
   }

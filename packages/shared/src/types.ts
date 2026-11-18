@@ -444,6 +444,62 @@ export interface AdminSharingResponse {
   portfolios: AdminSharingPortfolioEntry[]
   mortgages: AdminSharingEntry[]
   loans: AdminSharingEntry[]
+  properties: AdminSharingEntry[]
+}
+
+// ─── Property ───────────────────────────────────────────────────────────────
+
+export type PropertyType = "house" | "apartment" | "land" | "vehicle" | "business" | "other"
+
+/** A dated, manually entered estimate of what a property is worth. */
+export interface PropertyValuation {
+  id: string
+  propertyId: string
+  valuationDate: string
+  value: string
+  note: string | null
+  createdAt: string
+}
+
+/** A mortgage or loan financing a property, with what is still owed (as computed from its parts). */
+export interface PropertyLiability {
+  kind: "mortgage" | "loan"
+  id: string
+  name: string
+  balance: number
+  monthlyPayment: number
+}
+
+export interface Property {
+  id: string
+  name: string
+  type: PropertyType
+  ownerSub: string | null
+  currency: string
+  purchasePrice: string | null
+  purchaseDate: string | null
+  createdAt: string
+}
+
+/**
+ * A property as the API returns it. `currentValue` is the latest valuation dated today or earlier
+ * (flat until the next one), else the purchase price, else null. Only the linked liabilities the
+ * requesting user may see are included, so `debt` and `equity` cover those.
+ */
+export interface PropertyWithDetails extends Property {
+  valuations: PropertyValuation[]
+  currentValue: number | null
+  currentValueDate: string | null
+  /** current value minus purchase price (null without both) */
+  gainSincePurchase: number | null
+  liabilities: PropertyLiability[]
+  /** sum of the linked liabilities' outstanding balances */
+  debt: number
+  /** current value minus debt (null when the value is unknown) */
+  equity: number | null
+  members: PortfolioMember[]
+  isOwner: boolean
+  canEdit: boolean
 }
 
 // ─── Request bodies ─────────────────────────────────────────────────────────
@@ -475,6 +531,10 @@ export type AddLoanMemberBody = Body<typeof S.addMemberSchema>
 export type CreateLoanPartBody = Body<typeof S.createDebtPartSchema>
 export type UpdateLoanPartBody = Body<typeof S.updateDebtPartSchema>
 export type CreateLoanExtraPaymentBody = Body<typeof S.createDebtExtraPaymentSchema>
+export type CreatePropertyBody = Body<typeof S.createPropertySchema>
+export type UpdatePropertyBody = Body<typeof S.updatePropertySchema>
+export type CreatePropertyValuationBody = Body<typeof S.createPropertyValuationSchema>
+export type SetPropertyLinksBody = Body<typeof S.setPropertyLinksSchema>
 
 // ─── Price history ──────────────────────────────────────────────────────────
 

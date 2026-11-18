@@ -280,6 +280,48 @@ export const loanMembers = pgTable("loan_members", {
   role: text("role").notNull().default("viewer"), // "viewer" | "editor"
 }, (t) => ({ pk: primaryKey({ columns: [t.loanId, t.groupName] }), loan_members_group_idx: index("loan_members_group_idx").on(t.groupName) }))
 
+// ─── Property ──────────────────────────────────────────────────────────────
+// Things that have a value but no ledger: a house, a car, a business share. The value is tracked as
+// dated, manually entered valuations; the latest one counts (flat until the next). A property can be
+// linked to the mortgages/loans that finance it, so equity = value − outstanding debt.
+export const properties = pgTable("properties", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  name: text("name").notNull(),
+  type: text("type").notNull().default("house"), // "house" | "apartment" | "land" | "vehicle" | "business" | "other"
+  ownerSub: text("owner_sub"),
+  currency: text("currency").notNull().default("EUR"),
+  purchasePrice: numeric("purchase_price", { precision: 15, scale: 2 }),
+  purchaseDate: date("purchase_date"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (t) => ({ properties_owner_idx: index("properties_owner_idx").on(t.ownerSub) }))
+
+export const propertyValuations = pgTable("property_valuations", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  propertyId: uuid("property_id").notNull().references(() => properties.id, { onDelete: "cascade" }),
+  valuationDate: date("valuation_date").notNull(),
+  value: numeric("value", { precision: 15, scale: 2 }).notNull(),
+  note: text("note"), // where the number comes from: "WOZ 2024", "my estimate", "appraisal", …
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (t) => ({ property_valuations_property_idx: index("property_valuations_property_idx").on(t.propertyId, t.valuationDate) }))
+
+export const propertyMembers = pgTable("property_members", {
+  propertyId: uuid("property_id").notNull().references(() => properties.id, { onDelete: "cascade" }),
+  groupName: text("group_name").notNull(),
+  role: text("role").notNull().default("viewer"), // "viewer" | "editor"
+}, (t) => ({ pk: primaryKey({ columns: [t.propertyId, t.groupName] }), property_members_group_idx: index("property_members_group_idx").on(t.groupName) }))
+
+/** Mortgages financing a property (deleting either side removes the link). */
+export const propertyMortgages = pgTable("property_mortgages", {
+  propertyId: uuid("property_id").notNull().references(() => properties.id, { onDelete: "cascade" }),
+  mortgageId: uuid("mortgage_id").notNull().references(() => mortgages.id, { onDelete: "cascade" }),
+}, (t) => ({ pk: primaryKey({ columns: [t.propertyId, t.mortgageId] }), property_mortgages_mortgage_idx: index("property_mortgages_mortgage_idx").on(t.mortgageId) }))
+
+/** Loans financing a property (deleting either side removes the link). */
+export const propertyLoans = pgTable("property_loans", {
+  propertyId: uuid("property_id").notNull().references(() => properties.id, { onDelete: "cascade" }),
+  loanId: uuid("loan_id").notNull().references(() => loans.id, { onDelete: "cascade" }),
+}, (t) => ({ pk: primaryKey({ columns: [t.propertyId, t.loanId] }), property_loans_loan_idx: index("property_loans_loan_idx").on(t.loanId) }))
+
 // Relations for Drizzle query builder
 export const accountRelations = relations(accounts, ({ many }) => ({
   transactions: many(transactions),

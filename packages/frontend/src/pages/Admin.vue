@@ -55,7 +55,7 @@ const accounts = computed(() => accountsData.value ?? [])
 
     <template v-if="tab === 'sharing'">
       <LoadingText v-if="sharingLoading" />
-      <SharingOverview v-else :sharing="sharing ?? { portfolios: [], mortgages: [], loans: [] }" />
+      <SharingOverview v-else :sharing="sharing ?? { portfolios: [], mortgages: [], loans: [], properties: [] }" />
     </template>
 
     <BackupRestoreSection v-if="tab === 'backup'" />

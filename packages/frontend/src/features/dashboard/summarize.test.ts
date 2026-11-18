@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest"
-import { account, debt, portfolio, transaction } from "../../../test/fixtures"
+import { account, debt, portfolio, property, transaction } from "../../../test/fixtures"
 import { bankingLabel, summarize, toHoldings, unrealizedLabel, type DashboardInput, type Holding } from "./summarize"
 
 const empty: DashboardInput = { accounts: [], mortgages: [], loans: [], crypto: [], metals: [], stocks: [], monthTransactions: [] }
@@ -144,5 +144,42 @@ describe("toHoldings", () => {
   })
   test("a missing detail entry is treated as loading-less and empty", () => {
     expect(toHoldings([portfolio()], [], () => 1)).toEqual([{ currency: "EUR", value: null, unrealizedPnL: null, loading: false }])
+  })
+})
+
+describe("summarize: property", () => {
+  test("a property counts as an asset at its current value; the mortgage stays a liability, so a house with equity turns net worth positive", () => {
+    // the user's situation: a 520k house with a mortgage that still owes 300k, and nothing else
+    const s = summarize({ ...empty, properties: [property({ currentValue: 520_000, debt: 300_000, equity: 220_000 })], mortgages: [debt({ totalCurrentBalance: 300_000 })] })
+    expect(s.totalAssets).toBe(520_000)
+    expect(s.totalLiabilities).toBe(300_000)
+    expect(s.netWorth).toBe(220_000)
+    expect(s.properties).toEqual({ value: 520_000, debt: 300_000, equity: 220_000, count: 1, loading: false })
+  })
+
+  test("without the property the same mortgage makes net worth negative (the problem being solved)", () => {
+    expect(summarize({ ...empty, mortgages: [debt({ totalCurrentBalance: 300_000 })] }).netWorth).toBe(-300_000)
+  })
+
+  test("several properties add up; one without a valuation or purchase price counts as 0", () => {
+    const s = summarize({ ...empty, properties: [property({ currentValue: 500_000, debt: 100_000 }), property({ id: "p2", currentValue: null, debt: 0, equity: null }), property({ id: "p3", currentValue: 20_000, debt: 5_000 })] })
+    expect(s.properties).toMatchObject({ value: 520_000, debt: 105_000, equity: 415_000, count: 3 })
+  })
+
+  test("a property in another currency is left out, and the page says so", () => {
+    const s = summarize({ ...empty, properties: [property({ currency: "USD", currentValue: 999_999 })] })
+    expect(s.properties.value).toBe(0)
+    expect(s.properties.count).toBe(1)
+    expect(s.totalAssets).toBe(0)
+    expect(s.hasExcludedNonEur).toBe(true)
+  })
+
+  test("net worth is still loading while the properties are", () => {
+    expect(summarize({ ...empty, propertiesLoading: true }).netWorthLoading).toBe(true)
+    expect(summarize({ ...empty, propertiesLoading: false }).netWorthLoading).toBe(false)
+  })
+
+  test("callers that do not pass properties get zeros", () => {
+    expect(summarize(empty).properties).toEqual({ value: 0, debt: 0, equity: 0, count: 0, loading: false })
   })
 })

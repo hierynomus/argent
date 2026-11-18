@@ -113,7 +113,7 @@ const SECTION = "pt-5 pb-1"
           <template v-for="section in [
             { label: 'Banking', items: [['/checking', 'credit-card', 'Checking'], ['/savings', 'piggy-bank', 'Savings'], ['/overview', 'list', 'Transactions'], ['/subscriptions', 'repeat', 'Subscriptions'], ['/settings', 'settings', 'Settings']] },
             { label: 'Liabilities', items: [['/mortgages', 'building', 'Mortgages'], ['/loans', 'banknote', 'Loans']] },
-            { label: 'Investments', items: [['/crypto', 'coin', 'Crypto'], ['/metals', 'gem', 'Metals'], ['/stocks', 'trending-up', 'Stocks']] },
+            { label: 'Investments', items: [['/crypto', 'coin', 'Crypto'], ['/metals', 'gem', 'Metals'], ['/stocks', 'trending-up', 'Stocks'], ['/property', 'house', 'Property']] },
           ]" :key="section.label">
             <div :class="SECTION">
               <p v-if="displayLabels" class="px-3 text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 truncate">{{ section.label }}</p>

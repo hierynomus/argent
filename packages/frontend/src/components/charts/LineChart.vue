@@ -26,6 +26,8 @@ const props = defineProps<{
   formatDate: (t: number) => string
   /** accessible name of the chart, e.g. "Bitcoin price, last year" */
   label: string
+  /** draw a step line (the value stays flat until the next point) instead of straight segments */
+  step?: boolean
 }>()
 
 const W = 720
@@ -47,7 +49,17 @@ const domain = computed(() => {
 const x = (t: number) => M.left + (domain.value.t1 === domain.value.t0 ? innerW / 2 : ((t - domain.value.t0) / (domain.value.t1 - domain.value.t0)) * innerW)
 const y = (v: number) => M.top + innerH - ((v - domain.value.lo) / (domain.value.hi - domain.value.lo)) * innerH
 
-const path = computed(() => props.points.map((p, i) => `${i ? "L" : "M"}${x(p.t).toFixed(1)} ${y(p.v).toFixed(1)}`).join(" "))
+const path = computed(() =>
+  props.points
+    .map((p, i) => {
+      const px = x(p.t).toFixed(1)
+      const py = y(p.v).toFixed(1)
+      if (i === 0) return `M${px} ${py}`
+      // a step line holds the previous value until this point's date, then jumps
+      return props.step ? `H${px} V${py}` : `L${px} ${py}`
+    })
+    .join(" "),
+)
 const yTicks = computed(() => Array.from({ length: 5 }, (_, i) => domain.value.lo + ((domain.value.hi - domain.value.lo) * i) / 4))
 const xTicks = computed(() => Array.from({ length: 5 }, (_, i) => domain.value.t0 + ((domain.value.t1 - domain.value.t0) * i) / 4))
 

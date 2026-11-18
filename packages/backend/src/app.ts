@@ -17,6 +17,7 @@ import metalsRoute from "./routes/metals"
 import stocksRoute from "./routes/stocks"
 import mortgagesRoute from "./routes/mortgages"
 import loansRoute from "./routes/loans"
+import propertiesRoute from "./routes/properties"
 
 /**
  * Builds the HTTP app (routes + middleware) without starting a server or any
@@ -58,6 +59,7 @@ export function createApp({
   api.route("/stocks", stocksRoute)
   api.route("/mortgages", mortgagesRoute)
   api.route("/loans", loansRoute)
+  api.route("/properties", propertiesRoute)
 
   // Consistent JSON errors: the frontend reads `{ error }` from every failure.
   app.notFound((c) => c.json({ error: "Not found" }, 404))

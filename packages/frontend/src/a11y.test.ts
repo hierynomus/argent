@@ -2,7 +2,7 @@ import axe from "axe-core"
 import { describe, expect, test } from "vitest"
 import { createMemoryHistory } from "vue-router"
 import { mockApi } from "../test/fakeApi"
-import { account, category, cryptoDetail, debt, lot, me, metalDetail, page, portfolio, stockDetail, stockPosition, subscription, transaction } from "../test/fixtures"
+import { account, category, cryptoDetail, debt, lot, me, metalDetail, page, portfolio, property, stockDetail, stockPosition, subscription, transaction } from "../test/fixtures"
 import { createFakeAuth } from "./auth"
 import { renderApp, screen, waitFor } from "../test/render"
 import App from "./App.vue"
@@ -30,7 +30,8 @@ const mockAll = () =>
     "GET /metals": [portfolio({ id: "m1", type: "metals" })], "GET /metals/:id": metalDetail({ id: "m1", lots: [lot()] }),
     "GET /stocks": [portfolio({ id: "s1", type: "stocks", broker: "DEGIRO" })], "GET /stocks/:id": stockDetail({ id: "s1", positions: [stockPosition()] }),
     "GET /admin/accounts": [{ ...account(), members: [{ groupName: "family", role: "editor" }], ownerProfile: null }],
-    "GET /admin/sharing": { portfolios: [], mortgages: [], loans: [] },
+    "GET /admin/sharing": { portfolios: [], mortgages: [], loans: [], properties: [] },
+    "GET /properties": [property()],
   })
 
 async function open(route: string, ready: string | RegExp) {
@@ -54,6 +55,7 @@ describe("accessibility (axe)", () => {
     ["/crypto", "Open cost"],
     ["/metals", "Open cost"],
     ["/stocks", "AAPL"],
+    ["/property", "Our house"],
     ["/profile", "Dev User"],
     ["/admin", "family"],
   ] as const)("%s has no violations", async (route, ready) => {
@@ -115,6 +117,19 @@ describe("accessibility (axe)", () => {
     await screen.findByRole("img", { name: /Bitcoin price/ })
     expect(await violations()).toEqual([])
     await user.click(screen.getByText("Show data as a table"))
+    expect(await violations()).toEqual([])
+  })
+
+  test("the property forms (new, edit, valuation, links) have no violations", async () => {
+    const { user } = await open("/property", "Our house")
+    await user.click(screen.getByRole("button", { name: "+ New property" }))
+    expect(await violations()).toEqual([])
+    await user.click(screen.getByRole("button", { name: "Cancel" }))
+    await user.click(screen.getByRole("button", { name: "Edit" }))
+    expect(await violations()).toEqual([])
+    await user.click(screen.getByRole("button", { name: "Link mortgage / loan" }))
+    expect(await violations()).toEqual([])
+    await user.click(screen.getByRole("button", { name: "+ Add valuation" }))
     expect(await violations()).toEqual([])
   })
 })

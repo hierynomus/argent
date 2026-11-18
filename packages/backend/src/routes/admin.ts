@@ -26,6 +26,11 @@ import {
   loanParts,
   loanExtraPayments,
   loanMembers,
+  properties,
+  propertyValuations,
+  propertyMembers,
+  propertyMortgages,
+  propertyLoans,
 } from "../db/schema"
 import type { AuthUser } from "../middleware/auth"
 import { requireAdmin } from "../middleware/guards"
@@ -106,7 +111,7 @@ app.delete("/accounts/:id/members/:groupName", async (c) => {
   return c.body(null, 204)
 })
 
-// GET /api/admin/sharing — consolidated read-only view of all sharing (portfolios, mortgages, loans)
+// GET /api/admin/sharing — consolidated read-only view of all sharing (portfolios, mortgages, loans, properties)
 app.get("/sharing", async (c) => {
   const [
     allPortfolios,
@@ -115,6 +120,8 @@ app.get("/sharing", async (c) => {
     allMortgageMembers,
     allLoans,
     allLoanMembers,
+    allProperties,
+    allPropertyMembers,
   ] = await Promise.all([
     db.select({ id: portfolios.id, name: portfolios.name, type: portfolios.type }).from(portfolios),
     db.select().from(portfolioMembers),
@@ -122,6 +129,8 @@ app.get("/sharing", async (c) => {
     db.select().from(mortgageMembers),
     db.select({ id: loans.id, name: loans.name }).from(loans),
     db.select().from(loanMembers),
+    db.select({ id: properties.id, name: properties.name }).from(properties),
+    db.select().from(propertyMembers),
   ])
 
   const portfolioResult = allPortfolios
@@ -155,7 +164,17 @@ app.get("/sharing", async (c) => {
         .map((lm) => ({ groupName: lm.groupName, role: lm.role })),
     }))
 
-  return c.json({ portfolios: portfolioResult, mortgages: mortgageResult, loans: loanResult })
+  const propertyResult = allProperties
+    .filter((p) => allPropertyMembers.some((pm) => pm.propertyId === p.id))
+    .map((p) => ({
+      id: p.id,
+      name: p.name,
+      members: allPropertyMembers
+        .filter((pm) => pm.propertyId === p.id)
+        .map((pm) => ({ groupName: pm.groupName, role: pm.role })),
+    }))
+
+  return c.json({ portfolios: portfolioResult, mortgages: mortgageResult, loans: loanResult, properties: propertyResult })
 })
 
 // GET /api/admin/backup — export all data as a JSON file
@@ -184,6 +203,11 @@ app.get("/backup", async (c) => {
     allLoanParts,
     allLoanExtraPayments,
     allLoanMembers,
+    allProperties,
+    allPropertyValuations,
+    allPropertyMembers,
+    allPropertyMortgages,
+    allPropertyLoans,
   ] = await Promise.all([
     db.select().from(accounts),
     db.select().from(accountMembers),
@@ -208,6 +232,11 @@ app.get("/backup", async (c) => {
     db.select().from(loanParts),
     db.select().from(loanExtraPayments),
     db.select().from(loanMembers),
+    db.select().from(properties),
+    db.select().from(propertyValuations),
+    db.select().from(propertyMembers),
+    db.select().from(propertyMortgages),
+    db.select().from(propertyLoans),
   ])
 
   const backup = {
@@ -236,6 +265,11 @@ app.get("/backup", async (c) => {
     loanParts: allLoanParts,
     loanExtraPayments: allLoanExtraPayments,
     loanMembers: allLoanMembers,
+    properties: allProperties,
+    propertyValuations: allPropertyValuations,
+    propertyMembers: allPropertyMembers,
+    propertyMortgages: allPropertyMortgages,
+    propertyLoans: allPropertyLoans,
   }
 
   const filename = `argent-backup-${new Date().toISOString().slice(0, 10)}.json`
@@ -266,6 +300,7 @@ const BACKUP_TABLES = [
   "stockTrades", "stockAssets", "stockDividends",
   "mortgages", "mortgageParts", "mortgageExtraPayments", "mortgageMembers",
   "loans", "loanParts", "loanExtraPayments", "loanMembers",
+  "properties", "propertyValuations", "propertyMembers", "propertyMortgages", "propertyLoans",
 ] as const
 
 /**
@@ -306,6 +341,11 @@ app.post("/restore", validateJson(restoreSchema), async (c) => {
     loanParts: (typeof loanParts.$inferSelect)[]
     loanExtraPayments: (typeof loanExtraPayments.$inferSelect)[]
     loanMembers: (typeof loanMembers.$inferSelect)[]
+    properties: (typeof properties.$inferSelect)[]
+    propertyValuations: (typeof propertyValuations.$inferSelect)[]
+    propertyMembers: (typeof propertyMembers.$inferSelect)[]
+    propertyMortgages: (typeof propertyMortgages.$inferSelect)[]
+    propertyLoans: (typeof propertyLoans.$inferSelect)[]
   }
   const data = body as unknown as Backup // rows are validated by the database inside the transaction
 
@@ -334,6 +374,11 @@ app.post("/restore", validateJson(restoreSchema), async (c) => {
     await tx.delete(loanMembers)             // FK → loans
     await tx.delete(loanParts)               // FK → loans
     await tx.delete(loans)
+    await tx.delete(propertyLoans)           // FK → properties, loans
+    await tx.delete(propertyMortgages)       // FK → properties, mortgages
+    await tx.delete(propertyMembers)         // FK → properties
+    await tx.delete(propertyValuations)      // FK → properties
+    await tx.delete(properties)
 
     // Insert in FK dependency order
     if (data.accounts?.length) await tx.insert(accounts).values(withDates(data.accounts, ["createdAt"]))
@@ -364,6 +409,11 @@ app.post("/restore", validateJson(restoreSchema), async (c) => {
     if (data.loanParts?.length) await tx.insert(loanParts).values(withDates(data.loanParts, ["createdAt"]))
     if (data.loanExtraPayments?.length) await tx.insert(loanExtraPayments).values(withDates(data.loanExtraPayments, ["createdAt"]))
     if (data.loanMembers?.length) await tx.insert(loanMembers).values(data.loanMembers)
+    if (data.properties?.length) await tx.insert(properties).values(withDates(data.properties, ["createdAt"]))
+    if (data.propertyValuations?.length) await tx.insert(propertyValuations).values(withDates(data.propertyValuations, ["createdAt"]))
+    if (data.propertyMembers?.length) await tx.insert(propertyMembers).values(data.propertyMembers)
+    if (data.propertyMortgages?.length) await tx.insert(propertyMortgages).values(data.propertyMortgages)
+    if (data.propertyLoans?.length) await tx.insert(propertyLoans).values(data.propertyLoans)
 
     // Transactions have a self-reference (transferPeerId); insert without it first, then patch
     if (data.transactions?.length) {
@@ -397,6 +447,8 @@ app.post("/restore", validateJson(restoreSchema), async (c) => {
       stockDividends: data.stockDividends?.length ?? 0,
       mortgages: data.mortgages?.length ?? 0,
       loans: data.loans?.length ?? 0,
+      properties: data.properties?.length ?? 0,
+      propertyValuations: data.propertyValuations?.length ?? 0,
     },
   })
 })

@@ -1,7 +1,7 @@
 /** Typed API fixtures — checked against @argent/shared, so test data can't silently drift from the real shapes. */
 import type {
   Account, Category, LoanPart, LoanWithParts, MetalLot, MetalPortfolioDetail, MortgagePart, MortgageWithParts,
-  PortfolioDetail, PortfolioWithAccess, StockPortfolioDetail, StockPosition, Subscription,
+  PortfolioDetail, PortfolioWithAccess, PropertyWithDetails, StockPortfolioDetail, StockPosition, Subscription,
 } from "@argent/shared"
 
 /** A mortgage part or a loan part (identical shapes apart from the parent's foreign key). */
@@ -73,3 +73,15 @@ export const transaction = (over: Partial<TransactionWithDetails> = {}): Transac
 } as TransactionWithDetails)
 
 export const page = <T,>(data: T[]) => ({ data, total: data.length, page: 1, pageSize: 50 })
+
+/** A house bought for 400k, worth 520k since the 2024 valuation, with a mortgage that still owes 300k. */
+export const property = (over: Partial<PropertyWithDetails> = {}): PropertyWithDetails => ({
+  id: "pr1", name: "Our house", type: "house", ownerSub: "dev-user", currency: "EUR", purchasePrice: "400000.00", purchaseDate: "2021-03-01", createdAt: "2021-03-01T00:00:00Z",
+  valuations: [
+    { id: "v1", propertyId: "pr1", valuationDate: "2021-03-01", value: "400000.00", note: "Purchase", createdAt: "2021-03-01T00:00:00Z" },
+    { id: "v2", propertyId: "pr1", valuationDate: "2024-01-01", value: "520000.00", note: "WOZ 2024", createdAt: "2024-01-02T00:00:00Z" },
+  ],
+  currentValue: 520000, currentValueDate: "2024-01-01", gainSincePurchase: 120000,
+  liabilities: [{ kind: "mortgage", id: "d1", name: "House", balance: 300000, monthlyPayment: 1500 }],
+  debt: 300000, equity: 220000, members: [], isOwner: true, canEdit: true, ...over,
+})

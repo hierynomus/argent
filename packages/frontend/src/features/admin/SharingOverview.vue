@@ -5,7 +5,7 @@ import { Card, RoleBadge } from "../../components/ui"
 
 /** Read-only view of every shared portfolio / mortgage / loan and the groups it is shared with. */
 const props = defineProps<{ sharing: AdminSharingResponse }>()
-const hasAny = computed(() => props.sharing.portfolios.length > 0 || props.sharing.mortgages.length > 0 || props.sharing.loans.length > 0)
+const hasAny = computed(() => sections.value.length > 0)
 
 const role = (r: string) => r as "viewer" | "editor"
 interface SharedItem { id: string; name: string; type?: string; members: Array<{ groupName: string; role: string }> }
@@ -14,6 +14,7 @@ const sections = computed(() =>
     { title: "Portfolios", items: props.sharing.portfolios as SharedItem[], withType: true },
     { title: "Mortgages", items: props.sharing.mortgages as SharedItem[], withType: false },
     { title: "Loans", items: props.sharing.loans as SharedItem[], withType: false },
+    { title: "Property", items: (props.sharing.properties ?? []) as SharedItem[], withType: false },
   ].filter((s) => s.items.length > 0),
 )
 const TH = "px-5 py-2 text-left"

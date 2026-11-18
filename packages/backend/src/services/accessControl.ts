@@ -1,7 +1,7 @@
 import { and, eq, inArray, or, type SQL } from "drizzle-orm"
 import type { PgColumn, PgTable } from "drizzle-orm/pg-core"
 import { db } from "../db"
-import { accounts, accountMembers, portfolios, portfolioMembers, mortgages, mortgageMembers, loans, loanMembers } from "../db/schema"
+import { accounts, accountMembers, portfolios, portfolioMembers, mortgages, mortgageMembers, loans, loanMembers, properties, propertyMembers } from "../db/schema"
 
 export interface AccessContext {
   groups: string[]
@@ -80,6 +80,16 @@ const loanResource: SharedResource = {
   memberRole: loanMembers.role,
 }
 
+const propertyResource: SharedResource = {
+  table: properties,
+  id: properties.id,
+  ownerSub: properties.ownerSub,
+  members: propertyMembers,
+  memberResourceId: propertyMembers.propertyId,
+  memberGroup: propertyMembers.groupName,
+  memberRole: propertyMembers.role,
+}
+
 /**
  * WHERE clause selecting the resources `ctx` may access in the given mode:
  *   - admins: everything (within scope)
@@ -147,3 +157,10 @@ export const getViewableLoanIds = (ctx: AccessContext) => resolveIds(loanResourc
 export const getEditableLoanIds = (ctx: AccessContext) => resolveIds(loanResource, ctx, "edit")
 export const canViewLoan = (ctx: AccessContext, id: string) => hasAccess(loanResource, ctx, "view", id)
 export const canEditLoan = (ctx: AccessContext, id: string) => hasAccess(loanResource, ctx, "edit", id)
+
+// ── Property ─────────────────────────────────────────────────────────────────
+
+export const getViewablePropertyIds = (ctx: AccessContext) => resolveIds(propertyResource, ctx, "view")
+export const getEditablePropertyIds = (ctx: AccessContext) => resolveIds(propertyResource, ctx, "edit")
+export const canViewProperty = (ctx: AccessContext, id: string) => hasAccess(propertyResource, ctx, "view", id)
+export const canEditProperty = (ctx: AccessContext, id: string) => hasAccess(propertyResource, ctx, "edit", id)

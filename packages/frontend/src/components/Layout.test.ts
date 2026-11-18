@@ -40,7 +40,7 @@ describe("Layout: navigation", () => {
     mockApi({ "GET /me": me() })
     await mount()
     await screen.findByText("page body")
-    for (const to of ["/dashboard", "/checking", "/savings", "/overview", "/subscriptions", "/settings", "/mortgages", "/loans", "/crypto", "/metals", "/stocks", "/profile"]) {
+    for (const to of ["/dashboard", "/checking", "/savings", "/overview", "/subscriptions", "/settings", "/mortgages", "/loans", "/crypto", "/metals", "/stocks", "/property", "/profile"]) {
       expect(hrefs()).toContain(to)
     }
   })
