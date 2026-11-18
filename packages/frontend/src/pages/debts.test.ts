@@ -127,6 +127,15 @@ for (const k of kinds) {
       expect(api.calls("PATCH", `${k.base}/d1/parts/part-1`)[0].body).toMatchObject({ rateType: "nominal" })
     })
 
+    test("a part paid down early shows its projected end, with the scheduled end as a tooltip", async () => {
+      await setup([debt({ parts: [part({ endDate: "2050-01-01", projectedEndDate: "2049-06-01", monthsElapsed: 60, monthsRemaining: 100 })] })])
+      await screen.findByText("Part A")
+      const end = screen.getByTitle(/Scheduled end/)
+      expect(end.textContent).toContain("2049")
+      expect(end.getAttribute("title")).toContain("2050")
+      expect(screen.getByText("100mo")).toBeInTheDocument()
+    })
+
     test("deleting a part needs a confirmation", async () => {
       const { api, user } = await setup([debt()])
       await screen.findByText("Part A")

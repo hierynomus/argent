@@ -19,26 +19,34 @@ export interface PartState {
   monthlyInterest: number
   monthlyPrincipal: number
   originalMonthlyPayment: number
+  /** number of scheduled payments (start → end), not counting the effect of extra payments */
   totalMonths: number
+  /** scheduled payments whose date has passed */
   monthsElapsed: number
+  /** payments still to make at the current payment size; extra payments shorten this */
   monthsRemaining: number
+  /** date of the last payment given the current balance (earlier than `endDate` after extra payments), ISO */
+  projectedEndDate: string
 }
 
-/** Number of complete calendar months from `from` to `to`, minimum 0. */
+/** Calendar-month difference (ignores the day of the month), minimum 0. This is the number of scheduled payments. */
 function monthsBetween(from: Date, to: Date): number {
-  return Math.max(
-    0,
-    (to.getFullYear() - from.getFullYear()) * 12 + (to.getMonth() - from.getMonth()),
-  )
+  return Math.max(0, (to.getFullYear() - from.getFullYear()) * 12 + (to.getMonth() - from.getMonth()))
 }
 
-/** Returns the calendar year+month key for a given year+month offset from a base date. */
-function monthKey(base: Date, offsetMonths: number): string {
-  const d = new Date(base.getFullYear(), base.getMonth() + offsetMonths, 1)
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`
+const DAY_MS = 86_400_000
+const daysBetween = (a: Date, b: Date) => Math.round((b.getTime() - a.getTime()) / DAY_MS)
+const dayOf = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate())
+const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
+
+/** The date of payment number `m`: the start date plus m months, on the same day of the month (clamped to short months). */
+function paymentDate(start: Date, m: number): Date {
+  const first = new Date(start.getFullYear(), start.getMonth() + m, 1)
+  const lastDay = new Date(first.getFullYear(), first.getMonth() + 1, 0).getDate()
+  return new Date(first.getFullYear(), first.getMonth(), Math.min(start.getDate(), lastDay))
 }
 
-/** Parse an ISO date string to a UTC-noon Date to avoid timezone boundary issues. */
+/** Parse an ISO date string as a local date (no timezone shifting). */
 function parseDate(s: string): Date {
   const [y, m, d] = s.split("-").map(Number)
   return new Date(y, m - 1, d)
@@ -55,13 +63,16 @@ function cents(n: number): number {
 }
 
 /**
- * Compute the current amortization state for a mortgage part.
+ * Compute the current amortization state for a mortgage/loan part.
  *
- * Uses a month-by-month simulation so that extra payments are correctly
- * applied at the right point in the schedule regardless of type.
+ * Payment m is due on the start date's day of the month, m months after the start (so a part that
+ * starts on the 28th has its first payment on the 28th of the next month). `monthsElapsed` counts the
+ * payments whose date has passed. The simulation walks the payments one by one:
  *
- * Extra payments are bucketed by calendar month (YYYY-MM) and injected
- * at the START of that month (before that month's scheduled payment).
+ *  - Interest of a period is the opening balance times the monthly rate (see `monthlyRate`).
+ *  - An extra payment takes effect on its own date. It lowers the balance at once, and lowers that
+ *    period's interest in proportion to the days left until the payment date.
+ *  - The scheduled payment stays the same, so extra payments shorten the term (see `monthsRemaining`).
  */
 export function computePartState(
   part: PartInput,
@@ -69,20 +80,19 @@ export function computePartState(
   asOf: Date = new Date(),
 ): PartState {
   const principal = parseFloat(part.principal)
-  const annualRate = parseFloat(part.annualInterestRate)
-  const r = monthlyRate(annualRate, part.rateType)
+  const r = monthlyRate(parseFloat(part.annualInterestRate), part.rateType)
 
   const start = parseDate(part.startDate)
   const end = parseDate(part.endDate)
+  const today = dayOf(asOf)
   const totalMonths = Math.max(1, monthsBetween(start, end))
-  const monthsElapsed = Math.min(totalMonths, monthsBetween(start, asOf))
+  let monthsElapsed = 0
+  while (monthsElapsed < totalMonths && paymentDate(start, monthsElapsed + 1) <= today) monthsElapsed++
 
-  // Pre-compute the original (unaffected) monthly payment, rounded to cents
+  // The original (unaffected) monthly payment, rounded to cents
   let originalMonthlyPayment: number
   if (part.type === "annuity") {
-    originalMonthlyPayment = cents(r === 0
-      ? principal / totalMonths
-      : principal * r / (1 - Math.pow(1 + r, -totalMonths)))
+    originalMonthlyPayment = cents(r === 0 ? principal / totalMonths : (principal * r) / (1 - Math.pow(1 + r, -totalMonths)))
   } else if (part.type === "linear") {
     // For linear, the "original payment" is just the fixed principal portion
     originalMonthlyPayment = cents(principal / totalMonths)
@@ -91,60 +101,76 @@ export function computePartState(
     originalMonthlyPayment = cents(principal * r)
   }
 
-  // Build a map: "YYYY-MM" → total extra payment amount in that month
-  const extraByMonth = new Map<string, number>()
-  for (const ep of extraPayments) {
-    const key = ep.paymentDate.slice(0, 7)  // "YYYY-MM"
-    extraByMonth.set(key, (extraByMonth.get(key) ?? 0) + parseFloat(ep.amount))
-  }
+  const extras = extraPayments
+    .map((e) => ({ date: parseDate(e.paymentDate), amount: parseFloat(e.amount) }))
+    .sort((a, b) => a.date.getTime() - b.date.getTime())
+  let ei = 0
 
-  // Month-by-month simulation — all amounts rounded to cents at each step
   let balance = principal
+  // extra payments on/before the start date reduce the principal before any interest accrues
+  while (ei < extras.length && extras[ei].date <= start) balance = Math.max(0, cents(balance - extras[ei++].amount))
 
+  // Payment-by-payment simulation — all amounts rounded to cents at each step
+  let previous = start
   for (let m = 1; m <= monthsElapsed; m++) {
-    // 1. Apply extra payments at the start of this month
-    const key = monthKey(start, m - 1)
-    const extra = extraByMonth.get(key) ?? 0
-    if (extra > 0) {
-      balance = Math.max(0, cents(balance - extra))
+    const due = paymentDate(start, m)
+    const periodDays = Math.max(1, daysBetween(previous, due))
+    let interest = cents(balance * r)
+
+    // extra payments made during this period (after the previous payment, up to and including this one)
+    while (ei < extras.length && extras[ei].date <= due) {
+      const amount = Math.min(balance, extras[ei].amount)
+      interest = Math.max(0, cents(interest - (amount * r * daysBetween(extras[ei].date, due)) / periodDays))
+      balance = cents(balance - amount)
+      ei++
     }
     if (balance === 0) break
 
-    // 2. Apply the scheduled payment for this month
-    const interest = cents(balance * r)
-
     if (part.type === "linear") {
-      const principalPayment = Math.min(balance, originalMonthlyPayment)
-      balance = Math.max(0, cents(balance - principalPayment))
+      balance = Math.max(0, cents(balance - Math.min(balance, originalMonthlyPayment)))
     } else if (part.type === "annuity") {
-      const principalPayment = Math.min(balance, Math.max(0, originalMonthlyPayment - interest))
-      balance = Math.max(0, cents(balance - principalPayment))
+      balance = Math.max(0, cents(balance - Math.min(balance, Math.max(0, originalMonthlyPayment - interest))))
     }
     // interest_only: no principal reduction
+    previous = due
   }
 
-  // Apply any extra payments due in the current (not yet elapsed) month
-  const currentMonthKey = monthKey(start, monthsElapsed)
-  const currentExtra = extraByMonth.get(currentMonthKey) ?? 0
-  if (currentExtra > 0) {
-    balance = Math.max(0, cents(balance - currentExtra))
-  }
+  // extra payments made since the last payment (the current, not yet completed period)
+  while (ei < extras.length && extras[ei].date <= today) balance = Math.max(0, cents(balance - extras[ei++].amount))
 
-  // Compute current month's payment components from remaining balance
+  // Components of the next payment, from the remaining balance
   const currentMonthlyInterest = cents(balance * r)
   let currentMonthlyPrincipal: number
-
   if (part.type === "linear") {
     currentMonthlyPrincipal = balance > 0 ? Math.min(balance, originalMonthlyPayment) : 0
   } else if (part.type === "annuity") {
-    currentMonthlyPrincipal = balance > 0
-      ? Math.min(balance, Math.max(0, originalMonthlyPayment - currentMonthlyInterest))
-      : 0
+    currentMonthlyPrincipal = balance > 0 ? Math.min(balance, Math.max(0, originalMonthlyPayment - currentMonthlyInterest)) : 0
   } else {
     currentMonthlyPrincipal = 0
   }
-
   const currentMonthlyPayment = cents(currentMonthlyPrincipal + currentMonthlyInterest)
+
+  // How many payments are still needed at the unchanged payment size? Extra payments only ever shorten
+  // this, so it is capped at the scheduled number (which also absorbs a leftover of a few cents).
+  const scheduledRemaining = totalMonths - monthsElapsed
+  let monthsRemaining = scheduledRemaining
+  if (balance <= 0) {
+    monthsRemaining = 0
+  } else if (part.type === "linear") {
+    monthsRemaining = Math.min(scheduledRemaining, Math.ceil(balance / originalMonthlyPayment - 1e-9))
+  } else if (part.type === "annuity") {
+    let b = balance
+    let n = 0
+    while (b > 0 && n < scheduledRemaining) {
+      const interest = cents(b * r)
+      const principalPaid = originalMonthlyPayment - interest
+      if (principalPaid <= 0) break
+      b = cents(b - Math.min(b, principalPaid))
+      n++
+    }
+    // still not repaid at the end of the schedule (rounding leftovers, or a payment that doesn't cover the interest)
+    monthsRemaining = b > 0 ? scheduledRemaining : n
+  }
 
   return {
     currentBalance: Math.max(0, balance),
@@ -154,6 +180,7 @@ export function computePartState(
     originalMonthlyPayment,
     totalMonths,
     monthsElapsed,
-    monthsRemaining: totalMonths - monthsElapsed,
+    monthsRemaining,
+    projectedEndDate: iso(paymentDate(start, monthsElapsed + monthsRemaining)),
   }
 }

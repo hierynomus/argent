@@ -343,6 +343,8 @@ export interface MortgagePart {
   totalMonths: number
   monthsElapsed: number
   monthsRemaining: number
+  /** date of the last payment at the current balance and payment size (earlier than endDate after extra payments) */
+  projectedEndDate: string
 }
 
 export interface MortgageMember {
@@ -400,6 +402,8 @@ export interface LoanPart {
   totalMonths: number
   monthsElapsed: number
   monthsRemaining: number
+  /** date of the last payment at the current balance and payment size (earlier than endDate after extra payments) */
+  projectedEndDate: string
 }
 
 export interface LoanMember {

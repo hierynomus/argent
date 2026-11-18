@@ -9,7 +9,7 @@ export const part = (over: Partial<MortgagePart & LoanPart> = {}): MortgagePart 
   id: "part-1", mortgageId: "d1", loanId: "d1", name: "Part A", type: "annuity", principal: "200000.00", annualInterestRate: "0.0350", rateType: "nominal",
   startDate: "2020-01-01", endDate: "2050-01-01", createdAt: "2020-01-01T00:00:00Z", extraPayments: [],
   currentBalance: 180000, monthlyPayment: 900, monthlyInterest: 525, monthlyPrincipal: 375, originalMonthlyPayment: 898,
-  totalMonths: 360, monthsElapsed: 60, monthsRemaining: 300, ...over,
+  totalMonths: 360, monthsElapsed: 60, monthsRemaining: 300, projectedEndDate: "2050-01-01", ...over,
 })
 
 /** A mortgage or loan (identical shapes) owned by the current user. */

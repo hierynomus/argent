@@ -39,7 +39,11 @@ const remove = useMutation({
   onSuccess: () => invalidate.debts(props.kind),
 })
 
-const progressPct = () => Math.round((props.part.monthsElapsed / props.part.totalMonths) * 100)
+// progress is measured against the projected term, which extra payments shorten
+const progressPct = () => {
+  const total = props.part.monthsElapsed + props.part.monthsRemaining
+  return total === 0 ? 100 : Math.round((props.part.monthsElapsed / total) * 100)
+}
 </script>
 
 <template>
@@ -54,7 +58,7 @@ const progressPct = () => Math.round((props.part.monthsElapsed / props.part.tota
       <span class="text-xs text-gray-400 dark:text-gray-500 ml-1">/mo</span>
     </td>
     <td class="px-4 py-3 text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
-      <span class="text-gray-400 dark:text-gray-500">{{ fmtMonthYear(part.startDate) }}</span>{{ " → " }}{{ fmtMonthYear(part.endDate) }}
+      <span class="text-gray-400 dark:text-gray-500">{{ fmtMonthYear(part.startDate) }}</span>{{ " → " }}<span :title="part.projectedEndDate !== part.endDate ? `Scheduled end: ${fmtMonthYear(part.endDate)}` : undefined">{{ fmtMonthYear(part.projectedEndDate) }}</span>
     </td>
     <td class="px-4 py-3 w-32">
       <div class="flex items-center gap-2">
