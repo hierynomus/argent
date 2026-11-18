@@ -73,7 +73,7 @@ for (const k of kinds) {
       await user.type(screen.getByPlaceholderText(k.partPlaceholders.principal), "150000")
       await user.type(screen.getByPlaceholderText(k.partPlaceholders.rate), "3.5")
       await user.type(screen.getByLabelText("Start date"), "2024-01-01")
-      await user.type(screen.getByLabelText("End date"), "2044-01-01")
+      await user.type(screen.getByLabelText("Term (months)"), "240")
       await user.click(screen.getByRole("button", { name: "Add part" }))
       await waitFor(() => expect(api.calls("POST", `${k.base}/d1/parts`)).toHaveLength(1))
       expect(api.calls("POST", `${k.base}/d1/parts`)[0].body).toEqual({
@@ -90,10 +90,38 @@ for (const k of kinds) {
       expect(screen.getByRole("button", { name: "Nominal" })).toHaveAttribute("aria-pressed", "true") // the default
       await user.click(screen.getByRole("button", { name: "Effective" }))
       await user.type(screen.getByLabelText("Start date"), "2024-11-28")
-      await user.type(screen.getByLabelText("End date"), "2027-12-28")
+      await user.type(screen.getByLabelText("Term (months)"), "37")
       await user.click(screen.getByRole("button", { name: "Add part" }))
       await waitFor(() => expect(api.calls("POST", `${k.base}/d1/parts`)).toHaveLength(1))
       expect(api.calls("POST", `${k.base}/d1/parts`)[0].body).toMatchObject({ annualInterestRate: "0.059000", rateType: "effective" })
+    })
+
+    test("the term is entered in months; the last payment date is worked out and shown", async () => {
+      const { api, user } = await setup([debt({ parts: [] })])
+      await user.click(await screen.findByRole("button", { name: "+ Add part" }))
+      expect(screen.queryByText(/Last payment/)).not.toBeInTheDocument()
+      await user.type(screen.getByLabelText("Start date"), "2024-11-28")
+      await user.type(screen.getByLabelText("Term (months)"), "37")
+      expect(screen.getByText(/Last payment/).textContent).toContain("2027")
+      await user.type(screen.getByPlaceholderText(k.partPlaceholders.name), "Loan")
+      await user.type(screen.getByPlaceholderText(k.partPlaceholders.principal), "28500")
+      await user.type(screen.getByPlaceholderText(k.partPlaceholders.rate), "5.9")
+      await user.click(screen.getByRole("button", { name: "Add part" }))
+      await waitFor(() => expect(api.calls("POST", `${k.base}/d1/parts`)).toHaveLength(1))
+      expect(api.calls("POST", `${k.base}/d1/parts`)[0].body).toMatchObject({ startDate: "2024-11-28", endDate: "2027-12-28" })
+    })
+
+    test("editing a part shows its term in months and sends the new end date", async () => {
+      const { api, user } = await setup([debt({ parts: [part({ startDate: "2020-01-01", endDate: "2050-01-01" })] })])
+      await screen.findByText("Part A")
+      await user.click(screen.getByRole("button", { name: "Edit" }))
+      const term = screen.getByLabelText("Term (months)") as HTMLInputElement
+      expect(term.value).toBe("360")
+      await user.clear(term)
+      await user.type(term, "240")
+      await user.click(screen.getByRole("button", { name: "Save" }))
+      await waitFor(() => expect(api.calls("PATCH", `${k.base}/d1/parts/part-1`)).toHaveLength(1))
+      expect(api.calls("PATCH", `${k.base}/d1/parts/part-1`)[0].body).toMatchObject({ endDate: "2040-01-01" })
     })
 
     test("the add-part button stays disabled until the form is complete", async () => {
@@ -211,15 +239,15 @@ for (const k of kinds) {
     })
 
     test("API errors while adding are shown to the user", async () => {
-      const { user } = await setup([debt({ parts: [] })], { [`POST ${k.base}/:id/parts`]: respond(400, { error: "endDate must be after startDate" }) })
+      const { user } = await setup([debt({ parts: [] })], { [`POST ${k.base}/:id/parts`]: respond(400, { error: "Something the server dislikes" }) })
       await user.click(await screen.findByRole("button", { name: "+ Add part" }))
       await user.type(screen.getByPlaceholderText(k.partPlaceholders.name), "X")
       await user.type(screen.getByPlaceholderText(k.partPlaceholders.principal), "1")
       await user.type(screen.getByPlaceholderText(k.partPlaceholders.rate), "1")
       await user.type(screen.getByLabelText("Start date"), "2024-01-01")
-      await user.type(screen.getByLabelText("End date"), "2023-01-01")
+      await user.type(screen.getByLabelText("Term (months)"), "12")
       await user.click(screen.getByRole("button", { name: "Add part" }))
-      expect(await screen.findByText("endDate must be after startDate")).toBeInTheDocument()
+      expect(await screen.findByText("Something the server dislikes")).toBeInTheDocument()
     })
   })
 }

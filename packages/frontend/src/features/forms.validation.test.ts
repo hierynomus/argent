@@ -23,21 +23,21 @@ describe("debt forms", () => {
     return { api, ...await renderApp(MortgagesPage) }
   }
 
-  async function fillPart(user: any, over: { principal?: string; start?: string; end?: string } = {}) {
+  async function fillPart(user: any, over: { principal?: string; start?: string; term?: string } = {}) {
     await user.type(screen.getByPlaceholderText("Part A"), "Fixed")
     await user.type(screen.getByPlaceholderText("200000"), over.principal ?? "150000")
     await user.type(screen.getByPlaceholderText("3.500"), "3.5")
     await user.type(screen.getByLabelText("Start date"), over.start ?? "2024-01-01")
-    await user.type(screen.getByLabelText("End date"), over.end ?? "2044-01-01")
+    await user.type(screen.getByLabelText("Term (months)"), over.term ?? "240")
   }
 
-  test("an end date before the start date is explained on the end date field, and nothing is sent", async () => {
+  test("a term of zero months is explained on the term field, and nothing is sent", async () => {
     const { api, user } = await setup()
     await user.click(await screen.findByRole("button", { name: "+ Add part" }))
-    await fillPart(user, { start: "2030-01-01", end: "2020-01-01" })
+    await fillPart(user, { term: "0" })
     await user.click(screen.getByRole("button", { name: "Add part" }))
-    expect(await screen.findByText("endDate must be after startDate")).toBeInTheDocument()
-    expect(screen.getByLabelText("End date")).toHaveAttribute("aria-invalid", "true")
+    expect(await screen.findByText("The term must be at least 1 month")).toBeInTheDocument()
+    expect(screen.getByLabelText("Term (months)")).toHaveAttribute("aria-invalid", "true")
     expect(api.calls("POST", "/mortgages/d1/parts")).toHaveLength(0)
   })
 

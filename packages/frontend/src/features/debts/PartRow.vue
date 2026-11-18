@@ -4,6 +4,7 @@ import { useMutation } from "@tanstack/vue-query"
 import { updateDebtPartSchema } from "@argent/shared"
 import { debtApis, useInvalidate, type Debt, type DebtKind, type DebtPart } from "../../api"
 import { Button, ConfirmButton, ErrorText, Field, FieldGroup, Input, SegmentedControl } from "../../components/ui"
+import { addMonths, monthsBetween } from "../../lib/dates"
 import { fmtCur, fmtMonthYear, fmtRate } from "../../lib/format"
 import { useFormErrors } from "../../lib/validate"
 import ExtraPaymentsPanel from "./ExtraPaymentsPanel.vue"
@@ -22,10 +23,11 @@ const form = reactive({
   name: props.part.name,
   annualInterestRate: (parseFloat(props.part.annualInterestRate) * 100).toFixed(4),
   rateType: props.part.rateType ?? "nominal",
-  endDate: props.part.endDate,
+  // the term is edited in months from the start date; the end date follows
+  termMonths: String(monthsBetween(props.part.startDate, props.part.endDate)),
 })
 const RATE_TYPES = [{ value: "nominal", label: "Nominal" }, { value: "effective", label: "Effective" }] as const
-const body = () => ({ name: form.name, annualInterestRate: (parseFloat(form.annualInterestRate) / 100).toFixed(6), rateType: form.rateType, endDate: form.endDate })
+const body = () => ({ name: form.name, annualInterestRate: (parseFloat(form.annualInterestRate) / 100).toFixed(6), rateType: form.rateType, endDate: addMonths(props.part.startDate, parseInt(form.termMonths, 10)) })
 
 const update = useMutation({
   mutationFn: () => debtApis[props.kind].updatePart(props.debt.id, props.part.id, body()),
@@ -88,7 +90,7 @@ const progressPct = () => {
           <Input v-model="form.annualInterestRate" density="sm" type="number" min="0" step="0.001" class="w-24" />
         </Field>
         <FieldGroup label="Rate is"><SegmentedControl v-model="form.rateType" :options="RATE_TYPES" padding="px-2 py-1" /></FieldGroup>
-        <Field label="End date" :error="errors.endDate"><Input v-model="form.endDate" density="sm" type="date" class="w-36" /></Field>
+        <Field label="Term (months)" :error="errors.endDate ? 'The term must be at least 1 month' : undefined"><Input v-model="form.termMonths" density="sm" type="number" min="1" step="1" class="w-28" /></Field>
         <Button :disabled="update.isPending.value" @click="check(updateDebtPartSchema, body()) && update.mutate()">Save</Button>
         <Button variant="secondary" @click="editing = false">Cancel</Button>
       </div>

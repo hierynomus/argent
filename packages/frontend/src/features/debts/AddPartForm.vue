@@ -4,6 +4,8 @@ import { useMutation } from "@tanstack/vue-query"
 import { createDebtPartSchema } from "@argent/shared"
 import { debtApis, useInvalidate, type Debt, type DebtKind, type DebtPart } from "../../api"
 import { Button, ErrorText, Field, FieldGroup, Input, SegmentedControl } from "../../components/ui"
+import { addMonths } from "../../lib/dates"
+import { fmtDate } from "../../lib/format"
 import { useFormErrors } from "../../lib/validate"
 import { DEBT_KINDS, PART_TYPE_LABELS } from "./config"
 
@@ -18,7 +20,9 @@ const invalidate = useInvalidate()
 const { errors, check } = useFormErrors()
 const hints = DEBT_KINDS[props.kind].part
 const RATE_TYPES = [{ value: "nominal", label: "Nominal" }, { value: "effective", label: "Effective" }] as const
-const form = reactive({ name: "", type: "annuity" as PartType, principal: "", annualInterestRate: "", rateType: "nominal" as DebtPart["rateType"], startDate: "", endDate: "" })
+const form = reactive({ name: "", type: "annuity" as PartType, principal: "", annualInterestRate: "", rateType: "nominal" as DebtPart["rateType"], startDate: "", termMonths: "" })
+// the contract states a start date and a number of months; the end date follows from them
+const endDate = () => addMonths(form.startDate, parseInt(form.termMonths, 10))
 
 // the rate is entered as a percentage but sent as a fraction
 const body = () => ({
@@ -28,7 +32,7 @@ const body = () => ({
   annualInterestRate: (parseFloat(form.annualInterestRate) / 100).toFixed(6),
   rateType: form.rateType,
   startDate: form.startDate,
-  endDate: form.endDate,
+  endDate: endDate(),
 })
 
 const add = useMutation({
@@ -38,7 +42,7 @@ const add = useMutation({
     emit("done")
   },
 })
-const complete = () => !!(form.name && form.principal && form.annualInterestRate && form.startDate && form.endDate)
+const complete = () => !!(form.name && form.principal && form.annualInterestRate && form.startDate && form.termMonths)
 </script>
 
 <template>
@@ -55,7 +59,10 @@ const complete = () => !!(form.name && form.principal && form.annualInterestRate
       </Field>
       <FieldGroup label="Rate is"><SegmentedControl v-model="form.rateType" :options="RATE_TYPES" padding="px-2 py-1.5" /></FieldGroup>
       <Field label="Start date" :error="errors.startDate"><Input v-model="form.startDate" type="date" class="w-36" /></Field>
-      <Field label="End date" :error="errors.endDate"><Input v-model="form.endDate" type="date" class="w-36" /></Field>
+      <Field label="Term (months)" :error="errors.endDate ? 'The term must be at least 1 month' : undefined">
+        <Input v-model="form.termMonths" type="number" min="1" step="1" placeholder="e.g. 37" class="w-28" />
+        <p v-if="endDate()" class="text-xs text-gray-400 dark:text-gray-500 mt-1">Last payment {{ fmtDate(endDate()) }}</p>
+      </Field>
       <Button :disabled="!complete() || add.isPending.value" @click="check(createDebtPartSchema, body()) && add.mutate()">
         {{ add.isPending.value ? "Adding…" : "Add part" }}
       </Button>
