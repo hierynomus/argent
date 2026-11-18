@@ -20,7 +20,12 @@ const IMPORT_GROUP = config.importGroup
 // Avoids a DB write on every request — only syncs once per login session.
 const profileSynced = new Map<string, number>()
 
-function syncProfileOnce(sub: string, email: string | null, name: string | null, iat: number) {
+/**
+ * Stores the user's email and name the first time a session is seen. A failure is logged and forgotten, so
+ * the next request of the same session tries again (it used to be swallowed AND counted as done, which
+ * left the profile unsaved for the whole session after one transient database error).
+ */
+export function syncProfileOnce(sub: string, email: string | null, name: string | null, iat: number) {
   if (profileSynced.get(sub) === iat) return
   profileSynced.set(sub, iat)
   db.insert(userProfiles)
@@ -31,8 +36,14 @@ function syncProfileOnce(sub: string, email: string | null, name: string | null,
       set: { email, name, updatedAt: new Date() },
     })
     .then(() => {})
-    .catch(() => {})
+    .catch((err) => {
+      profileSynced.delete(sub)
+      console.error(`[auth] could not sync the profile of ${sub}: ${(err as Error).message}`)
+    })
 }
+
+/** For tests: pretend no session has been seen yet. */
+export const forgetSyncedProfiles = () => profileSynced.clear()
 
 // ── Fake auth (local dev) ────────────────────────────────────────────────────
 // Set AUTH_MODE=fake to bypass JWT validation entirely. The middleware will

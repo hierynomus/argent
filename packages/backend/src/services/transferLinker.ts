@@ -1,15 +1,26 @@
-import { and, eq, inArray, isNull, ne, isNotNull, sql } from "drizzle-orm"
+import { and, eq, inArray, isNull, ne, isNotNull, sql, TransactionRollbackError } from "drizzle-orm"
 import { db } from "../db"
 import { accounts, transactions } from "../db/schema"
 
 // EndToEndId sentinel used by banks when no reference is provided
 const NOTPROVIDED = "NOTPROVIDED"
 
-async function linkPair(idA: string, idB: string) {
-  await Promise.all([
-    db.update(transactions).set({ transferPeerId: idB }).where(eq(transactions.id, idA)),
-    db.update(transactions).set({ transferPeerId: idA }).where(eq(transactions.id, idB)),
-  ])
+/**
+ * Links two transactions as the two legs of one transfer — both or neither. Only transactions that are
+ * still unlinked are touched, so two runs at the same time (or a manual link in between) cannot leave a
+ * transaction pointing at a peer that points elsewhere. Returns whether the pair was linked.
+ */
+export async function linkPair(idA: string, idB: string): Promise<boolean> {
+  return db.transaction(async (tx) => {
+    const link = async (id: string, peerId: string) =>
+      (await tx.update(transactions).set({ transferPeerId: peerId }).where(and(eq(transactions.id, id), isNull(transactions.transferPeerId))).returning({ id: transactions.id })).length === 1
+    if ((await link(idA, idB)) && (await link(idB, idA))) return true
+    tx.rollback() // one leg was taken meanwhile: undo the other
+    return false
+  }).catch((err) => {
+    if (err instanceof TransactionRollbackError) return false // we asked for it above
+    throw err
+  })
 }
 
 /**
@@ -80,7 +91,7 @@ export async function linkTransfers(): Promise<number> {
 
     if (!peer) continue
 
-    await linkPair(tx.id, peer.id)
+    if (!(await linkPair(tx.id, peer.id))) continue // linked by someone else in the meantime
     linkedIds.add(tx.id)
     linkedIds.add(peer.id)
     linked++
@@ -124,7 +135,7 @@ export async function linkTransfers(): Promise<number> {
 
     if (!peer) continue
 
-    await linkPair(tx.id, peer.id)
+    if (!(await linkPair(tx.id, peer.id))) continue // linked by someone else in the meantime
     linkedIds.add(tx.id)
     linkedIds.add(peer.id)
     linked++

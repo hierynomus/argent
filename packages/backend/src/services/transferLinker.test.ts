@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test"
 import { eq, inArray } from "drizzle-orm"
 import { db } from "../db"
 import { accounts, transactions } from "../db/schema"
-import { linkTransfers } from "./transferLinker"
+import { linkPair, linkTransfers } from "./transferLinker"
 
 let n = 0
 const uid = () => `${Date.now().toString(36)}${(n++).toString(36)}`
@@ -176,5 +176,44 @@ describe("linkTransfers — same-account legs", () => {
     const inn = await tx({ accountId: a.id, ind: "CRDT", amount: "43.43" })
     await linkTransfers()
     expect(await reload(out.id, inn.id)).toEqual({ [out.id]: null, [inn.id]: null })
+  })
+})
+
+describe("linkPair — both legs or neither", () => {
+  test("links two free transactions to each other", async () => {
+    const [a, b] = [await account(), await account()]
+    const out = await tx({ accountId: a.id, ind: "DBIT" })
+    const inn = await tx({ accountId: b.id, ind: "CRDT" })
+    expect(await linkPair(out.id, inn.id)).toBe(true)
+    expect(await reload(out.id, inn.id)).toEqual({ [out.id]: inn.id, [inn.id]: out.id })
+  })
+
+  test("when the second leg was linked elsewhere meanwhile, nothing changes (the first leg is rolled back)", async () => {
+    const [a, b, c] = [await account(), await account(), await account()]
+    const out = await tx({ accountId: a.id, ind: "DBIT" })
+    const inn = await tx({ accountId: b.id, ind: "CRDT" })
+    const other = await tx({ accountId: c.id, ind: "DBIT" })
+    await db.update(transactions).set({ transferPeerId: other.id }).where(eq(transactions.id, inn.id)) // someone else got there first
+    expect(await linkPair(out.id, inn.id)).toBe(false)
+    expect(await reload(out.id, inn.id)).toEqual({ [out.id]: null, [inn.id]: other.id }) // out must NOT point at inn
+  })
+
+  test("when the first leg is already linked nothing changes either", async () => {
+    const [a, b, c] = [await account(), await account(), await account()]
+    const out = await tx({ accountId: a.id, ind: "DBIT" })
+    const inn = await tx({ accountId: b.id, ind: "CRDT" })
+    const other = await tx({ accountId: c.id, ind: "CRDT" })
+    await db.update(transactions).set({ transferPeerId: other.id }).where(eq(transactions.id, out.id))
+    expect(await linkPair(out.id, inn.id)).toBe(false)
+    expect(await reload(out.id, inn.id)).toEqual({ [out.id]: other.id, [inn.id]: null })
+  })
+
+  test("two runs at the same time link a pair once and leave consistent data", async () => {
+    const [a, b] = [await account(), await account()]
+    const ref = `E2E-${uid()}`
+    const out = await tx({ accountId: a.id, ind: "DBIT", reference: ref })
+    const inn = await tx({ accountId: b.id, ind: "CRDT", reference: ref })
+    await Promise.all([linkTransfers(), linkTransfers()])
+    expect(await reload(out.id, inn.id)).toEqual({ [out.id]: inn.id, [inn.id]: out.id })
   })
 })

@@ -43,7 +43,7 @@ Verify everything with `bun run check` (type-check all packages + all tests + "m
 - [x] `import_hash` ignored the account and the debit/credit direction, so identical entries on two accounts collided and the second was silently skipped. Hash now includes both (and a 2-decimal amount); migration 0019 recomputes stored hashes in SQL; tests cover it. Still true: identical entries on the same account collapse.
 - [ ] Money as `float`: use a decimal lib (`decimal.js`/`big.js`) in `fifo.ts` and `amortization.ts`; centralize epsilon constants (`1e-10`, `1e-8`)
 - [ ] Rename `totalCostEur` / `currentValueEur` to currency-neutral names (portfolios can be USD) across backend, shared types and frontend
-- [ ] `linkPair` in `transferLinker.ts` should run in a `db.transaction`
+- [x] `linkPair` runs in a `db.transaction`, only touches still-unlinked rows and rolls back when the other leg was taken (both legs or neither)
 - [ ] `addDays` / `daysBetween` / `amortization` use local time; switch to UTC
 - [~] Price service: crypto tickers beyond the ~35 pinned ones are resolved via CoinGecko search (SHIB/PEPE and sub-cent prices work, FE shows enough decimals via `fmtPrice`). Rate limits are handled (backoff, Yahoo fallback, stale data, 503 + retry in the chart). Still open: surfacing "no price" in the positions table; GBp (pence) quotes for stocks
 - [ ] Manual `POST /subscriptions` returns 409 when a *candidate* exists for the pair — consider confirming the candidate instead (UX)
@@ -64,7 +64,7 @@ Verify everything with `bun run check` (type-check all packages + all tests + "m
 - [x] Central validated `config.ts` for env vars — `src/config.ts`, `loadConfig` with tests
 - [x] Resolve group naming mismatch (`argent-admin` code default vs `finance-admin` dev env); fail on startup in production if unset — production now requires `AUTHENTIK_ADMIN_GROUP`/`AUTHENTIK_IMPORT_GROUP`/`CORS_ORIGIN` (added to `k8s/secrets.yaml`)
 - [x] Refuse `AUTH_MODE=fake` when `NODE_ENV=production`
-- [ ] Log instead of swallowing errors in `syncProfileOnce`
+- [x] `syncProfileOnce` logs failures and retries on the session's next request (it used to swallow them and count the profile as synced)
 - [x] Table registry: backup, restore, restore counts, request validation and the sharing overview derive from `BACKUP_ORDER` / `SHARING_OVERVIEW`; a drift test fails on an unregistered or mis-ordered table. Restore also inserts in chunks now (more than ~4000 transactions used to exceed Postgres' parameter limit)
 
 ## Frontend
