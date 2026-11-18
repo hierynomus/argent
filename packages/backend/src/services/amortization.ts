@@ -1,3 +1,5 @@
+import { addMonths, daysBetween, monthsBetween, todayIso } from "../lib/dates"
+
 export interface ExtraPayment {
   paymentDate: string  // ISO date "YYYY-MM-DD"
   amount: string
@@ -29,28 +31,9 @@ export interface PartState {
   projectedEndDate: string
 }
 
-/** Calendar-month difference (ignores the day of the month), minimum 0. This is the number of scheduled payments. */
-function monthsBetween(from: Date, to: Date): number {
-  return Math.max(0, (to.getFullYear() - from.getFullYear()) * 12 + (to.getMonth() - from.getMonth()))
-}
-
-const DAY_MS = 86_400_000
-const daysBetween = (a: Date, b: Date) => Math.round((b.getTime() - a.getTime()) / DAY_MS)
-const dayOf = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate())
-const iso = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
-
-/** The date of payment number `m`: the start date plus m months, on the same day of the month (clamped to short months). */
-function paymentDate(start: Date, m: number): Date {
-  const first = new Date(start.getFullYear(), start.getMonth() + m, 1)
-  const lastDay = new Date(first.getFullYear(), first.getMonth() + 1, 0).getDate()
-  return new Date(first.getFullYear(), first.getMonth(), Math.min(start.getDate(), lastDay))
-}
-
-/** Parse an ISO date string as a local date (no timezone shifting). */
-function parseDate(s: string): Date {
-  const [y, m, d] = s.split("-").map(Number)
-  return new Date(y, m - 1, d)
-}
+// Dates are `YYYY-MM-DD` strings handled by lib/dates.ts (time-zone independent); "today" is the UTC date.
+// Payment m is due `m` months after the start, on the start's day of the month (clamped to short months).
+const paymentDate = addMonths
 
 /** The monthly interest rate for an annual rate, depending on how it is quoted. */
 export function monthlyRate(annualRate: number, rateType: string = "nominal"): number {
@@ -82,9 +65,9 @@ export function computePartState(
   const principal = parseFloat(part.principal)
   const r = monthlyRate(parseFloat(part.annualInterestRate), part.rateType)
 
-  const start = parseDate(part.startDate)
-  const end = parseDate(part.endDate)
-  const today = dayOf(asOf)
+  const start = part.startDate
+  const end = part.endDate
+  const today = todayIso(asOf)
   const totalMonths = Math.max(1, monthsBetween(start, end))
   let monthsElapsed = 0
   while (monthsElapsed < totalMonths && paymentDate(start, monthsElapsed + 1) <= today) monthsElapsed++
@@ -102,8 +85,8 @@ export function computePartState(
   }
 
   const extras = extraPayments
-    .map((e) => ({ date: parseDate(e.paymentDate), amount: parseFloat(e.amount) }))
-    .sort((a, b) => a.date.getTime() - b.date.getTime())
+    .map((e) => ({ date: e.paymentDate, amount: parseFloat(e.amount) }))
+    .sort((a, b) => a.date.localeCompare(b.date))
   let ei = 0
 
   let balance = principal
@@ -181,6 +164,6 @@ export function computePartState(
     totalMonths,
     monthsElapsed,
     monthsRemaining,
-    projectedEndDate: iso(paymentDate(start, monthsElapsed + monthsRemaining)),
+    projectedEndDate: paymentDate(start, monthsElapsed + monthsRemaining),
   }
 }

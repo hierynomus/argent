@@ -44,7 +44,7 @@ Verify everything with `bun run check` (type-check all packages + all tests + "m
 - [ ] Money as `float`: use a decimal lib (`decimal.js`/`big.js`) in `fifo.ts` and `amortization.ts`; centralize epsilon constants (`1e-10`, `1e-8`)
 - [x] Currency-specific names are gone: `totalCostEur`→`totalCost`, `currentValueEur`→`currentValue`, `totalOpenCostEur`→`totalOpenCost`, `totalCurrentValueEur`→`totalCurrentValue` (backend, shared types, frontend, tests; portfolios can be USD)
 - [x] `linkPair` runs in a `db.transaction`, only touches still-unlinked rows and rolls back when the other leg was taken (both legs or neither)
-- [ ] `addDays` / `daysBetween` / `amortization` use local time; switch to UTC
+- [x] Date arithmetic is time-zone independent (`lib/dates.ts`: ISO date strings, UTC calendar): `addDays` used to be a day early across daylight-saving changes in Europe/Amsterdam (wrong next-payment dates for subscriptions); amortization no longer depends on the server's zone. `bun run test:tz` runs the date tests under 5 zones
 - [~] Price service: crypto tickers beyond the ~35 pinned ones are resolved via CoinGecko search (SHIB/PEPE and sub-cent prices work, FE shows enough decimals via `fmtPrice`). Rate limits are handled (backoff, Yahoo fallback, stale data, 503 + retry in the chart). Still open: surfacing "no price" in the positions table; GBp (pence) quotes for stocks
 - [x] Manual `POST /subscriptions` for a pair with a candidate now confirms the candidate (200) instead of failing with 409; only a confirmed one conflicts
 

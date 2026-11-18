@@ -1,6 +1,7 @@
 import { and, eq, inArray, isNull, isNotNull, sql, count } from "drizzle-orm"
 import { db } from "../db"
 import { accounts, subscriptions, transactions } from "../db/schema"
+import { addDays, daysBetween, todayIso } from "../lib/dates"
 
 export function median(values: number[]): number {
   if (values.length === 0) return 0
@@ -18,15 +19,8 @@ export function computeIntervalLabel(medianDays: number): string {
   return "custom"
 }
 
-export function addDays(dateStr: string, days: number): string {
-  const d = new Date(dateStr)
-  d.setDate(d.getDate() + days)
-  return d.toISOString().slice(0, 10)
-}
-
-export function daysBetween(a: string, b: string): number {
-  return Math.round((new Date(b).getTime() - new Date(a).getTime()) / 86_400_000)
-}
+// date arithmetic lives in lib/dates.ts (time-zone independent); re-exported for the detector's callers and tests
+export { addDays, daysBetween }
 
 /**
  * Computes subscription stats (medianAmount, intervalDays, etc.) from a sorted
@@ -56,7 +50,7 @@ export function computeStatsFromTransactions(txs: Array<{
     lastSeenDate && intervalDays ? addDays(lastSeenDate, intervalDays) : null
 
   const daysSinceLast = lastSeenDate
-    ? daysBetween(lastSeenDate, new Date().toISOString().slice(0, 10))
+    ? daysBetween(lastSeenDate, todayIso())
     : Infinity
   const isActive = intervalDays != null ? daysSinceLast <= intervalDays * 2 : true
 
@@ -211,7 +205,7 @@ export async function detectSubscriptions(): Promise<number> {
     const counterpartyName = lastTx.counterpartyName ?? amountFiltered[0].counterpartyName
 
     // Active if last transaction is within 2× interval
-    const daysSinceLast = daysBetween(lastSeenDate, new Date().toISOString().slice(0, 10))
+    const daysSinceLast = daysBetween(lastSeenDate, todayIso())
     const isActive = daysSinceLast <= intervalDays * 2
 
     let subscriptionId: string

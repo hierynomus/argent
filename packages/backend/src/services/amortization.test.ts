@@ -10,8 +10,9 @@ const part = (over: Partial<PartInput> = {}): PartInput => ({
   ...over,
 })
 
-// Local-time dates, matching the service's parseDate
-const at = (y: number, m: number, d = 15) => new Date(y, m - 1, d)
+// Instants at noon UTC: the same calendar date in every time zone (the service works on UTC dates)
+const utc = (y: number, monthIndex: number, d: number) => new Date(Date.UTC(y, monthIndex, d, 12))
+const at = (y: number, m: number, d = 15) => utc(y, m - 1, d)
 
 describe("computePartState — structure", () => {
   test("total/elapsed/remaining months", () => {
@@ -150,16 +151,16 @@ describe("payment dates (day of the month)", () => {
   const loan = part({ principal: "28500", annualInterestRate: "0.059", rateType: "effective", startDate: "2024-11-28", endDate: "2027-12-28" })
 
   test("a payment counts once its date has passed, not from the first of the month", () => {
-    expect(computePartState(loan, [], new Date(2026, 9, 27)).monthsElapsed).toBe(22) // 27 Oct: the 28 Oct payment is still to come
-    expect(computePartState(loan, [], new Date(2026, 9, 28)).monthsElapsed).toBe(23)
-    expect(computePartState(loan, [], new Date(2026, 10, 18)).monthsElapsed).toBe(23)
-    expect(computePartState(loan, [], new Date(2026, 10, 28)).monthsElapsed).toBe(24)
+    expect(computePartState(loan, [], utc(2026, 9, 27)).monthsElapsed).toBe(22) // 27 Oct: the 28 Oct payment is still to come
+    expect(computePartState(loan, [], utc(2026, 9, 28)).monthsElapsed).toBe(23)
+    expect(computePartState(loan, [], utc(2026, 10, 18)).monthsElapsed).toBe(23)
+    expect(computePartState(loan, [], utc(2026, 10, 28)).monthsElapsed).toBe(24)
   })
 
   test("a part that starts on the 31st pays on the last day of shorter months", () => {
     const p = part({ startDate: "2024-01-31", endDate: "2025-01-31" })
-    expect(computePartState(p, [], new Date(2024, 1, 28)).monthsElapsed).toBe(0) // 28 Feb 2024 is not the end of Feb (leap year)
-    expect(computePartState(p, [], new Date(2024, 1, 29)).monthsElapsed).toBe(1)
+    expect(computePartState(p, [], utc(2024, 1, 28)).monthsElapsed).toBe(0) // 28 Feb 2024 is not the end of Feb (leap year)
+    expect(computePartState(p, [], utc(2024, 1, 29)).monthsElapsed).toBe(1)
   })
 
   test("parts that start on the 1st behave as before", () => {
@@ -171,7 +172,7 @@ describe("payment dates (day of the month)", () => {
 describe("extra payments: timing and a shorter term", () => {
   const loan = part({ principal: "28500", annualInterestRate: "0.059", rateType: "effective", startDate: "2024-11-28", endDate: "2027-12-28" })
   const extra = [{ paymentDate: "2026-05-24", amount: "1000" }]
-  const now = new Date(2026, 10, 18)
+  const now = utc(2026, 10, 18)
 
   test("a loan with an extra payment: balance close to the reference 10355.2, payment unchanged", () => {
     const s = computePartState(loan, extra, now)
@@ -209,7 +210,7 @@ describe("extra payments: timing and a shorter term", () => {
 
   test("linear: the principal portion stays and the term shortens", () => {
     const lin = part({ type: "linear", principal: "12000", annualInterestRate: "0.06", startDate: "2024-01-01", endDate: "2025-01-01" }) // 12 x 1000
-    const s = computePartState(lin, [{ paymentDate: "2024-03-10", amount: "3000" }], new Date(2024, 3, 15))
+    const s = computePartState(lin, [{ paymentDate: "2024-03-10", amount: "3000" }], utc(2024, 3, 15))
     expect(s.monthsElapsed).toBe(3)
     expect(s.monthlyPrincipal).toBe(1000)
     expect(s.currentBalance).toBe(6000) // 12000 - 3 payments of 1000 - the extra 3000

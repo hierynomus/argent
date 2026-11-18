@@ -11,6 +11,7 @@
     "db:migrate": "bun run src/db/migrate.ts",
     "db:check": "bun run scripts/db-check.ts",
     "test": "bun test",
+    "test:tz": "bun run scripts/test-timezones.ts",
     "typecheck": "bunx tsc --noEmit -p ."
   },
   "dependencies": {
