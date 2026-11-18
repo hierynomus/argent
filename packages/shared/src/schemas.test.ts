@@ -6,6 +6,7 @@ import {
   linkTransferSchema, nonNegativeDecimalString, positiveDecimalString, setAccountOwnerSchema,
   updateAccountSchema, updateDebtPartSchema, updateDebtSchema, updateMeSchema, updatePortfolioSchema,
   updateSubscriptionSchema, updateTransactionSchema,
+  createEquityPlanSchema, updateEquityPlanSchema, createEquityGrantSchema, updateEquityGrantSchema, createEquityPriceSchema,
   createPropertySchema, updatePropertySchema, createPropertyValuationSchema, setPropertyLinksSchema,
 } from "./schemas"
 import type { z } from "zod"
@@ -252,5 +253,55 @@ describe("property schemas", () => {
     ok(setPropertyLinksSchema, { mortgageIds: ["123e4567-e89b-42d3-a456-426614174000"], loanIds: [] })
     bad(setPropertyLinksSchema, { mortgageIds: ["not-an-id"] })
     bad(setPropertyLinksSchema, { loanIds: "x" })
+  })
+})
+
+describe("equity schemas", () => {
+  const time = { grantDate: "2023-01-01", options: "4800", strikePrice: "2", vestingType: "time", vestStart: "2023-01-01", cliffMonths: 12, vestMonths: 48 }
+
+  test("plan: a company name and an optional currency", () => {
+    ok(createEquityPlanSchema, { name: "Acme BV" })
+    ok(createEquityPlanSchema, { name: "Acme", currency: "USD" })
+    bad(createEquityPlanSchema, { name: " " }, "name is required")
+    bad(createEquityPlanSchema, { name: "x", currency: "GBP" })
+    ok(updateEquityPlanSchema, {})
+    bad(updateEquityPlanSchema, { name: "" }, "name must not be empty")
+  })
+
+  test("a time-vested grant needs a start and a duration; the cliff cannot be longer than the duration", () => {
+    ok(createEquityGrantSchema, time)
+    ok(createEquityGrantSchema, { ...time, vestingType: undefined }) // time is the default
+    ok(createEquityGrantSchema, { ...time, cliffMonths: undefined }) // no cliff
+    ok(createEquityGrantSchema, { ...time, label: "2023 grant", strikePrice: "0" }) // a zero strike is fine
+    bad(createEquityGrantSchema, { ...time, vestStart: undefined }, "vestStart is required for time vesting")
+    bad(createEquityGrantSchema, { ...time, vestMonths: undefined }, "vestMonths is required for time vesting")
+    bad(createEquityGrantSchema, { ...time, cliffMonths: 60 }, "cliffMonths cannot be longer than vestMonths")
+  })
+
+  test("an exit-only grant needs no schedule", () => {
+    ok(createEquityGrantSchema, { grantDate: "2023-01-01", options: "1000", strikePrice: "2", vestingType: "exit" })
+  })
+
+  test("grant fields are checked", () => {
+    bad(createEquityGrantSchema, { ...time, options: "0" }, "options must be greater than 0")
+    bad(createEquityGrantSchema, { ...time, strikePrice: "-1" }, "strikePrice must not be negative")
+    bad(createEquityGrantSchema, { ...time, grantDate: "2023-02-31" }, "not a valid date")
+    bad(createEquityGrantSchema, { ...time, vestingType: "quarterly" }, "vestingType must be time or exit")
+    bad(createEquityGrantSchema, { ...time, vestMonths: 12.5 }, "whole number")
+    bad(createEquityGrantSchema, { ...time, vestMonths: 0 }, "at least 1")
+    bad(createEquityGrantSchema, { ...time, cliffMonths: -1 }, "at least 0")
+  })
+
+  test("the update schema accepts any subset of grant fields", () => {
+    ok(updateEquityGrantSchema, {})
+    ok(updateEquityGrantSchema, { options: "9600" })
+    ok(updateEquityGrantSchema, { vestingType: "exit" })
+    bad(updateEquityGrantSchema, { options: "abc" })
+  })
+
+  test("price: a real date and a positive price", () => {
+    ok(createEquityPriceSchema, { priceDate: "2024-06-01", price: "12.5", note: "Series A" })
+    bad(createEquityPriceSchema, { priceDate: "2024-13-01", price: "1" })
+    bad(createEquityPriceSchema, { priceDate: "2024-06-01", price: "0" }, "price must be greater than 0")
   })
 })
