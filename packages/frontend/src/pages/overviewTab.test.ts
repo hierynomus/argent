@@ -7,7 +7,7 @@ import MetalsPage from "./Metals.vue"
 import StocksPage from "./Stocks.vue"
 
 const pos = (symbol: string, name: string, over: object = {}) => ({
-  symbol, name, assetForm: null, balance: 1, avgCostBasis: 100, totalCostEur: 100, realizedPnL: 0, currentPrice: 150, currentValueEur: 150, unrealizedPnL: 50, ...over,
+  symbol, name, assetForm: null, balance: 1, avgCostBasis: 100, totalCost: 100, realizedPnL: 0, currentPrice: 150, currentValue: 150, unrealizedPnL: 50, ...over,
 })
 const buy = (id: string, portfolioId: string, symbol: string, date: string) => ({ id, portfolioId, tradeDate: date, fromSymbol: "EUR", fromAmount: "100", toSymbol: symbol, toAmount: "1", baseCurrencyAmount: "100", notes: null, createdAt: "" })
 const T0 = Date.UTC(2024, 0, 1)
@@ -18,8 +18,8 @@ describe("crypto overview", () => {
       "GET /crypto": [portfolio({ id: "p1", name: "Main" }), portfolio({ id: "p2", name: "Second" })],
       "GET /crypto/:id": ({ params }: any) =>
         params.id === "p1"
-          ? cryptoDetail({ id: "p1", name: "Main", positions: [pos("BTC", "Bitcoin", { balance: 1, totalCostEur: 30000, currentValueEur: 50000, currentPrice: 50000 }), pos("ETH", "Ether", { totalCostEur: 1000, currentValueEur: 2000, currentPrice: 2000 })], trades: [buy("t1", "p1", "BTC", "2024-01-02")] })
-          : cryptoDetail({ id: "p2", name: "Second", positions: [pos("BTC", "Bitcoin", { balance: 0.5, totalCostEur: 20000, currentValueEur: 25000, currentPrice: 50000 })], trades: [buy("t2", "p2", "BTC", "2024-01-03")] }),
+          ? cryptoDetail({ id: "p1", name: "Main", positions: [pos("BTC", "Bitcoin", { balance: 1, totalCost: 30000, currentValue: 50000, currentPrice: 50000 }), pos("ETH", "Ether", { totalCost: 1000, currentValue: 2000, currentPrice: 2000 })], trades: [buy("t1", "p1", "BTC", "2024-01-02")] })
+          : cryptoDetail({ id: "p2", name: "Second", positions: [pos("BTC", "Bitcoin", { balance: 0.5, totalCost: 20000, currentValue: 25000, currentPrice: 50000 })], trades: [buy("t2", "p2", "BTC", "2024-01-03")] }),
       "GET /crypto/history/:symbol": { symbol: "BTC", currency: "EUR", range: "1y", points: [100, 120, 110, 130].map((v, i) => ({ t: T0 + i * 86_400_000, v })) },
       ...extra,
     })
@@ -67,8 +67,8 @@ describe("crypto overview", () => {
       "GET /crypto": [portfolio({ id: "e", name: "Euro", currency: "EUR" }), portfolio({ id: "u", name: "Dollar", currency: "USD" })],
       "GET /crypto/:id": ({ params }: any) =>
         params.id === "e"
-          ? cryptoDetail({ id: "e", name: "Euro", currency: "EUR", positions: [pos("BTC", "Bitcoin", { totalCostEur: 100, currentValueEur: 150 })] })
-          : cryptoDetail({ id: "u", name: "Dollar", currency: "USD", positions: [pos("BTC", "Bitcoin", { totalCostEur: 1000, currentValueEur: 1500 })] }),
+          ? cryptoDetail({ id: "e", name: "Euro", currency: "EUR", positions: [pos("BTC", "Bitcoin", { totalCost: 100, currentValue: 150 })] })
+          : cryptoDetail({ id: "u", name: "Dollar", currency: "USD", positions: [pos("BTC", "Bitcoin", { totalCost: 1000, currentValue: 1500 })] }),
     })
     await renderApp(CryptoPage)
     const eur = await screen.findByRole("region", { name: "EUR portfolios" })
@@ -99,7 +99,7 @@ describe("stocks overview", () => {
     mockApi({
       "GET /stocks": [portfolio({ id: "s1", name: "DEGIRO", type: "stocks", broker: "DEGIRO", currency: "EUR" }), portfolio({ id: "s2", name: "Saxo", type: "stocks", broker: "Saxo", currency: "EUR" })],
       "GET /stocks/:id": ({ params }: any) =>
-        stockDetail({ id: params.id, name: params.id === "s1" ? "DEGIRO" : "Saxo", currency: "EUR", positions: [stockPosition({ symbol: "AAPL", balance: params.id === "s1" ? 10 : 5, totalCostEur: 800, currentValueEur: 1000, totalDividends: params.id === "s1" ? 20 : 5 })] }),
+        stockDetail({ id: params.id, name: params.id === "s1" ? "DEGIRO" : "Saxo", currency: "EUR", positions: [stockPosition({ symbol: "AAPL", balance: params.id === "s1" ? 10 : 5, totalCost: 800, currentValue: 1000, totalDividends: params.id === "s1" ? 20 : 5 })] }),
     })
     await renderApp(StocksPage)
     const row = (await screen.findByRole("button", { name: "AAPL" })).closest("tr")!

@@ -21,7 +21,7 @@ const fmt8 = (n: number) => fmtSignificant(n, 8)
 
 <template>
   <SummaryTiles
-    :tiles="standardTiles({ openCost: portfolio.totalOpenCostEur, currentValue: portfolio.totalCurrentValueEur, unrealized: portfolio.totalUnrealizedPnL, realized: portfolio.totalRealizedPnL }, portfolio.currency)"
+    :tiles="standardTiles({ openCost: portfolio.totalOpenCost, currentValue: portfolio.totalCurrentValue, unrealized: portfolio.totalUnrealizedPnL, realized: portfolio.totalRealizedPnL }, portfolio.currency)"
   />
   <PositionsTable :positions="portfolio.positions" :currency="portfolio.currency" balance-header="Balance" :format-balance="fmt8" min-width="min-w-[700px]" :selected-symbol="selected" @select="(s) => (selected = selected === s ? null : s)" />
   <AssetChart v-if="selectedPosition" :key="selectedPosition.symbol" kind="crypto" :symbol="selectedPosition.symbol" :name="selectedPosition.name" :currency="portfolio.currency as 'EUR' | 'USD'" :trades="portfolio.trades" @close="selected = null" />

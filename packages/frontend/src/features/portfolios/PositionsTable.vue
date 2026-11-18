@@ -59,7 +59,7 @@ const dividends = (pos: AssetPosition | StockPosition) => ("totalDividends" in p
             <span v-else class="text-gray-300 dark:text-gray-600">—</span>
           </td>
           <td class="px-4 py-3 text-right font-mono text-gray-900 dark:text-gray-100">
-            <template v-if="pos.currentValueEur != null">{{ fmtSymbolCur(pos.currentValueEur, currency) }}</template>
+            <template v-if="pos.currentValue != null">{{ fmtSymbolCur(pos.currentValue, currency) }}</template>
             <span v-else class="text-gray-300 dark:text-gray-600">—</span>
           </td>
           <td class="px-4 py-3 text-right font-mono" :class="pos.unrealizedPnL != null ? pnlColor(pos.unrealizedPnL) : 'text-gray-300 dark:text-gray-600'">

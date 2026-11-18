@@ -42,7 +42,7 @@ Verify everything with `bun run check` (type-check all packages + all tests + "m
 - [x] Icon-only "×" close button had no accessible name; form labels were not tied to their controls
 - [x] `import_hash` ignored the account and the debit/credit direction, so identical entries on two accounts collided and the second was silently skipped. Hash now includes both (and a 2-decimal amount); migration 0019 recomputes stored hashes in SQL; tests cover it. Still true: identical entries on the same account collapse.
 - [ ] Money as `float`: use a decimal lib (`decimal.js`/`big.js`) in `fifo.ts` and `amortization.ts`; centralize epsilon constants (`1e-10`, `1e-8`)
-- [ ] Rename `totalCostEur` / `currentValueEur` to currency-neutral names (portfolios can be USD) across backend, shared types and frontend
+- [x] Currency-specific names are gone: `totalCostEur`→`totalCost`, `currentValueEur`→`currentValue`, `totalOpenCostEur`→`totalOpenCost`, `totalCurrentValueEur`→`totalCurrentValue` (backend, shared types, frontend, tests; portfolios can be USD)
 - [x] `linkPair` runs in a `db.transaction`, only touches still-unlinked rows and rolls back when the other leg was taken (both legs or neither)
 - [ ] `addDays` / `daysBetween` / `amortization` use local time; switch to UTC
 - [~] Price service: crypto tickers beyond the ~35 pinned ones are resolved via CoinGecko search (SHIB/PEPE and sub-cent prices work, FE shows enough decimals via `fmtPrice`). Rate limits are handled (backoff, Yahoo fallback, stale data, 503 + retry in the chart). Still open: surfacing "no price" in the positions table; GBp (pence) quotes for stocks

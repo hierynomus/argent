@@ -45,17 +45,17 @@ export function aggregateAssets(details: AssetDetail[]): AssetGroup[] {
 
       const positions: OverviewPosition[] = [...bySymbol.entries()].map(([symbol, entries]) => {
         const balance = sum(entries.map((e) => e.p.balance))
-        const totalCost = sum(entries.map((e) => e.p.totalCostEur))
-        const currentValue = sumOrNull(entries.map((e) => e.p.currentValueEur))
+        const totalCost = sum(entries.map((e) => e.p.totalCost))
+        const currentValue = sumOrNull(entries.map((e) => e.p.currentValue))
         return {
           symbol,
           name: entries[0].p.name,
           assetForm: entries[0].p.assetForm,
           balance,
-          totalCostEur: totalCost,
+          totalCost: totalCost,
           avgCostBasis: balance > 0 ? totalCost / balance : 0,
           currentPrice: entries.map((e) => e.p.currentPrice).find((x) => x !== null) ?? null,
-          currentValueEur: currentValue,
+          currentValue: currentValue,
           unrealizedPnL: currentValue === null ? null : currentValue - totalCost,
           realizedPnL: sum(entries.map((e) => e.p.realizedPnL)),
           totalDividends: sum(entries.map((e) => dividendsOf(e.p))),
@@ -63,10 +63,10 @@ export function aggregateAssets(details: AssetDetail[]): AssetGroup[] {
         }
       })
       // biggest holdings first; assets without a price last
-      positions.sort((a, b) => (b.currentValueEur ?? -1) - (a.currentValueEur ?? -1) || a.symbol.localeCompare(b.symbol))
+      positions.sort((a, b) => (b.currentValue ?? -1) - (a.currentValue ?? -1) || a.symbol.localeCompare(b.symbol))
 
-      const openCost = sum(positions.map((p) => p.totalCostEur))
-      const currentValue = sumOrNull(positions.map((p) => p.currentValueEur))
+      const openCost = sum(positions.map((p) => p.totalCost))
+      const currentValue = sumOrNull(positions.map((p) => p.currentValue))
       return {
         currency,
         portfolioNames: group.map((d) => d.name),

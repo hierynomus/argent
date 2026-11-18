@@ -115,10 +115,10 @@ describe("crypto trades", () => {
     const d = (await get(`/crypto/${id}`)).body
     expect(d.positions).toHaveLength(1)
     expect(d.positions[0]).toMatchObject({
-      symbol: "BTC", name: "Bitcoin", balance: 1, avgCostBasis: 30000, totalCostEur: 30000,
-      currentPrice: 50000, currentValueEur: 50000, unrealizedPnL: 20000, realizedPnL: 0,
+      symbol: "BTC", name: "Bitcoin", balance: 1, avgCostBasis: 30000, totalCost: 30000,
+      currentPrice: 50000, currentValue: 50000, unrealizedPnL: 20000, realizedPnL: 0,
     })
-    expect(d).toMatchObject({ totalOpenCostEur: 30000, totalCurrentValueEur: 50000, totalUnrealizedPnL: 20000, totalRealizedPnL: 0 })
+    expect(d).toMatchObject({ totalOpenCost: 30000, totalCurrentValue: 50000, totalUnrealizedPnL: 20000, totalRealizedPnL: 0 })
   })
 
   test("prices follow the portfolio currency", async () => {
@@ -155,7 +155,7 @@ describe("crypto trades", () => {
     expect(swap.body.baseCurrencyAmount).toBe("10000.00")
     const d = (await get(`/crypto/${id}`)).body
     const eth = d.positions.find((p: any) => p.symbol === "ETH")
-    expect(eth).toMatchObject({ balance: 20, totalCostEur: 10000, avgCostBasis: 500 })
+    expect(eth).toMatchObject({ balance: 20, totalCost: 10000, avgCostBasis: 500 })
     expect(d.totalRealizedPnL).toBe(0)
     // closed BTC position sorts after the open one
     expect(d.positions.map((p: any) => p.symbol)).toEqual(["ETH", "BTC"])
@@ -195,7 +195,7 @@ describe("crypto trades", () => {
     const d = (await get(`/crypto/${id}`)).body
     expect(d.positions[0]).toMatchObject({ symbol: "SHIB", balance: 1_000_000_000, currentPrice: 0.0000085 })
     expect(d.positions[0].avgCostBasis).toBeCloseTo(0.000000005, 12) // 5 EUR / 1e9 coins
-    expect(d.positions[0].currentValueEur).toBeCloseTo(8500, 6) // 1e9 × 0.0000085
+    expect(d.positions[0].currentValue).toBeCloseTo(8500, 6) // 1e9 × 0.0000085
     expect(d.positions[0].unrealizedPnL).toBeCloseTo(8495, 6)
   })
 
@@ -203,15 +203,15 @@ describe("crypto trades", () => {
     const id = await newPortfolio()
     await trade(id, { fromSymbol: "EUR", fromAmount: "100", toSymbol: "NEWCOIN", toAmount: "200" })
     const d = (await get(`/crypto/${id}`)).body
-    expect(d.positions[0]).toMatchObject({ symbol: "NEWCOIN", currentPrice: 0.25, currentValueEur: 50 })
+    expect(d.positions[0]).toMatchObject({ symbol: "NEWCOIN", currentPrice: 0.25, currentValue: 50 })
   })
 
   test("positions without a price still return, with null valuation", async () => {
     const id = await newPortfolio()
     await trade(id, { fromSymbol: "EUR", fromAmount: "100", toSymbol: "XRP", toAmount: "200" }) // not in the fake price feed
     const d = (await get(`/crypto/${id}`)).body
-    expect(d.positions[0]).toMatchObject({ symbol: "XRP", currentPrice: null, currentValueEur: null, unrealizedPnL: null })
-    expect(d.totalCurrentValueOpen ?? d.totalCurrentValueEur).toBeNull()
+    expect(d.positions[0]).toMatchObject({ symbol: "XRP", currentPrice: null, currentValue: null, unrealizedPnL: null })
+    expect(d.totalCurrentValueOpen ?? d.totalCurrentValue).toBeNull()
   })
 
   test("validation", async () => {
@@ -251,8 +251,8 @@ describe("stock trades & dividends", () => {
 
     const d = (await get(`/stocks/${id}`)).body
     expect(d.positions[0]).toMatchObject({
-      symbol: "AAPL", name: "Apple Inc.", balance: 10, avgCostBasis: 80, totalCostEur: 800,
-      currentPrice: 100, currentValueEur: 1000, unrealizedPnL: 200,
+      symbol: "AAPL", name: "Apple Inc.", balance: 10, avgCostBasis: 80, totalCost: 800,
+      currentPrice: 100, currentValue: 1000, unrealizedPnL: 200,
     })
   })
 
@@ -310,7 +310,7 @@ describe("stock trades & dividends", () => {
     await post(`/stocks/${id}/dividends`, { symbol: "AAPL", paymentDate: "2024-06-01", amount: "12.5" })
     await post(`/stocks/${id}/dividends`, { symbol: "VWRL", paymentDate: "2024-06-01", amount: "7" })
     const d = (await get(`/stocks/${id}`)).body
-    expect(d.positions.find((p: any) => p.symbol === "AAPL")).toMatchObject({ totalDividends: 22.5, totalCostEur: 800 })
+    expect(d.positions.find((p: any) => p.symbol === "AAPL")).toMatchObject({ totalDividends: 22.5, totalCost: 800 })
     expect(d.positions.find((p: any) => p.symbol === "VWRL").totalDividends).toBe(7)
     expect(d.totalDividends).toBe(29.5)
     expect(d.dividends.map((x: any) => x.paymentDate)).toEqual(["2024-03-01", "2024-06-01", "2024-06-01"]) // ordered by date

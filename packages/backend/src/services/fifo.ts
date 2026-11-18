@@ -4,7 +4,7 @@ export interface FifoResult {
   /** FIFO average cost per unit of the open position, in base currency */
   avgCostBasis: number
   /** Total base-currency cost of the open position */
-  totalCostEur: number
+  totalCost: number
   /** Realized P&L from all sales matched so far, in base currency */
   realizedPnL: number
 }
@@ -82,10 +82,10 @@ export function computeFifo(
   }
 
   const balance = buyQueue.reduce((s, l) => s + l.remainingQty, 0)
-  const totalCostEur = buyQueue.reduce((s, l) => s + l.remainingQty * l.costPerUnit, 0)
-  const avgCostBasis = balance > 1e-10 ? totalCostEur / balance : 0
+  const totalCost = buyQueue.reduce((s, l) => s + l.remainingQty * l.costPerUnit, 0)
+  const avgCostBasis = balance > 1e-10 ? totalCost / balance : 0
 
-  return { balance, avgCostBasis, totalCostEur, realizedPnL }
+  return { balance, avgCostBasis, totalCost, realizedPnL }
 }
 
 /** Returns all unique investment symbols in a trade list (non-baseCurrency symbols) */

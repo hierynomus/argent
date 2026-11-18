@@ -165,18 +165,18 @@ export interface AssetPosition {
   assetForm: string | null
   balance: number
   avgCostBasis: number
-  totalCostEur: number
+  totalCost: number
   realizedPnL: number
   currentPrice: number | null
-  currentValueEur: number | null
+  currentValue: number | null
   unrealizedPnL: number | null
 }
 
 export interface PortfolioDetail extends Portfolio {
   trades: CryptoTrade[]
   positions: AssetPosition[]
-  totalOpenCostEur: number
-  totalCurrentValueEur: number | null
+  totalOpenCost: number
+  totalCurrentValue: number | null
   totalRealizedPnL: number
   totalUnrealizedPnL: number | null
   members: PortfolioMember[]
@@ -274,10 +274,10 @@ export interface StockPosition {
   assetForm: string | null
   balance: number
   avgCostBasis: number
-  totalCostEur: number
+  totalCost: number
   realizedPnL: number
   currentPrice: number | null
-  currentValueEur: number | null
+  currentValue: number | null
   unrealizedPnL: number | null
   totalDividends: number
 }
@@ -286,8 +286,8 @@ export interface StockPortfolioDetail extends Portfolio {
   trades: StockTrade[]
   dividends: StockDividend[]
   positions: StockPosition[]
-  totalOpenCostEur: number
-  totalCurrentValueEur: number | null
+  totalOpenCost: number
+  totalCurrentValue: number | null
   totalRealizedPnL: number
   totalUnrealizedPnL: number | null
   totalDividends: number

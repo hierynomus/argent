@@ -96,7 +96,7 @@ describe("investment forms", () => {
   test("crypto: a zero amount is reported on the right field for a sell", async () => {
     const detail = cryptoDetail({
       id: "p1",
-      positions: [{ symbol: "BTC", name: "Bitcoin", assetForm: null, balance: 1, avgCostBasis: 1, totalCostEur: 1, realizedPnL: 0, currentPrice: null, currentValueEur: null, unrealizedPnL: null }],
+      positions: [{ symbol: "BTC", name: "Bitcoin", assetForm: null, balance: 1, avgCostBasis: 1, totalCost: 1, realizedPnL: 0, currentPrice: null, currentValue: null, unrealizedPnL: null }],
     })
     const api = mockApi({ "GET /crypto": [portfolio({ id: "p1" })], "GET /crypto/:id": detail, "POST /crypto/:id/trades": {} })
     const { user } = await renderApp(CryptoPage)

@@ -143,8 +143,8 @@ describe("stocks page: broker", () => {
 
 describe("crypto page: positions and trades", () => {
   const withBtc = () => cryptoDetail({
-    id: "p1", totalOpenCostEur: 30000, totalCurrentValueEur: 50000, totalUnrealizedPnL: 20000, totalRealizedPnL: -150,
-    positions: [{ symbol: "BTC", name: "Bitcoin", assetForm: null, balance: 1, avgCostBasis: 30000, totalCostEur: 30000, realizedPnL: -150, currentPrice: 50000, currentValueEur: 50000, unrealizedPnL: 20000 }],
+    id: "p1", totalOpenCost: 30000, totalCurrentValue: 50000, totalUnrealizedPnL: 20000, totalRealizedPnL: -150,
+    positions: [{ symbol: "BTC", name: "Bitcoin", assetForm: null, balance: 1, avgCostBasis: 30000, totalCost: 30000, realizedPnL: -150, currentPrice: 50000, currentValue: 50000, unrealizedPnL: 20000 }],
     trades: [{ id: "t1", portfolioId: "p1", tradeDate: "2024-01-01", fromSymbol: "EUR", fromAmount: "30000", toSymbol: "BTC", toAmount: "1", baseCurrencyAmount: "30000", notes: "first", createdAt: "" }],
   })
   const setup = async (detail = withBtc()) => {
@@ -166,8 +166,8 @@ describe("crypto page: positions and trades", () => {
 
   test("sub-cent coins show their real price instead of 0,00", async () => {
     await setup(cryptoDetail({
-      id: "p1", totalOpenCostEur: 5, totalCurrentValueEur: 8500, totalUnrealizedPnL: 8495, totalRealizedPnL: 0,
-      positions: [{ symbol: "SHIB", name: "Shiba Inu", assetForm: null, balance: 1_000_000_000, avgCostBasis: 0.000000005, totalCostEur: 5, realizedPnL: 0, currentPrice: 0.0000085, currentValueEur: 8500, unrealizedPnL: 8495 }],
+      id: "p1", totalOpenCost: 5, totalCurrentValue: 8500, totalUnrealizedPnL: 8495, totalRealizedPnL: 0,
+      positions: [{ symbol: "SHIB", name: "Shiba Inu", assetForm: null, balance: 1_000_000_000, avgCostBasis: 0.000000005, totalCost: 5, realizedPnL: 0, currentPrice: 0.0000085, currentValue: 8500, unrealizedPnL: 8495 }],
     }))
     expect(await screen.findByText("Shiba Inu")).toBeInTheDocument()
     expect(screen.getByText("€0,0000085")).toBeInTheDocument() // current price
@@ -248,7 +248,7 @@ describe("crypto page: positions and trades", () => {
 
 describe("stocks page: positions, trades and dividends", () => {
   const detail = () => stockDetail({
-    id: "s1", currency: "USD", totalOpenCostEur: 800, totalCurrentValueEur: 1000, totalUnrealizedPnL: 200, totalRealizedPnL: 0, totalDividends: 12.5,
+    id: "s1", currency: "USD", totalOpenCost: 800, totalCurrentValue: 1000, totalUnrealizedPnL: 200, totalRealizedPnL: 0, totalDividends: 12.5,
     positions: [stockPosition({ totalDividends: 12.5 })],
     trades: [{ id: "t1", portfolioId: "s1", tradeDate: "2024-01-01", fromSymbol: "USD", fromAmount: "800", toSymbol: "AAPL", toAmount: "10", baseCurrencyAmount: "800", notes: "start", createdAt: "" }],
     dividends: [{ id: "d1", portfolioId: "s1", symbol: "AAPL", paymentDate: "2024-03-01", amount: "12.50", notes: "Q1", createdAt: "" }],

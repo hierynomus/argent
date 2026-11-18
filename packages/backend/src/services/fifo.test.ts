@@ -10,14 +10,14 @@ const sell = (date: string, qty: string, eur: string, sym = "BTC") => ({
 
 describe("computeFifo", () => {
   test("no trades → zeros", () => {
-    expect(computeFifo([], "BTC", "EUR")).toEqual({ balance: 0, avgCostBasis: 0, totalCostEur: 0, realizedPnL: 0 })
+    expect(computeFifo([], "BTC", "EUR")).toEqual({ balance: 0, avgCostBasis: 0, totalCost: 0, realizedPnL: 0 })
   })
 
   test("single buy", () => {
     const r = computeFifo([buy("2024-01-01", "1000", "0.5")], "BTC", "EUR")
     expect(r.balance).toBeCloseTo(0.5)
     expect(r.avgCostBasis).toBeCloseTo(2000)
-    expect(r.totalCostEur).toBeCloseTo(1000)
+    expect(r.totalCost).toBeCloseTo(1000)
     expect(r.realizedPnL).toBe(0)
   })
 
@@ -31,7 +31,7 @@ describe("computeFifo", () => {
     expect(r.realizedPnL).toBeCloseTo(1500) // sold 1 @2500 vs cost 1000
     expect(r.balance).toBeCloseTo(1)
     expect(r.avgCostBasis).toBeCloseTo(3000)
-    expect(r.totalCostEur).toBeCloseTo(3000)
+    expect(r.totalCost).toBeCloseTo(3000)
   })
 
   test("sell spanning two lots", () => {
@@ -44,7 +44,7 @@ describe("computeFifo", () => {
     // 1 @ (4000-1000) + 0.5 @ (4000-3000)
     expect(r.realizedPnL).toBeCloseTo(3500)
     expect(r.balance).toBeCloseTo(0.5)
-    expect(r.totalCostEur).toBeCloseTo(1500)
+    expect(r.totalCost).toBeCloseTo(1500)
   })
 
   test("sorts by trade date regardless of input order", () => {
@@ -61,7 +61,7 @@ describe("computeFifo", () => {
 
   test("only the requested symbol is considered", () => {
     const trades = [buy("2024-01-01", "1000", "1", "BTC"), buy("2024-01-02", "500", "10", "ETH")]
-    expect(computeFifo(trades, "ETH", "EUR").totalCostEur).toBeCloseTo(500)
+    expect(computeFifo(trades, "ETH", "EUR").totalCost).toBeCloseTo(500)
   })
 
   test("swap transfers cost basis with zero realized P&L", () => {
@@ -75,7 +75,7 @@ describe("computeFifo", () => {
     expect(btc.balance).toBeCloseTo(0)
     const eth = computeFifo(trades, "ETH", "EUR")
     expect(eth.balance).toBeCloseTo(10)
-    expect(eth.totalCostEur).toBeCloseTo(1000)
+    expect(eth.totalCost).toBeCloseTo(1000)
     expect(eth.avgCostBasis).toBeCloseTo(100)
   })
 

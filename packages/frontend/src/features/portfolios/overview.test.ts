@@ -3,48 +3,48 @@ import { cryptoDetail, lot, metalDetail, stockDetail, stockPosition } from "../.
 import { aggregateAssets, aggregateMetals } from "./overview"
 
 const pos = (symbol: string, over: object = {}) => ({
-  symbol, name: symbol, assetForm: null, balance: 1, avgCostBasis: 100, totalCostEur: 100, realizedPnL: 0, currentPrice: 150, currentValueEur: 150, unrealizedPnL: 50, ...over,
+  symbol, name: symbol, assetForm: null, balance: 1, avgCostBasis: 100, totalCost: 100, realizedPnL: 0, currentPrice: 150, currentValue: 150, unrealizedPnL: 50, ...over,
 })
 const detail = (name: string, positions: any[], over: object = {}) => cryptoDetail({ id: name, name, positions, ...over })
 
 describe("aggregateAssets", () => {
   test("an asset held in two portfolios is one row with summed balance, cost and value", () => {
     const [g] = aggregateAssets([
-      detail("Main", [pos("BTC", { balance: 1, totalCostEur: 30000, currentValueEur: 50000, currentPrice: 50000 })]),
-      detail("Second", [pos("BTC", { balance: 0.5, totalCostEur: 20000, currentValueEur: 25000, currentPrice: 50000 })]),
+      detail("Main", [pos("BTC", { balance: 1, totalCost: 30000, currentValue: 50000, currentPrice: 50000 })]),
+      detail("Second", [pos("BTC", { balance: 0.5, totalCost: 20000, currentValue: 25000, currentPrice: 50000 })]),
     ])
     expect(g.positions).toHaveLength(1)
-    expect(g.positions[0]).toMatchObject({ symbol: "BTC", balance: 1.5, totalCostEur: 50000, currentValueEur: 75000, currentPrice: 50000, unrealizedPnL: 25000, heldIn: ["Main", "Second"] })
+    expect(g.positions[0]).toMatchObject({ symbol: "BTC", balance: 1.5, totalCost: 50000, currentValue: 75000, currentPrice: 50000, unrealizedPnL: 25000, heldIn: ["Main", "Second"] })
     expect(g.positions[0].avgCostBasis).toBeCloseTo(50000 / 1.5)
   })
 
   test("totals add up over all assets, unrealized is value minus cost, realized is summed", () => {
     const [g] = aggregateAssets([
-      detail("A", [pos("BTC", { totalCostEur: 100, currentValueEur: 150, realizedPnL: 10 })]),
-      detail("B", [pos("ETH", { totalCostEur: 200, currentValueEur: 180, realizedPnL: -5 })]),
+      detail("A", [pos("BTC", { totalCost: 100, currentValue: 150, realizedPnL: 10 })]),
+      detail("B", [pos("ETH", { totalCost: 200, currentValue: 180, realizedPnL: -5 })]),
     ])
     expect(g).toMatchObject({ openCost: 300, currentValue: 330, unrealized: 30, realized: 5, portfolioNames: ["A", "B"] })
   })
 
   test("the biggest holdings come first, assets without a price last", () => {
     const [g] = aggregateAssets([
-      detail("A", [pos("SMALL", { currentValueEur: 10 }), pos("NOPRICE", { currentValueEur: null, currentPrice: null, unrealizedPnL: null }), pos("BIG", { currentValueEur: 900 })]),
+      detail("A", [pos("SMALL", { currentValue: 10 }), pos("NOPRICE", { currentValue: null, currentPrice: null, unrealizedPnL: null }), pos("BIG", { currentValue: 900 })]),
     ])
     expect(g.positions.map((p) => p.symbol)).toEqual(["BIG", "SMALL", "NOPRICE"])
   })
 
   test("without a price for some asset the portfolio value and unrealized P&L are unknown (as in a single portfolio)", () => {
-    const [g] = aggregateAssets([detail("A", [pos("BTC"), pos("OBSCURE", { currentValueEur: null, currentPrice: null, unrealizedPnL: null })])])
+    const [g] = aggregateAssets([detail("A", [pos("BTC"), pos("OBSCURE", { currentValue: null, currentPrice: null, unrealizedPnL: null })])])
     expect(g.currentValue).toBeNull()
     expect(g.unrealized).toBeNull()
     expect(g.openCost).toBe(200)
-    expect(g.positions.find((p) => p.symbol === "OBSCURE")).toMatchObject({ currentValueEur: null, unrealizedPnL: null })
+    expect(g.positions.find((p) => p.symbol === "OBSCURE")).toMatchObject({ currentValue: null, unrealizedPnL: null })
   })
 
   test("EUR and USD portfolios are never added together: one group per currency", () => {
     const groups = aggregateAssets([
-      detail("Euro", [pos("BTC", { totalCostEur: 100, currentValueEur: 150 })], { currency: "EUR" }),
-      detail("Dollar", [pos("BTC", { totalCostEur: 1000, currentValueEur: 1500 })], { currency: "USD" }),
+      detail("Euro", [pos("BTC", { totalCost: 100, currentValue: 150 })], { currency: "EUR" }),
+      detail("Dollar", [pos("BTC", { totalCost: 1000, currentValue: 1500 })], { currency: "USD" }),
     ])
     expect(groups.map((g) => g.currency)).toEqual(["EUR", "USD"])
     expect(groups[0]).toMatchObject({ openCost: 100, currentValue: 150, portfolioNames: ["Euro"] })
@@ -52,7 +52,7 @@ describe("aggregateAssets", () => {
   })
 
   test("a fully sold position keeps its realised result and has no average cost", () => {
-    const [g] = aggregateAssets([detail("A", [pos("OLD", { balance: 0, totalCostEur: 0, currentValueEur: 0, realizedPnL: 42, unrealizedPnL: 0 })])])
+    const [g] = aggregateAssets([detail("A", [pos("OLD", { balance: 0, totalCost: 0, currentValue: 0, realizedPnL: 42, unrealizedPnL: 0 })])])
     expect(g.positions[0]).toMatchObject({ balance: 0, avgCostBasis: 0, realizedPnL: 42 })
     expect(g.realized).toBe(42)
   })

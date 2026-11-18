@@ -21,7 +21,7 @@ describe("Dashboard", () => {
       "GET /mortgages": [debt({ totalCurrentBalance: 400, totalMonthlyPayment: 10 })],
       "GET /loans": [debt({ id: "l1", name: "Car", totalCurrentBalance: 100 })],
       "GET /crypto": [portfolio({ id: "c1" })],
-      "GET /crypto/:id": cryptoDetail({ id: "c1", totalCurrentValueEur: 500 }),
+      "GET /crypto/:id": cryptoDetail({ id: "c1", totalCurrentValue: 500 }),
       "GET /metals": [], "GET /stocks": [], "GET /properties": [], "GET /equity": [],
       "GET /transactions": page([transaction()]),
     })
@@ -183,7 +183,7 @@ describe("Layout", () => {
 })
 
 describe("Dashboard: non-EUR items", () => {
-  const usd = { crypto: cryptoDetail({ id: "c1", currency: "USD", totalCurrentValueEur: 50_000 }) }
+  const usd = { crypto: cryptoDetail({ id: "c1", currency: "USD", totalCurrentValue: 50_000 }) }
 
   test("a USD portfolio is left out of the net worth, and the page says so", async () => {
     mockApi({

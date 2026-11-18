@@ -89,18 +89,18 @@ app.get("/:id", async (c) => {
     const fifo = computeFifo(trades, symbol, portfolio.currency)
     const asset = assets.find((a) => a.symbol === symbol)
     const currentPrice = prices[symbol] ?? null
-    const currentValueEur = currentPrice !== null ? fifo.balance * currentPrice : null
-    const unrealizedPnL = currentValueEur !== null ? currentValueEur - fifo.totalCostEur : null
+    const currentValue = currentPrice !== null ? fifo.balance * currentPrice : null
+    const unrealizedPnL = currentValue !== null ? currentValue - fifo.totalCost : null
     return {
       symbol,
       name: asset?.name ?? symbol,
       assetForm: asset?.assetForm ?? null,
       balance: fifo.balance,
       avgCostBasis: fifo.avgCostBasis,
-      totalCostEur: fifo.totalCostEur,
+      totalCost: fifo.totalCost,
       realizedPnL: fifo.realizedPnL,
       currentPrice,
-      currentValueEur,
+      currentValue,
       unrealizedPnL,
     }
   }).sort((a, b) => {
@@ -109,14 +109,14 @@ app.get("/:id", async (c) => {
     return a.symbol.localeCompare(b.symbol)
   })
 
-  const totalOpenCostEur = positions.reduce((s, p) => s + p.totalCostEur, 0)
+  const totalOpenCost = positions.reduce((s, p) => s + p.totalCost, 0)
   const allHavePrices = positions.some((p) => p.balance > 1e-10) &&
-    positions.filter((p) => p.balance > 1e-10).every((p) => p.currentValueEur !== null)
-  const totalCurrentValueEur = allHavePrices
-    ? positions.reduce((s, p) => s + (p.currentValueEur ?? 0), 0)
+    positions.filter((p) => p.balance > 1e-10).every((p) => p.currentValue !== null)
+  const totalCurrentValue = allHavePrices
+    ? positions.reduce((s, p) => s + (p.currentValue ?? 0), 0)
     : null
   const totalRealizedPnL = positions.reduce((s, p) => s + p.realizedPnL, 0)
-  const totalUnrealizedPnL = totalCurrentValueEur !== null ? totalCurrentValueEur - totalOpenCostEur : null
+  const totalUnrealizedPnL = totalCurrentValue !== null ? totalCurrentValue - totalOpenCost : null
 
   const [members, editableIds] = await Promise.all([
     db.select({ groupName: portfolioMembers.groupName, role: portfolioMembers.role })
@@ -129,8 +129,8 @@ app.get("/:id", async (c) => {
     ...portfolio,
     trades,
     positions,
-    totalOpenCostEur,
-    totalCurrentValueEur,
+    totalOpenCost,
+    totalCurrentValue,
     totalRealizedPnL,
     totalUnrealizedPnL,
     members,

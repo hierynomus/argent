@@ -15,8 +15,8 @@ function backend(delayMs = 0) {
   const list = [portfolio({ id: "p1", name: "Main" })]
   const details: Record<string, ReturnType<typeof cryptoDetail>> = {
     p1: cryptoDetail({
-      id: "p1", name: "Main", totalOpenCostEur: 100, totalCurrentValueEur: 150, totalUnrealizedPnL: 50,
-      positions: [{ symbol: "BTC", name: "Bitcoin", assetForm: null, balance: 1, avgCostBasis: 100, totalCostEur: 100, realizedPnL: 0, currentPrice: 150, currentValueEur: 150, unrealizedPnL: 50 }],
+      id: "p1", name: "Main", totalOpenCost: 100, totalCurrentValue: 150, totalUnrealizedPnL: 50,
+      positions: [{ symbol: "BTC", name: "Bitcoin", assetForm: null, balance: 1, avgCostBasis: 100, totalCost: 100, realizedPnL: 0, currentPrice: 150, currentValue: 150, unrealizedPnL: 50 }],
     }),
   }
   return mockApi({

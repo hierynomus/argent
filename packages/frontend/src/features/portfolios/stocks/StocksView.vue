@@ -24,7 +24,7 @@ const fmt4 = (n: number) => fmtMaxDecimals(n, 4)
 
 const tiles = computed(() => [
   ...standardTiles(
-    { openCost: props.portfolio.totalOpenCostEur, currentValue: props.portfolio.totalCurrentValueEur, unrealized: props.portfolio.totalUnrealizedPnL, realized: props.portfolio.totalRealizedPnL },
+    { openCost: props.portfolio.totalOpenCost, currentValue: props.portfolio.totalCurrentValue, unrealized: props.portfolio.totalUnrealizedPnL, realized: props.portfolio.totalRealizedPnL },
     props.portfolio.currency,
   ),
   { label: "Dividends", value: fmtSymbolCur(props.portfolio.totalDividends, props.portfolio.currency), color: props.portfolio.totalDividends > 0 ? "text-green-600 dark:text-green-400" : undefined },

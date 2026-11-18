@@ -7,7 +7,7 @@ import StocksPage from "./Stocks.vue"
 
 const T0 = Date.UTC(2024, 0, 1)
 const hist = (symbol: string, currency: string) => ({ symbol, currency, range: "1y", points: [100, 120].map((v, i) => ({ t: T0 + i * 86_400_000, v })) })
-const btc = { symbol: "BTC", name: "Bitcoin", assetForm: null, balance: 1, avgCostBasis: 30000, totalCostEur: 30000, realizedPnL: 0, currentPrice: 50000, currentValueEur: 50000, unrealizedPnL: 20000 }
+const btc = { symbol: "BTC", name: "Bitcoin", assetForm: null, balance: 1, avgCostBasis: 30000, totalCost: 30000, realizedPnL: 0, currentPrice: 50000, currentValue: 50000, unrealizedPnL: 20000 }
 const eth = { ...btc, symbol: "ETH", name: "Ether" }
 
 describe("crypto: clicking a position opens its price chart", () => {

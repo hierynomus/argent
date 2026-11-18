@@ -24,17 +24,17 @@ export const portfolio = (over: Partial<PortfolioWithAccess> = {}): PortfolioWit
 })
 
 export const cryptoDetail = (over: Partial<PortfolioDetail> = {}): PortfolioDetail => ({
-  ...portfolio(), trades: [], positions: [], totalOpenCostEur: 0, totalCurrentValueEur: null, totalRealizedPnL: 0, totalUnrealizedPnL: null, ...over,
+  ...portfolio(), trades: [], positions: [], totalOpenCost: 0, totalCurrentValue: null, totalRealizedPnL: 0, totalUnrealizedPnL: null, ...over,
 } as PortfolioDetail)
 
 export const stockPosition = (over: Partial<StockPosition> = {}): StockPosition => ({
-  symbol: "AAPL", name: "Apple Inc.", assetForm: null, balance: 10, avgCostBasis: 80, totalCostEur: 800, realizedPnL: 0,
-  currentPrice: 100, currentValueEur: 1000, unrealizedPnL: 200, totalDividends: 0, ...over,
+  symbol: "AAPL", name: "Apple Inc.", assetForm: null, balance: 10, avgCostBasis: 80, totalCost: 800, realizedPnL: 0,
+  currentPrice: 100, currentValue: 1000, unrealizedPnL: 200, totalDividends: 0, ...over,
 })
 
 export const stockDetail = (over: Partial<StockPortfolioDetail> = {}): StockPortfolioDetail => ({
-  ...portfolio({ type: "stocks", broker: "DEGIRO", currency: "USD" }), trades: [], dividends: [], positions: [], totalOpenCostEur: 0,
-  totalCurrentValueEur: null, totalRealizedPnL: 0, totalUnrealizedPnL: null, totalDividends: 0, ...over,
+  ...portfolio({ type: "stocks", broker: "DEGIRO", currency: "USD" }), trades: [], dividends: [], positions: [], totalOpenCost: 0,
+  totalCurrentValue: null, totalRealizedPnL: 0, totalUnrealizedPnL: null, totalDividends: 0, ...over,
 } as StockPortfolioDetail)
 
 export const lot = (over: Partial<MetalLot> = {}): MetalLot => ({
