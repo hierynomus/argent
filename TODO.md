@@ -81,6 +81,8 @@ Rewritten from React to Vue 3 (branch `feat/vue-frontend`) on top of the cleaned
 
 - [x] Investment overview tab (all visible portfolios, per currency) and per-asset price chart with trade markers. Open: metals have no price history source; stock history uses today's FX rate; a portfolio-value-over-time chart
 
+- [x] Property as an asset (valuations, linked mortgage/loan, equity) counted in net worth. Open: equity-over-time chart (needs the debt's balance history), automatic valuation sources (WOZ), appreciation vs repayments split
+
 ## Hygiene
 - [x] All migrations from now on come from `db:generate` (0018 does); `db:check` runs in `bun run check` and CI
 - [ ] `packages/frontend/tsconfig.tsbuildinfo` is tracked in git (a build artifact that `tsc -b` rewrites) — untrack and gitignore it

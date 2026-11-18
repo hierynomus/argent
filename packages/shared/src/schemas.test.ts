@@ -6,6 +6,7 @@ import {
   linkTransferSchema, nonNegativeDecimalString, positiveDecimalString, setAccountOwnerSchema,
   updateAccountSchema, updateDebtPartSchema, updateDebtSchema, updateMeSchema, updatePortfolioSchema,
   updateSubscriptionSchema, updateTransactionSchema,
+  createPropertySchema, updatePropertySchema, createPropertyValuationSchema, setPropertyLinksSchema,
 } from "./schemas"
 import type { z } from "zod"
 
@@ -216,5 +217,40 @@ describe("unknown fields are ignored (not stored), not rejected", () => {
   test("extra properties are stripped from the parsed value", () => {
     const parsed = createCategorySchema.parse({ name: "Food", isAdmin: true, __proto__x: 1 })
     expect(Object.keys(parsed)).toEqual(["name"])
+  })
+})
+
+describe("property schemas", () => {
+  test("create: only a name is required; type, currency, purchase and current value are optional and checked", () => {
+    ok(createPropertySchema, { name: "Our house" })
+    ok(createPropertySchema, { name: "Flat", type: "apartment", currency: "USD", purchasePrice: "250000", purchaseDate: "2021-03-01", currentValue: "300000.50" })
+    bad(createPropertySchema, { name: " " }, "name is required")
+    bad(createPropertySchema, { name: "x", type: "castle" }, "type must be one of")
+    bad(createPropertySchema, { name: "x", currency: "GBP" })
+    bad(createPropertySchema, { name: "x", purchasePrice: "0" }, "purchasePrice must be greater than 0")
+    bad(createPropertySchema, { name: "x", purchaseDate: "2021-02-31" }, "not a valid date")
+    bad(createPropertySchema, { name: "x", currentValue: "abc" })
+  })
+
+  test("update: every field optional; the purchase can be cleared with null", () => {
+    ok(updatePropertySchema, {})
+    ok(updatePropertySchema, { name: "New", type: "land", purchasePrice: null, purchaseDate: null })
+    bad(updatePropertySchema, { name: "" }, "name must not be empty")
+    bad(updatePropertySchema, { purchasePrice: "-1" })
+  })
+
+  test("valuation: a real date and a positive value; the note is optional", () => {
+    ok(createPropertyValuationSchema, { valuationDate: "2024-01-01", value: "520000" })
+    ok(createPropertyValuationSchema, { valuationDate: "2024-01-01", value: "520000.5", note: "WOZ 2024" })
+    bad(createPropertyValuationSchema, { valuationDate: "2024-13-01", value: "1" })
+    bad(createPropertyValuationSchema, { valuationDate: "2024-01-01", value: "0" }, "value must be greater than 0")
+    bad(createPropertyValuationSchema, { valuationDate: "2024-01-01" })
+  })
+
+  test("links: lists of ids, both default to empty", () => {
+    expect(setPropertyLinksSchema.parse({})).toEqual({ mortgageIds: [], loanIds: [] })
+    ok(setPropertyLinksSchema, { mortgageIds: ["123e4567-e89b-42d3-a456-426614174000"], loanIds: [] })
+    bad(setPropertyLinksSchema, { mortgageIds: ["not-an-id"] })
+    bad(setPropertyLinksSchema, { loanIds: "x" })
   })
 })
