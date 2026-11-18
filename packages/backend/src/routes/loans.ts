@@ -3,12 +3,14 @@ import { eq, and, inArray } from "drizzle-orm"
 import { db } from "../db"
 import { loans, loanParts, loanExtraPayments, loanMembers } from "../db/schema"
 import { computePartState } from "../services/amortization"
-import { getViewableLoanIds, getEditableLoanIds, toAccessContext, canEditLoan } from "../services/accessControl"
+import { getViewableLoanIds, getEditableLoanIds, toAccessContext, canEditLoan, canViewLoan } from "../services/accessControl"
 import type { AuthUser } from "../middleware/auth"
 import { isOwnerOrAdmin } from "../middleware/guards"
+import { mountOwnerRoutes } from "./ownerRoutes"
+import { loanResource } from "../services/sharedResources"
 import { groupBy } from "../lib/groupBy"
 import { validateJson } from "../middleware/validate"
-import { createDebtSchema, updateDebtSchema, createDebtPartSchema, updateDebtPartSchema, createDebtExtraPaymentSchema, addMemberSchema } from "@argent/shared"
+import { createDebtSchema, updateDebtSchema, createDebtPartSchema, updateDebtPartSchema, createDebtExtraPaymentSchema } from "@argent/shared"
 
 const app = new Hono<{ Variables: { user: AuthUser } }>()
 
@@ -103,17 +105,6 @@ app.patch("/:id", validateJson(updateDebtSchema), async (c) => {
   if (Object.keys(updates).length === 0) return c.json({ error: "Nothing to update" }, 400)
   const [updated] = await db.update(loans).set(updates).where(eq(loans.id, id)).returning()
   return c.json(updated)
-})
-
-// Delete loan (owner-only)
-app.delete("/:id", async (c) => {
-  const user = c.get("user")
-  const id = c.req.param("id")
-  const existing = await db.query.loans.findFirst({ where: (l, { eq }) => eq(l.id, id) })
-  if (!existing) return c.json({ error: "Not found" }, 404)
-  if (!isOwnerOrAdmin(existing, user)) return c.json({ error: "Forbidden" }, 403)
-  await db.delete(loans).where(eq(loans.id, id))
-  return c.body(null, 204)
 })
 
 // Add part
@@ -219,39 +210,7 @@ app.delete("/:id/parts/:pid/payments/:paymentId", async (c) => {
   return c.body(null, 204)
 })
 
-// Add/update member (owner-only)
-app.post("/:id/members", validateJson(addMemberSchema), async (c) => {
-  const user = c.get("user")
-  const loanId = c.req.param("id")
-  const loan = await db.query.loans.findFirst({ where: (l, { eq }) => eq(l.id, loanId) })
-  if (!loan) return c.json({ error: "Not found" }, 404)
-  if (!isOwnerOrAdmin(loan, user)) return c.json({ error: "Forbidden" }, 403)
-
-  const body = c.req.valid("json")
-  const role = body.role ?? "viewer"
-
-  await db
-    .insert(loanMembers)
-    .values({ loanId, groupName: body.groupName.trim(), role })
-    .onConflictDoUpdate({
-      target: [loanMembers.loanId, loanMembers.groupName],
-      set: { role },
-    })
-
-  return c.json({ groupName: body.groupName.trim(), role }, 201)
-})
-
-// Remove member (owner-only)
-app.delete("/:id/members/:groupName", async (c) => {
-  const user = c.get("user")
-  const { id: loanId, groupName } = c.req.param()
-  const loan = await db.query.loans.findFirst({ where: (l, { eq }) => eq(l.id, loanId) })
-  if (!loan) return c.json({ error: "Not found" }, 404)
-  if (!isOwnerOrAdmin(loan, user)) return c.json({ error: "Forbidden" }, 403)
-
-  await db.delete(loanMembers)
-    .where(and(eq(loanMembers.loanId, loanId), eq(loanMembers.groupName, groupName)))
-  return c.body(null, 204)
-})
+// delete the resource and manage who it is shared with (owner/admin only)
+mountOwnerRoutes(app, { resource: loanResource, canView: canViewLoan })
 
 export default app

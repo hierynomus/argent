@@ -2,15 +2,15 @@ import { Hono } from "hono"
 import { and, eq, inArray } from "drizzle-orm"
 import { db } from "../db"
 import { properties, propertyLoans, propertyMembers, propertyMortgages, propertyValuations } from "../db/schema"
-import {
-  canEditProperty, getEditablePropertyIds, getViewableLoanIds, getViewableMortgageIds, getViewablePropertyIds, toAccessContext,
-} from "../services/accessControl"
+import { canEditProperty, getEditablePropertyIds, getViewableLoanIds, getViewableMortgageIds, getViewablePropertyIds, toAccessContext, canViewProperty } from "../services/accessControl"
 import { currentValueOf, getLiabilities } from "../services/property"
 import type { AuthUser } from "../middleware/auth"
 import { isOwnerOrAdmin } from "../middleware/guards"
+import { mountOwnerRoutes } from "./ownerRoutes"
+import { propertyResource } from "../services/sharedResources"
 import { groupBy } from "../lib/groupBy"
 import { validateJson } from "../middleware/validate"
-import { addMemberSchema, createPropertySchema, createPropertyValuationSchema, setPropertyLinksSchema, updatePropertySchema, type PropertyWithDetails } from "@argent/shared"
+import { createPropertySchema, createPropertyValuationSchema, setPropertyLinksSchema, updatePropertySchema, type PropertyWithDetails } from "@argent/shared"
 
 const app = new Hono<{ Variables: { user: AuthUser } }>()
 
@@ -116,17 +116,6 @@ app.patch("/:id", validateJson(updatePropertySchema), async (c) => {
   return c.json((await load(user, [id]))[0])
 })
 
-// Delete a property (owner-only); its valuations, members and links go with it
-app.delete("/:id", async (c) => {
-  const user = c.get("user")
-  const id = c.req.param("id")
-  const existing = await db.query.properties.findFirst({ where: (p, { eq }) => eq(p.id, id) })
-  if (!existing) return c.json({ error: "Not found" }, 404)
-  if (!isOwnerOrAdmin(existing, user)) return c.json({ error: "Forbidden" }, 403)
-  await db.delete(properties).where(eq(properties.id, id))
-  return c.body(null, 204)
-})
-
 // Add a valuation
 app.post("/:id/valuations", validateJson(createPropertyValuationSchema), async (c) => {
   const user = c.get("user")
@@ -176,31 +165,7 @@ app.put("/:id/links", validateJson(setPropertyLinksSchema), async (c) => {
   return c.json((await load(user, [id]))[0])
 })
 
-// Add/update member (owner-only)
-app.post("/:id/members", validateJson(addMemberSchema), async (c) => {
-  const user = c.get("user")
-  const propertyId = c.req.param("id")
-  const property = await db.query.properties.findFirst({ where: (p, { eq }) => eq(p.id, propertyId) })
-  if (!property) return c.json({ error: "Not found" }, 404)
-  if (!isOwnerOrAdmin(property, user)) return c.json({ error: "Forbidden" }, 403)
-  const body = c.req.valid("json")
-  const role = body.role ?? "viewer"
-  await db
-    .insert(propertyMembers)
-    .values({ propertyId, groupName: body.groupName.trim(), role })
-    .onConflictDoUpdate({ target: [propertyMembers.propertyId, propertyMembers.groupName], set: { role } })
-  return c.json({ groupName: body.groupName.trim(), role }, 201)
-})
-
-// Remove member (owner-only)
-app.delete("/:id/members/:groupName", async (c) => {
-  const user = c.get("user")
-  const { id: propertyId, groupName } = c.req.param()
-  const property = await db.query.properties.findFirst({ where: (p, { eq }) => eq(p.id, propertyId) })
-  if (!property) return c.json({ error: "Not found" }, 404)
-  if (!isOwnerOrAdmin(property, user)) return c.json({ error: "Forbidden" }, 403)
-  await db.delete(propertyMembers).where(and(eq(propertyMembers.propertyId, propertyId), eq(propertyMembers.groupName, groupName)))
-  return c.body(null, 204)
-})
+// delete the resource and manage who it is shared with (owner/admin only)
+mountOwnerRoutes(app, { resource: propertyResource, canView: canViewProperty })
 
 export default app

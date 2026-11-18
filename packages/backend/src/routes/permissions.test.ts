@@ -224,6 +224,31 @@ for (const r of resources) {
       expect([403, 404]).toContain((await viewer.del(`${r.base}/${id}`)).status)
     })
 
+    test("someone who cannot see it gets 404 — its existence is not revealed", async () => {
+      expect((await stranger.post(`${r.base}/${id}/members`, { groupName: "sneaky" })).status).toBe(404)
+      expect((await stranger.del(`${r.base}/${id}/members/${g.view}`)).status).toBe(404)
+      expect((await stranger.del(`${r.base}/${id}`)).status).toBe(404)
+      expect(await ids(viewer)).toContain(id) // and nothing happened
+    })
+
+    test("an unknown id is 404 for everyone, including admins", async () => {
+      const nil = "00000000-0000-0000-0000-000000000000"
+      for (const who of [owner, admin2]) {
+        expect((await who.del(`${r.base}/${nil}`)).status).toBe(404)
+        expect((await who.post(`${r.base}/${nil}/members`, { groupName: "x" })).status).toBe(404)
+        expect((await who.del(`${r.base}/${nil}/members/x`)).status).toBe(404)
+      }
+    })
+
+    test("member changes are validated", async () => {
+      expect((await owner.post(`${r.base}/${id}/members`, { groupName: " " })).status).toBe(400)
+      expect((await owner.post(`${r.base}/${id}/members`, { groupName: "ok", role: "owner" })).status).toBe(400)
+      const added = await owner.post(`${r.base}/${id}/members`, { groupName: "  trimmed  " })
+      expect(added.body).toEqual({ groupName: "trimmed", role: "viewer" }) // trimmed, role defaults to viewer
+      expect((await owner.post(`${r.base}/${id}/members`, { groupName: "trimmed", role: "editor" })).body.role).toBe("editor") // changes the role
+      expect((await owner.del(`${r.base}/${id}/members/trimmed`)).status).toBe(204)
+    })
+
     test("a viewer cannot rename", async () => {
       expect([403, 404]).toContain((await viewer.patch(`${r.base}/${id}`, { name: "hijacked" })).status)
     })
@@ -261,5 +286,17 @@ describe("admin endpoints", () => {
     const r = await viewer.patch("/me", { theme: "dark" })
     expect(r.status).toBe(200)
     expect((await editor.get("/me")).body.theme).not.toBe("dark")
+  })
+})
+
+describe("portfolio kinds do not mix: a portfolio is managed through its own kind's endpoints only", () => {
+  test("a crypto portfolio cannot be deleted or shared through /stocks or /metals", async () => {
+    const id = (await owner.post("/crypto", { name: unique("c") })).body.id
+    for (const other of ["/stocks", "/metals"]) {
+      expect((await owner.del(`${other}/${id}`)).status).toBe(404)
+      expect((await owner.post(`${other}/${id}/members`, { groupName: "sneaky" })).status).toBe(404)
+      expect((await admin2.post(`${other}/${id}/members`, { groupName: "sneaky" })).status).toBe(404)
+    }
+    expect((await owner.get("/crypto")).body.find((p: any) => p.id === id).members).toEqual([])
   })
 })

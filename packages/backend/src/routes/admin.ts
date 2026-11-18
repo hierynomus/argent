@@ -1,7 +1,7 @@
 import { Hono } from "hono"
 import { and, eq } from "drizzle-orm"
 import { db } from "../db"
-import { accounts, accountMembers, userProfiles } from "../db/schema"
+import { accounts, accountMembers } from "../db/schema"
 import type { AuthUser } from "../middleware/auth"
 import { requireAdmin } from "../middleware/guards"
 import { validateJson } from "../middleware/validate"

@@ -2,16 +2,15 @@ import { Hono } from "hono"
 import { and, eq, inArray } from "drizzle-orm"
 import { db } from "../db"
 import { equityGrants, equityPlanMembers, equityPlans, equityPrices } from "../db/schema"
-import { canEditEquityPlan, getEditableEquityPlanIds, getViewableEquityPlanIds, toAccessContext } from "../services/accessControl"
+import { canEditEquityPlan, getEditableEquityPlanIds, getViewableEquityPlanIds, toAccessContext, canViewEquityPlan } from "../services/accessControl"
 import { currentPriceOf, nextVestingDate, valuePerOption, vestedOptions } from "../services/equity"
 import type { AuthUser } from "../middleware/auth"
 import { isOwnerOrAdmin } from "../middleware/guards"
+import { mountOwnerRoutes } from "./ownerRoutes"
+import { equityResource } from "../services/sharedResources"
 import { groupBy } from "../lib/groupBy"
 import { formatIssues, validateJson } from "../middleware/validate"
-import {
-  addMemberSchema, createEquityGrantSchema, createEquityPlanSchema, createEquityPriceSchema, updateEquityGrantSchema, updateEquityPlanSchema,
-  type EquityGrantWithState, type EquityPlanWithDetails, type VestingType,
-} from "@argent/shared"
+import { createEquityGrantSchema, createEquityPlanSchema, createEquityPriceSchema, updateEquityGrantSchema, updateEquityPlanSchema, type EquityGrantWithState, type EquityPlanWithDetails, type VestingType } from "@argent/shared"
 
 const app = new Hono<{ Variables: { user: AuthUser } }>()
 
@@ -115,17 +114,6 @@ app.patch("/:id", validateJson(updateEquityPlanSchema), async (c) => {
   return c.json(await loadOne(user, id))
 })
 
-// Delete a plan (owner-only) with its grants and prices
-app.delete("/:id", async (c) => {
-  const user = c.get("user")
-  const id = c.req.param("id")
-  const existing = await db.query.equityPlans.findFirst({ where: (p, { eq }) => eq(p.id, id) })
-  if (!existing) return c.json({ error: "Not found" }, 404)
-  if (!isOwnerOrAdmin(existing, user)) return c.json({ error: "Forbidden" }, 403)
-  await db.delete(equityPlans).where(eq(equityPlans.id, id))
-  return c.body(null, 204)
-})
-
 /** Grant fields as stored: exit-only grants carry no vesting schedule. */
 function grantValues(g: { label?: string; grantDate: string; options: string; strikePrice: string; vestingType?: VestingType; vestStart?: string; cliffMonths?: number; vestMonths?: number }) {
   const time = (g.vestingType ?? "time") === "time"
@@ -205,31 +193,7 @@ app.delete("/:id/prices/:pid", async (c) => {
   return c.body(null, 204)
 })
 
-// Add/update member (owner-only)
-app.post("/:id/members", validateJson(addMemberSchema), async (c) => {
-  const user = c.get("user")
-  const planId = c.req.param("id")
-  const plan = await db.query.equityPlans.findFirst({ where: (p, { eq }) => eq(p.id, planId) })
-  if (!plan) return c.json({ error: "Not found" }, 404)
-  if (!isOwnerOrAdmin(plan, user)) return c.json({ error: "Forbidden" }, 403)
-  const body = c.req.valid("json")
-  const role = body.role ?? "viewer"
-  await db
-    .insert(equityPlanMembers)
-    .values({ planId, groupName: body.groupName.trim(), role })
-    .onConflictDoUpdate({ target: [equityPlanMembers.planId, equityPlanMembers.groupName], set: { role } })
-  return c.json({ groupName: body.groupName.trim(), role }, 201)
-})
-
-// Remove member (owner-only)
-app.delete("/:id/members/:groupName", async (c) => {
-  const user = c.get("user")
-  const { id: planId, groupName } = c.req.param()
-  const plan = await db.query.equityPlans.findFirst({ where: (p, { eq }) => eq(p.id, planId) })
-  if (!plan) return c.json({ error: "Not found" }, 404)
-  if (!isOwnerOrAdmin(plan, user)) return c.json({ error: "Forbidden" }, 403)
-  await db.delete(equityPlanMembers).where(and(eq(equityPlanMembers.planId, planId), eq(equityPlanMembers.groupName, groupName)))
-  return c.body(null, 204)
-})
+// delete the resource and manage who it is shared with (owner/admin only)
+mountOwnerRoutes(app, { resource: equityResource, canView: canViewEquityPlan })
 
 export default app

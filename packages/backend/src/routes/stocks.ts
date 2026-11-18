@@ -7,9 +7,11 @@ import { getStockPrice, getStockName, getStockHistory } from "../services/priceS
 import { computeFifo, investmentSymbols } from "../services/fifo"
 import type { AuthUser } from "../middleware/auth"
 import { isOwnerOrAdmin } from "../middleware/guards"
+import { mountOwnerRoutes } from "./ownerRoutes"
+import { portfolioResource } from "../services/sharedResources"
 import { groupBy } from "../lib/groupBy"
 import { validateJson, validateQuery } from "../middleware/validate"
-import { createPortfolioSchema, updatePortfolioSchema, addMemberSchema, createStockTradeSchema, createStockDividendSchema, historyQuerySchema } from "@argent/shared"
+import { createPortfolioSchema, updatePortfolioSchema, createStockTradeSchema, createStockDividendSchema, historyQuerySchema } from "@argent/shared"
 
 const app = new Hono<{ Variables: { user: AuthUser } }>()
 
@@ -167,54 +169,6 @@ app.patch("/:id", validateJson(updatePortfolioSchema), async (c) => {
   return c.json(updated)
 })
 
-// Delete portfolio + all trades/dividends (cascade) — owner-only
-app.delete("/:id", async (c) => {
-  const user = c.get("user")
-  const id = c.req.param("id")
-  const portfolio = await db.query.portfolios.findFirst({ where: (p, { eq }) => eq(p.id, id) })
-  if (!portfolio) return c.json({ error: "Not found" }, 404)
-  if (!(await canViewPortfolio(toAccessContext(user), "stocks", id))) return c.json({ error: "Not found" }, 404)
-  if (!isOwnerOrAdmin(portfolio, user)) return c.json({ error: "Forbidden" }, 403)
-
-  await db.delete(portfolios).where(eq(portfolios.id, id))
-  return c.body(null, 204)
-})
-
-// Add/update member (owner-only)
-app.post("/:id/members", validateJson(addMemberSchema), async (c) => {
-  const user = c.get("user")
-  const portfolioId = c.req.param("id")
-  const portfolio = await db.query.portfolios.findFirst({ where: (p, { eq }) => eq(p.id, portfolioId) })
-  if (!portfolio) return c.json({ error: "Not found" }, 404)
-  if (!isOwnerOrAdmin(portfolio, user)) return c.json({ error: "Forbidden" }, 403)
-
-  const body = c.req.valid("json")
-  const role = body.role ?? "viewer"
-
-  await db
-    .insert(portfolioMembers)
-    .values({ portfolioId, groupName: body.groupName.trim(), role })
-    .onConflictDoUpdate({
-      target: [portfolioMembers.portfolioId, portfolioMembers.groupName],
-      set: { role },
-    })
-
-  return c.json({ groupName: body.groupName.trim(), role }, 201)
-})
-
-// Remove member (owner-only)
-app.delete("/:id/members/:groupName", async (c) => {
-  const user = c.get("user")
-  const { id: portfolioId, groupName } = c.req.param()
-  const portfolio = await db.query.portfolios.findFirst({ where: (p, { eq }) => eq(p.id, portfolioId) })
-  if (!portfolio) return c.json({ error: "Not found" }, 404)
-  if (!isOwnerOrAdmin(portfolio, user)) return c.json({ error: "Forbidden" }, 403)
-
-  await db.delete(portfolioMembers)
-    .where(and(eq(portfolioMembers.portfolioId, portfolioId), eq(portfolioMembers.groupName, groupName)))
-  return c.body(null, 204)
-})
-
 // Add a trade — immutable ledger entry (buy or sell only, no swaps)
 app.post("/:id/trades", validateJson(createStockTradeSchema), async (c) => {
   const user = c.get("user")
@@ -302,5 +256,8 @@ app.delete("/:id/dividends/:dividendId", async (c) => {
     .where(and(eq(stockDividends.id, dividendId), eq(stockDividends.portfolioId, portfolioId)))
   return c.body(null, 204)
 })
+
+// delete the resource and manage who it is shared with (owner/admin only)
+mountOwnerRoutes(app, { resource: portfolioResource("stocks"), canView: (ctx, id) => canViewPortfolio(ctx, "stocks", id) })
 
 export default app

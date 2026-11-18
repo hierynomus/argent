@@ -1,14 +1,16 @@
 import { Hono } from "hono"
-import { and, eq, inArray } from "drizzle-orm"
+import { eq, inArray } from "drizzle-orm"
 import { db } from "../db"
 import { portfolios, portfolioMembers, metalLots, metalSales } from "../db/schema"
 import { getViewablePortfolioIds, getEditablePortfolioIds, toAccessContext, canEditPortfolio, canViewPortfolio } from "../services/accessControl"
 import { getMetalPricePerGram } from "../services/priceService"
 import type { AuthUser } from "../middleware/auth"
 import { isOwnerOrAdmin } from "../middleware/guards"
+import { mountOwnerRoutes } from "./ownerRoutes"
+import { portfolioResource } from "../services/sharedResources"
 import { groupBy } from "../lib/groupBy"
 import { validateJson } from "../middleware/validate"
-import { createPortfolioSchema, updatePortfolioSchema, addMemberSchema, createMetalLotSchema, createMetalSaleSchema } from "@argent/shared"
+import { createPortfolioSchema, updatePortfolioSchema, createMetalLotSchema, createMetalSaleSchema } from "@argent/shared"
 
 const app = new Hono<{ Variables: { user: AuthUser } }>()
 
@@ -164,54 +166,6 @@ app.patch("/:id", validateJson(updatePortfolioSchema), async (c) => {
   return c.json(updated)
 })
 
-// Delete portfolio + all lots (cascade) — owner-only
-app.delete("/:id", async (c) => {
-  const user = c.get("user")
-  const id = c.req.param("id")
-  const portfolio = await db.query.portfolios.findFirst({ where: (p, { eq }) => eq(p.id, id) })
-  if (!portfolio) return c.json({ error: "Not found" }, 404)
-  if (!(await canViewPortfolio(toAccessContext(user), "metals", id))) return c.json({ error: "Not found" }, 404)
-  if (!isOwnerOrAdmin(portfolio, user)) return c.json({ error: "Forbidden" }, 403)
-
-  await db.delete(portfolios).where(eq(portfolios.id, id))
-  return c.body(null, 204)
-})
-
-// Add/update member (owner-only)
-app.post("/:id/members", validateJson(addMemberSchema), async (c) => {
-  const user = c.get("user")
-  const portfolioId = c.req.param("id")
-  const portfolio = await db.query.portfolios.findFirst({ where: (p, { eq }) => eq(p.id, portfolioId) })
-  if (!portfolio) return c.json({ error: "Not found" }, 404)
-  if (!isOwnerOrAdmin(portfolio, user)) return c.json({ error: "Forbidden" }, 403)
-
-  const body = c.req.valid("json")
-  const role = body.role ?? "viewer"
-
-  await db
-    .insert(portfolioMembers)
-    .values({ portfolioId, groupName: body.groupName.trim(), role })
-    .onConflictDoUpdate({
-      target: [portfolioMembers.portfolioId, portfolioMembers.groupName],
-      set: { role },
-    })
-
-  return c.json({ groupName: body.groupName.trim(), role }, 201)
-})
-
-// Remove member (owner-only)
-app.delete("/:id/members/:groupName", async (c) => {
-  const user = c.get("user")
-  const { id: portfolioId, groupName } = c.req.param()
-  const portfolio = await db.query.portfolios.findFirst({ where: (p, { eq }) => eq(p.id, portfolioId) })
-  if (!portfolio) return c.json({ error: "Not found" }, 404)
-  if (!isOwnerOrAdmin(portfolio, user)) return c.json({ error: "Forbidden" }, 403)
-
-  await db.delete(portfolioMembers)
-    .where(and(eq(portfolioMembers.portfolioId, portfolioId), eq(portfolioMembers.groupName, groupName)))
-  return c.body(null, 204)
-})
-
 // Add a lot — immutable purchase record
 app.post("/:id/lots", validateJson(createMetalLotSchema), async (c) => {
   const user = c.get("user")
@@ -285,5 +239,8 @@ app.delete("/:id/lots/:lotId", (c) =>
 app.delete("/:id/lots/:lotId/sales/:saleId", (c) =>
   c.json({ error: "Sales are immutable and cannot be deleted. Delete the entire portfolio to start over." }, 405)
 )
+
+// delete the resource and manage who it is shared with (owner/admin only)
+mountOwnerRoutes(app, { resource: portfolioResource("metals"), canView: (ctx, id) => canViewPortfolio(ctx, "metals", id) })
 
 export default app

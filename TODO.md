@@ -17,7 +17,7 @@ Verify everything with `bun run check` (type-check all packages + all tests + "m
 ## Access control / backend coupling
 - [x] One generic access resolver instead of 8 near-identical functions; `canView*`/`canEdit*` single-resource checks; `toAccessContext(user)`
 - [x] Extract owner-only / `requireAdmin` middleware instead of inline checks — `middleware/guards.ts` (`requireAdmin` on the admin router, `isOwnerOrAdmin` in the 5 shared-resource routes)
-- [ ] Route factory (or shared helpers) for shared resources: owner delete and member add/remove are now copy-pasted in 7 routers (crypto/metals/stocks/mortgages/loans/properties/equity)
+- [~] Shared-resource routes: `mountOwnerRoutes` (`routes/ownerRoutes.ts`) now provides owner delete + member add/remove for all 7 routers (404 for non-viewers, 403 for non-owners, portfolio kinds no longer mix). Still per-router: list-with-members, create, patch
 - [ ] Extract `buildPositions(trades, assets, priceFn, currency)` shared by crypto + stocks routes
 - [x] N+1 member/part/payment queries in the list endpoints: one `inArray` query per table, grouped in memory (`lib/groupBy.ts`)
 
