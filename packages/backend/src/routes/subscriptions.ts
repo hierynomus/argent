@@ -52,7 +52,7 @@ app.get("/", async (c) => {
   return c.json(rows)
 })
 
-// POST /api/subscriptions — manually create a confirmed subscription
+// POST /api/subscriptions — manually create a confirmed subscription (or confirm the candidate / dismissed one for the pair)
 app.post("/", validateJson(createSubscriptionSchema), async (c) => {
   const user = c.get("user")
   const access = toAccessContext(user)
@@ -73,7 +73,9 @@ app.post("/", validateJson(createSubscriptionSchema), async (c) => {
     )
     .limit(1)
 
-  if (existing && (existing.status === "confirmed" || existing.status === "candidate")) {
+  // Only a *confirmed* subscription is a conflict. A detected candidate (or a dismissed one) is promoted
+  // to confirmed below — the user asking for this subscription is exactly the confirmation the candidate waits for.
+  if (existing?.status === "confirmed") {
     return c.json({ error: "A subscription for this account + IBAN already exists" }, 409)
   }
 
@@ -96,7 +98,7 @@ app.post("/", validateJson(createSubscriptionSchema), async (c) => {
   let subscriptionId: string
 
   if (existing) {
-    // Was dismissed — re-confirm it
+    // A candidate or a dismissed one: confirm it (keeping its name unless a new one is given)
     const [updated] = await db
       .update(subscriptions)
       .set({

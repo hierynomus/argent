@@ -406,15 +406,30 @@ describe("subscriptions", () => {
     expect(again.body).toMatchObject({ id: created.body.id, status: "confirmed" })
   })
 
-  test("manual create is refused (409) while a detected candidate exists for the pair — confirm the candidate instead", async () => {
+  test("manually creating a subscription for a pair with a detected candidate confirms that candidate", async () => {
     const cp = uniqueIban()
     const acc = await accountWithMonthlyPayments(cp) // detector creates a candidate right after the import
     const candidate = (await get("/subscriptions")).body.find((s: any) => s.accountId === acc.id)
     expect(candidate.status).toBe("candidate")
+
+    const r = await post("/subscriptions", { accountId: acc.id, counterpartyIban: cp, name: "Gym" })
+    expect(r.status).toBe(200) // the existing record, not a new one
+    expect(r.body).toMatchObject({ id: candidate.id, status: "confirmed", name: "Gym" })
+    const all = (await get("/subscriptions")).body.filter((s: any) => s.accountId === acc.id && s.counterpartyIban === cp)
+    expect(all).toHaveLength(1) // no duplicate
+    expect((await get(`/subscriptions/${candidate.id}/transactions`)).body.length).toBeGreaterThan(0) // its payments stay linked
+
+    // now it is confirmed, so creating it again IS a conflict
+    expect((await post("/subscriptions", { accountId: acc.id, counterpartyIban: cp })).status).toBe(409)
+  })
+
+  test("confirming a candidate this way keeps its name when none is given", async () => {
+    const cp = uniqueIban()
+    const acc = await accountWithMonthlyPayments(cp)
+    const candidate = (await get("/subscriptions")).body.find((s: any) => s.accountId === acc.id)
+    await patch(`/subscriptions/${candidate.id}`, { name: "Named while still a candidate" })
     const r = await post("/subscriptions", { accountId: acc.id, counterpartyIban: cp })
-    expect(r.status).toBe(409)
-    expect(r.body.error).toContain("already exists")
-    expect((await patch(`/subscriptions/${candidate.id}`, { status: "confirmed" })).body.status).toBe("confirmed")
+    expect(r.body).toMatchObject({ id: candidate.id, status: "confirmed", name: "Named while still a candidate" })
   })
 
   test("manual create validates input", async () => {
