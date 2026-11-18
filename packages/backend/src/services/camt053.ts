@@ -55,6 +55,28 @@ function parseCounterpartyFromAddtlInfo(info: string | null): string | null {
   return merchant || null
 }
 
+/**
+ * The dedup key of a transaction: SHA-256 over account, direction, amount, currency, booking date,
+ * counterparty IBAN, reference and description. All inputs are stored on the transaction row, so the
+ * hashes can be recomputed in SQL (migration 0019 does; keep the two in sync).
+ */
+export function computeImportHash(t: {
+  accountIban: string
+  creditDebitIndicator: string
+  amount: string
+  currency: string
+  bookingDate: string
+  counterpartyIban: string | null
+  reference: string | null
+  description: string | null
+}): string {
+  // normalised to two decimals, exactly like the numeric(15,2) column ("12.5" and "12.50" are the same entry)
+  const amount = Number(t.amount).toFixed(2)
+  return createHash("sha256")
+    .update([t.accountIban, t.creditDebitIndicator, amount, t.currency, t.bookingDate, t.counterpartyIban ?? "", t.reference ?? "", t.description ?? ""].join("|"))
+    .digest("hex")
+}
+
 export function parseCamt053(xml: string): ParsedStatement {
   const doc = parser.parse(xml)
 
@@ -130,9 +152,7 @@ export function parseCamt053(xml: string): ParsedStatement {
     const reference =
       (refs?.EndToEndId as string) ?? (refs?.TxId as string) ?? acctSvcrRef ?? null
 
-    const importHash = createHash("sha256")
-      .update([amount, currency, bookingDate, counterpartyIban ?? "", reference ?? "", description ?? ""].join("|"))
-      .digest("hex")
+    const importHash = computeImportHash({ accountIban: account.iban, creditDebitIndicator, amount, currency, bookingDate, counterpartyIban, reference, description })
 
     transactions.push({
       amount,

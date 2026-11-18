@@ -23,7 +23,7 @@ Self-hosted personal finance app. Repo dir is `finance`, but the root package is
 - PGlite is a devDependency and is not in the production image.
 
 ## Database / migrations (important)
-- Drizzle migrations in `packages/backend/drizzle/` (currently 0000–0018) are tracked in git. Never gitignore them.
+- Drizzle migrations in `packages/backend/drizzle/` (currently 0000–0019) are tracked in git. Never gitignore them.
 - Run `db:generate` BEFORE editing `schema.ts`, or restart the backend after generating. Bun `--hot` restarts on `schema.ts` changes, and PGlite can end up on a stale schema.
 - Always create migrations with `db:generate` (0018 was generated this way). Don't hand-write them without also updating `drizzle/meta/` snapshots and the journal. Drift makes `db:generate` hang on an interactive rename prompt. Check with `db:check`.
 
@@ -33,7 +33,7 @@ Self-hosted personal finance app. Repo dir is `finance`, but the root package is
 - `services/backgroundJobs.ts`: `runBackgroundJobs(trigger)` = link transfers, THEN detect subscriptions, queued sequentially with errors logged. Used after imports, on startup and periodically. Don't fire `linkTransfers()`/`detectSubscriptions()` ad hoc and un-awaited.
 - `middleware/auth.ts`: JWT middleware, plus `syncProfileOnce` (Map keyed by sub, iat-based).
 - `services/accessControl.ts`: one generic resolver over "owned or shared with a group" resources (accounts, portfolios, mortgages, loans). Use `toAccessContext(user)` to build the context, `canView*`/`canEdit*` for single-resource checks, and `getViewable*Ids`/`getEditable*Ids` for lists. Add new shared resource types by defining a `SharedResource` there.
-- `services/camt053.ts`: CAMT.053 parser. Dedup uses a SHA-256 `import_hash` (globally unique) over amount+currency+date+counterpartyIban+reference+description. **Known gap:** it excludes the account and the debit/credit direction (see `TODO.md`).
+- `services/camt053.ts`: CAMT.053 parser. Dedup uses a SHA-256 `import_hash` (globally unique) from `computeImportHash`: account IBAN, debit/credit direction, amount (normalised to 2 decimals), currency, date, counterpartyIban, reference, description. Migration 0019 recomputes stored hashes in SQL from the same columns; `routes/importHash.test.ts` checks the SQL and the TS agree, so change both together. Identical entries on the *same* account still collapse (inherent to a content hash).
 - `services/transferLinker.ts`: links internal transfers by shared EndToEndId or by counterpartyIban matching an own account. Never links two legs on the same account.
 - `services/subscriptionDetector.ts`: detects recurring DBIT patterns, grouped by `(accountId, counterpartyIban)`. Gaps must be within ±20% of the median (floor ±5 days) and amounts within ±5%. New ones are created as `candidate`. Existing `candidate`/`confirmed` rows only get their stats updated, and `dismissed` pairs are skipped. Manual `POST /subscriptions` creates `confirmed` and retroactively links transactions. Dismiss unlinks transactions and leaves a `dismissed` tombstone. Links are write-time via `transactions.subscriptionId`. Each detection pass first unlinks transactions that became transfers and removes `candidate`s left empty (confirmed ones are kept).
 - `services/fifo.ts`: `computeFifo(trades, symbol, baseCurrency)` returns `{ balance, avgCostBasis, totalCostEur, realizedPnL }`. Shared by crypto and stocks.

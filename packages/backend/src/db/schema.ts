@@ -59,7 +59,7 @@ export const transactions = pgTable("transactions", {
   transferPeerId: uuid("transfer_peer_id").references((): AnyPgColumn => transactions.id),
   // Links to a detected recurring subscription
   subscriptionId: uuid("subscription_id").references((): AnyPgColumn => subscriptions.id),
-  // Used to deduplicate imports; hash of amount+date+reference+counterparty
+  // Used to deduplicate imports; see computeImportHash in services/camt053.ts
   importHash: text("import_hash").notNull().unique(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 }, (t) => ({

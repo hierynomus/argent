@@ -101,10 +101,22 @@ describe("parseCamt053", () => {
     expect(() => parseCamt053(doc("<Acct><Id></Id></Acct>"))).toThrow("IBAN")
   })
 
-  // KNOWN GAP: `import_hash` is globally unique but is computed WITHOUT the account and the debit/credit
-  // direction. Two accounts that book an identical entry (same amount, date, counterparty IBAN, reference
-  // and description) collide, and the second is silently skipped as a "duplicate". Fixing it changes every
-  // stored hash, so it needs a data migration (all inputs are stored, so hashes can be recomputed).
-  test.todo("importHash differs for the same entry on a different account")
-  test.todo("importHash differs for the same entry booked in the opposite direction")
+  // `import_hash` is the dedup key: it must tell apart entries that differ only by account or direction.
+  describe("importHash", () => {
+    const hashOf = (xml: string) => parseCamt053(xml).transactions[0].importHash
+    const other = acct.replace("NL01BANK0123456789", "NL09OTHR0123456789")
+
+    test("is stable for the same entry", () => {
+      expect(hashOf(doc(acct + entry()))).toBe(hashOf(doc(acct + entry())))
+    })
+    test("differs for the same entry on a different account", () => {
+      expect(hashOf(doc(acct + entry()))).not.toBe(hashOf(doc(other + entry())))
+    })
+    test("differs for the same entry booked in the opposite direction", () => {
+      expect(hashOf(doc(acct + entry({ ind: "DBIT" })))).not.toBe(hashOf(doc(acct + entry({ ind: "CRDT" }))))
+    })
+    test("an amount written with or without trailing zeros is the same entry", () => {
+      expect(hashOf(doc(acct + entry({ amt: "12.5" })))).toBe(hashOf(doc(acct + entry({ amt: "12.50" }))))
+    })
+  })
 })

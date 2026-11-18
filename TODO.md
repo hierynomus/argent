@@ -40,7 +40,7 @@ Verify everything with `bun run check` (type-check all packages + all tests + "m
 - [x] Native `alert()`/`confirm()` replaced by inline messages/confirmation (Subscriptions, Overview bulk bar)
 - [x] Saving a blank account name was sent as "unchanged" although the API can clear it
 - [x] Icon-only "×" close button had no accessible name; form labels were not tied to their controls
-- [ ] **`import_hash` ignores the account and the debit/credit direction** and is globally unique, so identical entries on two accounts (same amount/date/counterparty IBAN/reference/description) collide and the second is silently skipped. Fix = include IBAN + direction in the hash, plus a data migration recomputing stored hashes (all inputs are stored). Documented as `test.todo` in `camt053.test.ts`.
+- [x] `import_hash` ignored the account and the debit/credit direction, so identical entries on two accounts collided and the second was silently skipped. Hash now includes both (and a 2-decimal amount); migration 0019 recomputes stored hashes in SQL; tests cover it. Still true: identical entries on the same account collapse.
 - [ ] Money as `float`: use a decimal lib (`decimal.js`/`big.js`) in `fifo.ts` and `amortization.ts`; centralize epsilon constants (`1e-10`, `1e-8`)
 - [ ] Rename `totalCostEur` / `currentValueEur` to currency-neutral names (portfolios can be USD) across backend, shared types and frontend
 - [ ] `linkPair` in `transferLinker.ts` should run in a `db.transaction`
