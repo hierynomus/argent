@@ -27,14 +27,7 @@ function enrichPart(
       notes: p.notes,
       createdAt: p.createdAt,
     })),
-    currentBalance: state.currentBalance,
-    monthlyPayment: state.monthlyPayment,
-    monthlyInterest: state.monthlyInterest,
-    monthlyPrincipal: state.monthlyPrincipal,
-    originalMonthlyPayment: state.originalMonthlyPayment,
-    totalMonths: state.totalMonths,
-    monthsElapsed: state.monthsElapsed,
-    monthsRemaining: state.monthsRemaining,
+    ...state, // balance, payment components, term and projected end date
   }
 }
 

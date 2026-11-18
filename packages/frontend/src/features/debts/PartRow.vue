@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { reactive, ref } from "vue"
+import { computed, reactive, ref } from "vue"
 import { useMutation } from "@tanstack/vue-query"
 import { updateDebtPartSchema } from "@argent/shared"
 import { debtApis, useInvalidate, type Debt, type DebtKind, type DebtPart } from "../../api"
@@ -41,6 +41,9 @@ const remove = useMutation({
   onSuccess: () => invalidate.debts(props.kind),
 })
 
+// an older backend does not send the projection: fall back to the scheduled end
+const projectedEnd = computed(() => props.part.projectedEndDate ?? props.part.endDate)
+
 // progress is measured against the projected term, which extra payments shorten
 const progressPct = () => {
   const total = props.part.monthsElapsed + props.part.monthsRemaining
@@ -60,7 +63,7 @@ const progressPct = () => {
       <span class="text-xs text-gray-400 dark:text-gray-500 ml-1">/mo</span>
     </td>
     <td class="px-4 py-3 text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
-      <span class="text-gray-400 dark:text-gray-500">{{ fmtMonthYear(part.startDate) }}</span>{{ " → " }}<span :title="part.projectedEndDate !== part.endDate ? `Scheduled end: ${fmtMonthYear(part.endDate)}` : undefined">{{ fmtMonthYear(part.projectedEndDate) }}</span>
+      <span class="text-gray-400 dark:text-gray-500">{{ fmtMonthYear(part.startDate) }}</span>{{ " → " }}<span :title="projectedEnd !== part.endDate ? `Scheduled end: ${fmtMonthYear(part.endDate)}` : undefined">{{ fmtMonthYear(projectedEnd) }}</span>
     </td>
     <td class="px-4 py-3 w-32">
       <div class="flex items-center gap-2">

@@ -74,6 +74,24 @@ for (const kind of ["mortgages", "loans"] as const) {
       expect((await detail(d.id)).parts.find((p: any) => p.id === eff.id).rateType).toBe("nominal")
     })
 
+    test("every part carries its full computed state, including the projected end date, which extra payments pull forward", async () => {
+      const d = (await create()).body
+      const p = (await post(`${base}/${d.id}/parts`, part({ principal: "28500", annualInterestRate: "0.059", rateType: "effective", startDate: "2024-11-28", endDate: "2027-12-28" }))).body
+      for (const key of ["currentBalance", "monthlyPayment", "monthlyInterest", "monthlyPrincipal", "originalMonthlyPayment", "totalMonths", "monthsElapsed", "monthsRemaining", "projectedEndDate"]) {
+        expect(p[key], key).toBeDefined()
+      }
+      expect(p.projectedEndDate).toMatch(/^\d{4}-\d{2}-\d{2}$/)
+      const before = (await detail(d.id)).parts[0]
+      expect(before.projectedEndDate).toMatch(/^\d{4}-\d{2}-\d{2}$/)
+
+      // a large extra payment in the past shortens the loan (the payment stays the same)
+      expect((await post(`${base}/${d.id}/parts/${p.id}/payments`, { paymentDate: "2025-03-10", amount: "10000" })).status).toBe(201)
+      const after = (await detail(d.id)).parts[0]
+      expect(after.monthsRemaining).toBeLessThan(before.monthsRemaining)
+      expect(after.projectedEndDate < before.projectedEndDate).toBe(true)
+      expect(after.originalMonthlyPayment).toBe(before.originalMonthlyPayment)
+    })
+
     test("an unknown rate type is rejected", async () => {
       const d = (await create()).body
       expect((await post(`${base}/${d.id}/parts`, part({ rateType: "weekly" }))).status).toBe(400)
