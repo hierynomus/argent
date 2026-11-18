@@ -8,6 +8,8 @@ export interface Config {
   corsOrigin: string
   port: number
   sweepIntervalMs: number
+  /** optional CoinGecko demo API key: a much higher rate limit than the key-less API */
+  coingeckoApiKey: string | undefined
 }
 
 type Env = Record<string, string | undefined>
@@ -48,6 +50,7 @@ export function loadConfig(env: Env = process.env): Config {
     corsOrigin: env.CORS_ORIGIN ?? "http://localhost:5173",
     port,
     sweepIntervalMs,
+    coingeckoApiKey: env.COINGECKO_API_KEY || undefined,
   }
 }
 

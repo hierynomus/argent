@@ -99,6 +99,18 @@ describe("AssetChart", () => {
     expect(await screen.findByText(/range must be one of/)).toBeInTheDocument()
   })
 
+  test("a temporarily unavailable provider is explained, and Try again loads the chart", async () => {
+    let calls = 0
+    const { api, user } = await mount({}, {
+      "GET /crypto/history/:symbol": () => (++calls <= 1 ? respond(503, { error: "Price history is temporarily unavailable (the price provider is rate limited). Try again in a minute." }) : history([100, 130])),
+    })
+    expect(await screen.findByText(/temporarily unavailable/)).toBeInTheDocument()
+    expect(screen.queryByText(/No price history is available/)).not.toBeInTheDocument() // not "unknown symbol"
+    await user.click(await screen.findByRole("button", { name: "Try again" }))
+    expect(await screen.findByRole("img", { name: /price in EUR/ })).toBeInTheDocument()
+    expect(api.calls("GET", "/crypto/history/BTC").length).toBeGreaterThanOrEqual(2)
+  })
+
   test("Close tells the parent", async () => {
     const { user, emitted } = await mount() as any
     await screen.findByRole("img")

@@ -3,6 +3,8 @@
  * Uses in-process Map cache with 5-minute TTL. Errors return null (never throw).
  */
 
+import { config } from "../config"
+
 const CACHE_TTL_MS = 5 * 60 * 1000
 
 // ──────────────────────────────────────────────
@@ -53,9 +55,37 @@ const COINGECKO_IDS: Record<string, string> = {
 const ID_FOUND_TTL_MS = 24 * 60 * 60 * 1000
 const ID_MISSING_TTL_MS = 60 * 60 * 1000 // don't search again for a ticker CoinGecko doesn't know, for an hour
 
+/** The price provider could not answer (rate limited, down). Distinct from "the symbol is unknown", which is `null`. */
+export class PriceProviderError extends Error {
+  constructor(message: string, readonly retryAfterSec?: number) {
+    super(message)
+    this.name = "PriceProviderError"
+  }
+}
+
+// CoinGecko's key-less API allows only a handful of calls per minute and answers 429 beyond that. When
+// that happens we stop calling it until its `retry-after` has passed (hammering only prolongs the block).
+// An optional COINGECKO_API_KEY (a free "demo" key) raises the limit.
+let coingeckoBlockedUntil = 0
+async function coingecko(path: string, timeoutMs = 8000): Promise<Response> {
+  const now = Date.now()
+  if (now < coingeckoBlockedUntil) throw new PriceProviderError("CoinGecko is rate limited", Math.ceil((coingeckoBlockedUntil - now) / 1000))
+  const headers: Record<string, string> = config.coingeckoApiKey ? { "x-cg-demo-api-key": config.coingeckoApiKey } : {}
+  const res = await fetch(`https://api.coingecko.com/api/v3${path}`, { signal: AbortSignal.timeout(timeoutMs), headers })
+  if (res.status === 429) {
+    const retryAfter = Number(res.headers.get("retry-after")) || 60
+    coingeckoBlockedUntil = Date.now() + retryAfter * 1000
+    throw new PriceProviderError("CoinGecko rate limit exceeded", retryAfter)
+  }
+  if (!res.ok) throw new PriceProviderError(`CoinGecko HTTP ${res.status}`)
+  return res
+}
+
 /** Resolved ticker → id. `id: null` means "searched, not found". The pinned ids never expire. */
 const coinIds = new Map<string, { id: string | null; resolvedAt: number }>()
-const cryptoPrices = new Map<string, { eur: number; usd: number; fetchedAt: number }>()
+/** Last known prices. An entry only holds the currencies that were actually fetched. */
+const cryptoPrices = new Map<string, { eur?: number; usd?: number; fetchedAt: number }>()
+const STALE_PRICE_MAX_MS = 24 * 60 * 60 * 1000 // while the provider is down, a day-old price beats no price
 
 /** The CoinGecko id for a ticker: pinned, previously resolved, or found by search (most valuable coin with exactly that ticker). */
 async function resolveCoinId(symbol: string): Promise<string | null> {
@@ -64,8 +94,7 @@ async function resolveCoinId(symbol: string): Promise<string | null> {
   const known = coinIds.get(symbol)
   if (known && Date.now() - known.resolvedAt < (known.id ? ID_FOUND_TTL_MS : ID_MISSING_TTL_MS)) return known.id
 
-  const res = await fetch(`https://api.coingecko.com/api/v3/search?query=${encodeURIComponent(symbol)}`, { signal: AbortSignal.timeout(8000) })
-  if (!res.ok) throw new Error(`CoinGecko search HTTP ${res.status}`)
+  const res = await coingecko(`/search?query=${encodeURIComponent(symbol)}`)
   const json = await res.json() as { coins?: Array<{ id: string; symbol: string; market_cap_rank: number | null }> }
   const best = (json.coins ?? [])
     .filter((c) => c.symbol.toUpperCase() === symbol)
@@ -75,46 +104,79 @@ async function resolveCoinId(symbol: string): Promise<string | null> {
   return best?.id ?? null
 }
 
+/** Yahoo lists the big coins as pairs (`SHIB-EUR`, `DOGE-USD`): a fallback when CoinGecko says no. */
+async function yahooCryptoPrice(symbol: string, currency: "EUR" | "USD"): Promise<number | null> {
+  return (await getStockPrice(`${symbol}-${currency}`, currency)) ?? (await getStockPrice(`${symbol}-USD`, currency))
+}
+
+const missingOnYahoo = new Map<string, number>() // symbol → when Yahoo last said it doesn't know it
+const YAHOO_MISSING_TTL_MS = 10 * 60 * 1000
+const refreshing = new Map<string, Promise<void>>()
+
+async function refreshCryptoPrices(wanted: string[], currency: "EUR" | "USD"): Promise<void> {
+  const key = currency === "USD" ? "usd" : "eur"
+  const now = Date.now()
+  const isFresh = (s: string) => {
+    const e = cryptoPrices.get(s)
+    return !!e && e[key] !== undefined && now - e.fetchedAt < CACHE_TTL_MS
+  }
+
+  try {
+    // ids of the requested tickers; one that can't be resolved simply stays unpriced
+    const requested = await Promise.all(wanted.map(async (s) => [s, await resolveCoinId(s).catch(() => null)] as const))
+    const idOf = new Map<string, string>(requested.filter((r): r is [string, string] => r[1] !== null))
+    // refresh everything we know in the same request
+    const all = new Map<string, string>(Object.entries(COINGECKO_IDS))
+    for (const [sym, v] of coinIds) if (v.id) all.set(sym, v.id)
+    for (const [sym, id] of idOf) all.set(sym, id)
+
+    const ids = [...new Set(all.values())].join(",")
+    const res = await coingecko(`/simple/price?ids=${ids}&vs_currencies=eur,usd&precision=full`)
+    const json = await res.json() as Record<string, { eur?: number; usd?: number }>
+    for (const [sym, id] of all) {
+      const data = json[id]
+      if (data?.eur != null && data?.usd != null) cryptoPrices.set(sym, { eur: data.eur, usd: data.usd, fetchedAt: now })
+    }
+  } catch {
+    // CoinGecko failed or is rate limited: Yahoo and the last known prices cover for it below
+  }
+
+  for (const sym of wanted.filter((s) => !isFresh(s))) {
+    const missed = missingOnYahoo.get(sym)
+    if (missed && now - missed < YAHOO_MISSING_TTL_MS) continue
+    const price = await yahooCryptoPrice(sym, currency)
+    if (price === null) missingOnYahoo.set(sym, now)
+    else cryptoPrices.set(sym, { [key]: price, fetchedAt: now })
+  }
+}
+
 /**
  * Prices per coin for several tickers at once, in the given currency (null = unknown/unavailable).
- * One provider call refreshes every coin we know about, so the next lookups are served from the cache.
- * Tiny prices (SHIB, PEPE, …) are requested at full precision.
+ * One CoinGecko call refreshes every coin we know about (tiny prices at full precision); coins it can't
+ * price come from Yahoo, and when both fail the last known price (up to a day old) is used.
  */
 export async function getCryptoPrices(symbols: string[], currency: "EUR" | "USD" = "EUR"): Promise<Record<string, number | null>> {
   const wanted = [...new Set(symbols.map((s) => s.toUpperCase()))]
-  const now = Date.now()
-  const pick = (s: string) => {
-    const e = cryptoPrices.get(s)
-    return e ? (currency === "USD" ? e.usd : e.eur) : null
-  }
+  const key = currency === "USD" ? "usd" : "eur"
   const fresh = (s: string) => {
     const e = cryptoPrices.get(s)
-    return !!e && now - e.fetchedAt < CACHE_TTL_MS
+    return !!e && e[key] !== undefined && Date.now() - e.fetchedAt < CACHE_TTL_MS
   }
 
   if (!wanted.every(fresh)) {
-    try {
-      // ids of the requested tickers; one that can't be resolved simply stays null
-      const requested = await Promise.all(wanted.map(async (s) => [s, await resolveCoinId(s).catch(() => null)] as const))
-      const idOf = new Map<string, string>(requested.filter((r): r is [string, string] => r[1] !== null))
-      // refresh everything we know in the same request
-      const allSymbols = new Map<string, string>(Object.entries(COINGECKO_IDS))
-      for (const [sym, v] of coinIds) if (v.id) allSymbols.set(sym, v.id)
-      for (const [sym, id] of idOf) allSymbols.set(sym, id)
-
-      const ids = [...new Set(allSymbols.values())].join(",")
-      const res = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${ids}&vs_currencies=eur,usd&precision=full`, { signal: AbortSignal.timeout(8000) })
-      if (!res.ok) throw new Error(`CoinGecko HTTP ${res.status}`)
-      const json = await res.json() as Record<string, { eur?: number; usd?: number }>
-      for (const [sym, id] of allSymbols) {
-        const data = json[id]
-        if (data?.eur != null && data?.usd != null) cryptoPrices.set(sym, { eur: data.eur, usd: data.usd, fetchedAt: now })
-      }
-    } catch {
-      // keep whatever (possibly stale) prices we have; callers get null for the rest
+    const flight = `${currency}|${[...wanted].sort().join(",")}`
+    let running = refreshing.get(flight)
+    if (!running) {
+      running = refreshCryptoPrices(wanted, currency).finally(() => refreshing.delete(flight))
+      refreshing.set(flight, running)
     }
+    await running
   }
-  return Object.fromEntries(wanted.map((s) => [s, fresh(s) ? pick(s) : null]))
+  return Object.fromEntries(wanted.map((s) => {
+    const e = cryptoPrices.get(s)
+    const usable = e !== undefined && e[key] !== undefined && Date.now() - e.fetchedAt < STALE_PRICE_MAX_MS
+    return [s, usable ? (e![key] as number) : null]
+  }))
 }
 
 /** Returns price per coin in the given currency, or null if unknown/unavailable. */
@@ -134,9 +196,13 @@ export interface HistoryPoint {
   v: number
 }
 
-const HISTORY_TTL_MS = 15 * 60 * 1000
+const MIN = 60 * 1000
+// short ranges move more; long ranges are daily/weekly data that barely changes within hours
+const HISTORY_TTL_MS: Record<HistoryRange, number> = { "1m": 15 * MIN, "3m": 30 * MIN, "6m": 60 * MIN, "1y": 60 * MIN, max: 6 * 60 * MIN }
+const HISTORY_STALE_MAX_MS = 7 * 24 * 60 * MIN
 const MAX_HISTORY_POINTS = 400
 const historyCache = new Map<string, { points: HistoryPoint[]; fetchedAt: number }>()
+const historyInFlight = new Map<string, Promise<HistoryPoint[] | null>>()
 
 /** Keeps at most `max` points (evenly spread, always including the first and the last). */
 export function downsample(points: HistoryPoint[], max = MAX_HISTORY_POINTS): HistoryPoint[] {
@@ -145,33 +211,60 @@ export function downsample(points: HistoryPoint[], max = MAX_HISTORY_POINTS): Hi
   return Array.from({ length: max }, (_, i) => points[Math.round(i * step)])
 }
 
-async function cachedHistory(key: string, load: () => Promise<HistoryPoint[] | null>): Promise<HistoryPoint[] | null> {
+/**
+ * Cache + de-duplication for history loads: fresh hits are served directly, identical concurrent
+ * requests share one load, and when a reload fails an older cached series (up to a week) is served instead.
+ */
+async function cachedHistory(key: string, range: HistoryRange, load: () => Promise<HistoryPoint[] | null>): Promise<HistoryPoint[] | null> {
   const hit = historyCache.get(key)
-  if (hit && Date.now() - hit.fetchedAt < HISTORY_TTL_MS) return hit.points
-  const points = await load()
-  if (points && points.length > 0) historyCache.set(key, { points, fetchedAt: Date.now() })
-  return points
+  const now = Date.now()
+  if (hit && now - hit.fetchedAt < HISTORY_TTL_MS[range]) return hit.points
+  const running = historyInFlight.get(key)
+  if (running) return running
+
+  const flight = (async () => {
+    try {
+      const points = await load()
+      if (points && points.length > 0) historyCache.set(key, { points, fetchedAt: Date.now() })
+      return points
+    } catch (err) {
+      if (hit && now - hit.fetchedAt < HISTORY_STALE_MAX_MS) return hit.points
+      throw err
+    } finally {
+      historyInFlight.delete(key)
+    }
+  })()
+  historyInFlight.set(key, flight)
+  return flight
 }
 
 const COINGECKO_DAYS: Record<HistoryRange, string> = { "1m": "30", "3m": "90", "6m": "180", "1y": "365", max: "max" }
 
-/** Price history of a coin in the given currency, or null if unknown/unavailable. */
+/**
+ * Price history of a coin in the given currency; null if the symbol is unknown everywhere. CoinGecko
+ * first, then Yahoo's `SYM-EUR` / `SYM-USD` pairs. Throws `PriceProviderError` when nothing could be
+ * loaded because a provider was unavailable (rate limited, down) — so "unknown" and "try later" differ.
+ */
 export async function getCryptoHistory(symbol: string, currency: "EUR" | "USD", range: HistoryRange): Promise<HistoryPoint[] | null> {
-  try {
-    const sym = symbol.toUpperCase()
-    return await cachedHistory(`crypto|${sym}|${currency}|${range}`, async () => {
+  const sym = symbol.toUpperCase()
+  return cachedHistory(`crypto|${sym}|${currency}|${range}`, range, async () => {
+    let providerError: PriceProviderError | undefined
+    try {
       const id = await resolveCoinId(sym)
-      if (!id) return null
-      const url = `https://api.coingecko.com/api/v3/coins/${encodeURIComponent(id)}/market_chart?vs_currency=${currency.toLowerCase()}&days=${COINGECKO_DAYS[range]}&precision=full`
-      const res = await fetch(url, { signal: AbortSignal.timeout(10000) })
-      if (!res.ok) throw new Error(`CoinGecko HTTP ${res.status}`)
-      const json = await res.json() as { prices?: Array<[number, number]> }
-      const points = (json.prices ?? []).filter(([, v]) => typeof v === "number").map(([t, v]) => ({ t, v }))
-      return downsample(points)
-    })
-  } catch {
+      if (id) {
+        const res = await coingecko(`/coins/${encodeURIComponent(id)}/market_chart?vs_currency=${currency.toLowerCase()}&days=${COINGECKO_DAYS[range]}&precision=full`, 10000)
+        const json = await res.json() as { prices?: Array<[number, number]> }
+        const points = (json.prices ?? []).filter(([, v]) => typeof v === "number").map(([t, v]) => ({ t, v }))
+        if (points.length > 0) return downsample(points)
+      }
+    } catch (err) {
+      providerError = err instanceof PriceProviderError ? err : new PriceProviderError(`Price history is unavailable: ${(err as Error).message}`)
+    }
+    const viaYahoo = (await getStockHistory(`${sym}-${currency}`, currency, range)) ?? (await getStockHistory(`${sym}-USD`, currency, range))
+    if (viaYahoo && viaYahoo.length > 0) return viaYahoo
+    if (providerError) throw providerError
     return null
-  }
+  })
 }
 
 const YAHOO_RANGE: Record<HistoryRange, { range: string; interval: string }> = {
@@ -190,7 +283,7 @@ const YAHOO_RANGE: Record<HistoryRange, { range: string; interval: string }> = {
 export async function getStockHistory(symbol: string, currency: "EUR" | "USD", range: HistoryRange): Promise<HistoryPoint[] | null> {
   try {
     const sym = symbol.toUpperCase()
-    return await cachedHistory(`stock|${sym}|${currency}|${range}`, async () => {
+    return await cachedHistory(`stock|${sym}|${currency}|${range}`, range, async () => {
       const { range: r, interval } = YAHOO_RANGE[range]
       const res = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(sym)}?interval=${interval}&range=${r}`, {
         signal: AbortSignal.timeout(10000),

@@ -29,7 +29,7 @@ const RANGES: Array<{ value: HistoryRange; label: string }> = [
 const RANGE_NAMES: Record<HistoryRange, string> = { "1m": "last month", "3m": "last 3 months", "6m": "last 6 months", "1y": "last year", max: "all time" }
 
 const range = ref<HistoryRange>("1y")
-const { data, isLoading, error } = useAssetHistory(props.kind, () => props.symbol, () => props.currency, range)
+const { data, isLoading, error, refetch, isFetching } = useAssetHistory(props.kind, () => props.symbol, () => props.currency, range)
 const points = computed(() => data.value?.points ?? [])
 
 const fmtQty = (n: number) => fmtSignificant(n, 8)
@@ -86,7 +86,10 @@ const tableRows = computed(() => {
     </div>
 
     <LoadingText v-if="isLoading">Loading price history…</LoadingText>
-    <ErrorText v-else-if="error" :error="error" />
+    <div v-else-if="error" class="py-6 text-center">
+      <ErrorText :error="error" />
+      <Button variant="secondary" size="sm" class="rounded-md mt-3" :disabled="isFetching" @click="refetch()">{{ isFetching ? "Trying…" : "Try again" }}</Button>
+    </div>
     <p v-else-if="points.length === 0" class="text-sm text-gray-400 dark:text-gray-500 py-8 text-center">No price history is available for {{ symbol }}.</p>
     <template v-else>
       <LineChart :points="points" :markers="markers" :format-value="price" :format-date="day" :label="`${name} price in ${currency}, ${RANGE_NAMES[range]}`" />

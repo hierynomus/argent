@@ -31,4 +31,10 @@ describe("loadConfig", () => {
     expect(() => loadConfig({ AUTH_MODE: "fake", PORT: "abc" })).toThrow("PORT")
     expect(() => loadConfig({ AUTH_MODE: "fake", TRANSFER_LINK_INTERVAL_MS: "0" })).toThrow("TRANSFER_LINK_INTERVAL_MS")
   })
+
+  test("an optional CoinGecko API key is picked up (blank counts as none)", () => {
+    expect(loadConfig({ AUTH_MODE: "fake", COINGECKO_API_KEY: "CG-abc" }).coingeckoApiKey).toBe("CG-abc")
+    expect(loadConfig({ AUTH_MODE: "fake" }).coingeckoApiKey).toBeUndefined()
+    expect(loadConfig({ AUTH_MODE: "fake", COINGECKO_API_KEY: "" }).coingeckoApiKey).toBeUndefined()
+  })
 })

@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import { del, get, patch, post, unique } from "../../test/helpers"
+import { fakeFetch } from "../../test/fakeFetch"
 
 const NIL = "00000000-0000-0000-0000-000000000000"
 
@@ -449,4 +450,29 @@ describe("price history endpoints", () => {
       })
     })
   }
+})
+
+describe("crypto history when the price provider is unavailable", () => {
+  test("a rate-limited provider with no fallback is a 503 with a message and Retry-After (not an empty chart)", async () => {
+    fakeFetch.rateLimited.add("coingecko")
+    try {
+      const r = await get("/crypto/history/xyzcoin?range=1y")
+      expect(r.status).toBe(503)
+      expect(r.body.error).toContain("temporarily unavailable")
+      expect(r.body.retryAfter).toBeGreaterThan(0)
+    } finally {
+      fakeFetch.reset()
+    }
+  })
+
+  test("with Yahoo as a fallback the chart still loads", async () => {
+    fakeFetch.rateLimited.add("coingecko")
+    try {
+      const r = await get("/crypto/history/doge?range=1m")
+      expect(r.status).toBe(200)
+      expect(r.body.points.length).toBeGreaterThan(0)
+    } finally {
+      fakeFetch.reset()
+    }
+  })
 })

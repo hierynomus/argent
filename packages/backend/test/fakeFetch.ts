@@ -6,16 +6,19 @@
  *  metals.live XAU 2000 USD/oz, XAG 25 USD/oz            (gold & silver only)
  *  Frankfurter USD→EUR 0.9, EUR→USD 1.1
  *  History     CoinGecko market_chart (bitcoin, shiba-inu: 5 daily points) and Yahoo chart ranges (AAPL, VWRL)
- *  Yahoo       AAPL 100 USD "Apple Inc.", VWRL 80 EUR "Vanguard FTSE All-World", others → no data
+ *  Yahoo       AAPL 100 USD "Apple Inc.", VWRL 80 EUR "Vanguard FTSE All-World", DOGE-EUR 0.1, ADA-USD 0.5, others → no data
  */
 export const fakeFetch = {
   /** URLs requested so far (most recent last). */
   calls: [] as string[],
   /** Hosts (substring match) that currently answer with HTTP 500. */
   failing: new Set<string>(),
+  /** Hosts (substring match) that currently answer with HTTP 429 and `retry-after: 30`. */
+  rateLimited: new Set<string>(),
   reset() {
     this.calls.length = 0
     this.failing.clear()
+    this.rateLimited.clear()
   },
   callsTo(host: string) {
     return this.calls.filter((u) => u.includes(host))
@@ -28,12 +31,18 @@ const json = (body: unknown, status = 200) =>
 const YAHOO: Record<string, { price: number; currency: string; name: string }> = {
   AAPL: { price: 100, currency: "USD", name: "Apple Inc." },
   VWRL: { price: 80, currency: "EUR", name: "Vanguard FTSE All-World" },
+  // coins Yahoo lists as pairs (the fallback when CoinGecko is rate limited)
+  "DOGE-EUR": { price: 0.1, currency: "EUR", name: "Dogecoin EUR" },
+  "ADA-USD": { price: 0.5, currency: "USD", name: "Cardano USD" },
 }
 
 export async function fakeFetchImpl(input: RequestInfo | URL): Promise<Response> {
   const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url
   fakeFetch.calls.push(url)
   for (const host of fakeFetch.failing) if (url.includes(host)) return json({ error: "boom" }, 500)
+  for (const host of fakeFetch.rateLimited) {
+    if (url.includes(host)) return new Response(JSON.stringify({ status: { error_code: 429 } }), { status: 429, headers: { "Content-Type": "application/json", "retry-after": "30" } })
+  }
 
   if (url.includes("api.coingecko.com/api/v3/search")) {
     const query = (new URL(url).searchParams.get("query") ?? "").toUpperCase()

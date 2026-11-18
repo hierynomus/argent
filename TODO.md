@@ -45,7 +45,7 @@ Verify everything with `bun run check` (type-check all packages + all tests + "m
 - [ ] Rename `totalCostEur` / `currentValueEur` to currency-neutral names (portfolios can be USD) across backend, shared types and frontend
 - [ ] `linkPair` in `transferLinker.ts` should run in a `db.transaction`
 - [ ] `addDays` / `daysBetween` / `amortization` use local time; switch to UTC
-- [~] Price service: crypto tickers beyond the ~35 pinned ones are resolved via CoinGecko search (SHIB/PEPE and sub-cent prices work, FE shows enough decimals via `fmtPrice`). Still open: stale-while-error and surfacing "no price" in the UI; GBp (pence) quotes for stocks
+- [~] Price service: crypto tickers beyond the ~35 pinned ones are resolved via CoinGecko search (SHIB/PEPE and sub-cent prices work, FE shows enough decimals via `fmtPrice`). Rate limits are handled (backoff, Yahoo fallback, stale data, 503 + retry in the chart). Still open: surfacing "no price" in the positions table; GBp (pence) quotes for stocks
 - [ ] Manual `POST /subscriptions` returns 409 when a *candidate* exists for the pair — consider confirming the candidate instead (UX)
 
 ## Performance

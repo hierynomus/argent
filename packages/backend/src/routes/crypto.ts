@@ -3,7 +3,7 @@ import { and, eq, inArray } from "drizzle-orm"
 import { db } from "../db"
 import { portfolios, portfolioMembers, cryptoTrades, cryptoAssets } from "../db/schema"
 import { getViewablePortfolioIds, getEditablePortfolioIds, toAccessContext, canEditPortfolio, canViewPortfolio } from "../services/accessControl"
-import { getCryptoPrices, getCryptoHistory } from "../services/priceService"
+import { getCryptoPrices, getCryptoHistory, PriceProviderError } from "../services/priceService"
 import { computeFifo, investmentSymbols } from "../services/fifo"
 import type { AuthUser } from "../middleware/auth"
 import { isOwnerOrAdmin } from "../middleware/guards"
@@ -50,12 +50,19 @@ app.post("/", validateJson(createPortfolioSchema), async (c) => {
 })
 
 // Price history of one coin (for the asset chart). Like the ticker lookup it touches no portfolio data,
-// so there is no access check. Unknown symbols and provider failures give an empty `points` list.
+// so there is no access check. An unknown symbol gives an empty `points` list; an unavailable provider (rate limit) gives 503.
 app.get("/history/:symbol", validateQuery(historyQuerySchema), async (c) => {
   const symbol = c.req.param("symbol").toUpperCase().trim()
   const { range, currency } = c.req.valid("query")
-  const points = await getCryptoHistory(symbol, currency, range)
-  return c.json({ symbol, currency, range, points: points ?? [] })
+  try {
+    const points = await getCryptoHistory(symbol, currency, range)
+    return c.json({ symbol, currency, range, points: points ?? [] })
+  } catch (err) {
+    // the price providers are rate limited or down: not the same as "no history for this symbol"
+    if (!(err instanceof PriceProviderError)) throw err
+    if (err.retryAfterSec) c.header("Retry-After", String(err.retryAfterSec))
+    return c.json({ error: "Price history is temporarily unavailable (the price provider is rate limited). Try again in a minute.", retryAfter: err.retryAfterSec ?? null }, 503)
+  }
 })
 
 // Get portfolio with computed positions and trade history
