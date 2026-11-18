@@ -1,6 +1,6 @@
-import { useAuth } from "react-oidc-context"
-import { useQuery, useQueryClient } from "@tanstack/react-query"
-import { getMe, updateMe } from "../api"
+import { useMutation, useQueryClient } from "@tanstack/react-query"
+import { queryKeys, updateMe, useMe } from "../api"
+import { ErrorText, LoadingText } from "../components/ui"
 import type { UserProfile } from "@argent/shared"
 
 type Theme = "light" | "dark" | "system"
@@ -12,24 +12,16 @@ const THEMES: { value: Theme; label: string; description: string }[] = [
 ]
 
 export default function ProfilePage() {
-  const auth = useAuth()
-  const token = auth.user?.access_token ?? ""
   const qc = useQueryClient()
+  const { data: me, isLoading } = useMe()
 
-  const { data: me, isLoading } = useQuery({
-    queryKey: ["me"],
-    queryFn: () => getMe(token),
-    enabled: !!token,
+  // the choice takes effect immediately (the layout reads it from the cached profile)
+  const changeTheme = useMutation({
+    mutationFn: (theme: Theme) => updateMe({ theme }),
+    onSuccess: (updated) => qc.setQueryData<UserProfile>(queryKeys.me, (prev) => (prev ? { ...prev, ...updated } : updated)),
   })
 
-  async function handleThemeChange(theme: Theme) {
-    const updated = await updateMe(token, { theme })
-    qc.setQueryData<UserProfile>(["me"], (prev) => (prev ? { ...prev, ...updated } : updated))
-  }
-
-  if (isLoading) {
-    return <p className="text-gray-400 text-sm">Loading…</p>
-  }
+  if (isLoading) return <LoadingText />
 
   return (
     <div className="max-w-lg">
@@ -78,7 +70,9 @@ export default function ProfilePage() {
             return (
               <button
                 key={value}
-                onClick={() => handleThemeChange(value)}
+                type="button"
+                aria-pressed={active}
+                onClick={() => changeTheme.mutate(value)}
                 className={`flex-1 flex flex-col items-center gap-1 px-3 py-3 rounded-lg border text-sm transition-colors ${
                   active
                     ? "border-indigo-500 bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300"
@@ -92,6 +86,7 @@ export default function ProfilePage() {
             )
           })}
         </div>
+        <ErrorText error={changeTheme.error} />
       </div>
     </div>
   )

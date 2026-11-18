@@ -76,6 +76,28 @@ export function computeStatsFromTransactions(txs: Array<{
 }
 
 /**
+ * Internal transfers are not subscriptions. A pattern can be detected before the receiving
+ * account is imported (so the payments look external), and only later be recognised as
+ * transfers by the transfer linker. Clean up after that:
+ *   - transactions that became transfers are unlinked from any subscription
+ *   - 'candidate' subscriptions (system suggestions, never confirmed by the user) left
+ *     without any transaction are removed; confirmed ones are kept.
+ */
+async function dropTransferSubscriptions(): Promise<void> {
+  await db
+    .update(transactions)
+    .set({ subscriptionId: null })
+    .where(and(isNotNull(transactions.subscriptionId), isNotNull(transactions.transferPeerId)))
+
+  await db.delete(subscriptions).where(
+    and(
+      eq(subscriptions.status, "candidate"),
+      sql`NOT EXISTS (SELECT 1 FROM ${transactions} WHERE ${transactions.subscriptionId} = ${subscriptions.id})`,
+    ),
+  )
+}
+
+/**
  * Detects recurring payment patterns (subscriptions) from DBIT transactions.
  *
  * Groups unlinked DBIT transactions by (accountId, counterpartyIban), checks
@@ -89,6 +111,8 @@ export function computeStatsFromTransactions(txs: Array<{
  * - Creates new subscriptions as 'candidate' so the user can review them.
  */
 export async function detectSubscriptions(): Promise<number> {
+  await dropTransferSubscriptions()
+
   const ownAccounts = await db.select({ id: accounts.id }).from(accounts)
   if (ownAccounts.length === 0) return 0
 

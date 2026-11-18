@@ -2,23 +2,21 @@ import { Hono } from "hono"
 import { and, eq, inArray } from "drizzle-orm"
 import { db } from "../db"
 import { portfolios, portfolioMembers, stockTrades, stockAssets, stockDividends } from "../db/schema"
-import { getViewablePortfolioIds, getEditablePortfolioIds } from "../services/accessControl"
+import { getViewablePortfolioIds, getEditablePortfolioIds, toAccessContext, canEditPortfolio, canViewPortfolio } from "../services/accessControl"
 import { getStockPrice, getStockName } from "../services/priceService"
 import { computeFifo, investmentSymbols } from "../services/fifo"
 import type { AuthUser } from "../middleware/auth"
+import { validateJson } from "../middleware/validate"
+import { createPortfolioSchema, updatePortfolioSchema, addMemberSchema, createStockTradeSchema, createStockDividendSchema } from "@argent/shared"
 
 const app = new Hono<{ Variables: { user: AuthUser } }>()
-
-function ctx(user: AuthUser) {
-  return { groups: user.groups ?? [], sub: user.sub, isAdmin: user.isAdmin }
-}
 
 // List portfolios
 app.get("/", async (c) => {
   const user = c.get("user")
   const [ids, editableIds] = await Promise.all([
-    getViewablePortfolioIds(ctx(user), "stocks"),
-    getEditablePortfolioIds(ctx(user), "stocks"),
+    getViewablePortfolioIds(toAccessContext(user), "stocks"),
+    getEditablePortfolioIds(toAccessContext(user), "stocks"),
   ])
   if (ids.length === 0) return c.json([])
   const editableSet = new Set(editableIds)
@@ -41,14 +39,10 @@ app.get("/", async (c) => {
 })
 
 // Create portfolio
-app.post("/", async (c) => {
+app.post("/", validateJson(createPortfolioSchema), async (c) => {
   const user = c.get("user")
-  const body = await c.req.json<{ name: string; currency?: string; broker?: string }>()
-  const name = body.name?.trim()
-  if (!name) return c.json({ error: "name is required" }, 400)
-
-  const currency = body.currency === "USD" ? "USD" : "EUR"
-  const broker = body.broker?.trim() || null
+  const { name, currency = "EUR", broker: brokerInput } = c.req.valid("json")
+  const broker = brokerInput || null
   const [portfolio] = await db
     .insert(portfolios)
     .values({ type: "stocks", name, currency, broker, ownerSub: user.sub })
@@ -68,8 +62,7 @@ app.get("/lookup/:symbol", async (c) => {
 app.get("/:id", async (c) => {
   const user = c.get("user")
   const id = c.req.param("id")
-  const ids = await getViewablePortfolioIds(ctx(user), "stocks")
-  if (!ids.includes(id)) return c.json({ error: "Not found" }, 404)
+  if (!(await canViewPortfolio(toAccessContext(user), "stocks", id))) return c.json({ error: "Not found" }, 404)
 
   const portfolio = await db.query.portfolios.findFirst({ where: (p, { eq }) => eq(p.id, id) })
   if (!portfolio) return c.json({ error: "Not found" }, 404)
@@ -128,7 +121,7 @@ app.get("/:id", async (c) => {
     db.select({ groupName: portfolioMembers.groupName, role: portfolioMembers.role })
       .from(portfolioMembers)
       .where(eq(portfolioMembers.portfolioId, id)),
-    getEditablePortfolioIds(ctx(user), "stocks"),
+    getEditablePortfolioIds(toAccessContext(user), "stocks"),
   ])
 
   return c.json({
@@ -148,17 +141,17 @@ app.get("/:id", async (c) => {
 })
 
 // Rename / update portfolio
-app.patch("/:id", async (c) => {
+app.patch("/:id", validateJson(updatePortfolioSchema), async (c) => {
   const user = c.get("user")
   const id = c.req.param("id")
-  const ids = await getEditablePortfolioIds(ctx(user), "stocks")
-  if (!ids.includes(id)) return c.json({ error: "Forbidden" }, 403)
+  if (!(await canEditPortfolio(toAccessContext(user), "stocks", id))) return c.json({ error: "Forbidden" }, 403)
 
-  const body = await c.req.json<{ name?: string; currency?: string; broker?: string | null }>()
-  const updates: Record<string, unknown> = {}
-  if (body.name !== undefined) updates.name = body.name.trim()
+  const body = c.req.valid("json")
+  const updates: Partial<typeof portfolios.$inferInsert> = {}
+  if (body.name !== undefined) updates.name = body.name
   if (body.currency !== undefined) updates.currency = body.currency
-  if (body.broker !== undefined) updates.broker = body.broker?.trim() || null
+  if (body.broker !== undefined) updates.broker = body.broker || null
+  if (Object.keys(updates).length === 0) return c.json({ error: "Nothing to update" }, 400)
 
   const [updated] = await db.update(portfolios).set(updates).where(eq(portfolios.id, id)).returning()
   if (!updated) return c.json({ error: "Not found" }, 404)
@@ -171,8 +164,7 @@ app.delete("/:id", async (c) => {
   const id = c.req.param("id")
   const portfolio = await db.query.portfolios.findFirst({ where: (p, { eq }) => eq(p.id, id) })
   if (!portfolio) return c.json({ error: "Not found" }, 404)
-  const ids = await getViewablePortfolioIds(ctx(user), "stocks")
-  if (!ids.includes(id)) return c.json({ error: "Not found" }, 404)
+  if (!(await canViewPortfolio(toAccessContext(user), "stocks", id))) return c.json({ error: "Not found" }, 404)
   if (portfolio.ownerSub !== user.sub && !user.isAdmin) return c.json({ error: "Forbidden" }, 403)
 
   await db.delete(portfolios).where(eq(portfolios.id, id))
@@ -180,16 +172,15 @@ app.delete("/:id", async (c) => {
 })
 
 // Add/update member (owner-only)
-app.post("/:id/members", async (c) => {
+app.post("/:id/members", validateJson(addMemberSchema), async (c) => {
   const user = c.get("user")
   const portfolioId = c.req.param("id")
   const portfolio = await db.query.portfolios.findFirst({ where: (p, { eq }) => eq(p.id, portfolioId) })
   if (!portfolio) return c.json({ error: "Not found" }, 404)
   if (portfolio.ownerSub !== user.sub && !user.isAdmin) return c.json({ error: "Forbidden" }, 403)
 
-  const body = await c.req.json<{ groupName: string; role?: "viewer" | "editor" }>()
-  if (!body.groupName?.trim()) return c.json({ error: "groupName is required" }, 400)
-  const role = body.role === "editor" ? "editor" : "viewer"
+  const body = c.req.valid("json")
+  const role = body.role ?? "viewer"
 
   await db
     .insert(portfolioMembers)
@@ -216,31 +207,18 @@ app.delete("/:id/members/:groupName", async (c) => {
 })
 
 // Add a trade — immutable ledger entry (buy or sell only, no swaps)
-app.post("/:id/trades", async (c) => {
+app.post("/:id/trades", validateJson(createStockTradeSchema), async (c) => {
   const user = c.get("user")
   const portfolioId = c.req.param("id")
-  const ids = await getEditablePortfolioIds(ctx(user), "stocks")
-  if (!ids.includes(portfolioId)) return c.json({ error: "Forbidden" }, 403)
+  if (!(await canEditPortfolio(toAccessContext(user), "stocks", portfolioId))) return c.json({ error: "Forbidden" }, 403)
 
   const portfolio = await db.query.portfolios.findFirst({ where: (p, { eq }) => eq(p.id, portfolioId) })
   if (!portfolio) return c.json({ error: "Not found" }, 404)
 
-  const body = await c.req.json<{
-    tradeDate: string
-    type: "buy" | "sell"
-    symbol: string
-    quantity: string
-    amount: string
-    assetName?: string
-    notes?: string
-  }>()
-
-  if (!body.tradeDate || !body.type || !body.symbol || !body.quantity || !body.amount) {
-    return c.json({ error: "tradeDate, type, symbol, quantity, amount are required" }, 400)
-  }
+  const body = c.req.valid("json")
 
   const baseCur = portfolio.currency
-  const symbol = body.symbol.toUpperCase().trim()
+  const symbol = body.symbol // validated + upper-cased by the schema
   const isBuy = body.type === "buy"
 
   if (!isBuy) {
@@ -284,22 +262,18 @@ app.delete("/:id/trades/:tradeId", (c) =>
 )
 
 // Record a dividend payment
-app.post("/:id/dividends", async (c) => {
+app.post("/:id/dividends", validateJson(createStockDividendSchema), async (c) => {
   const user = c.get("user")
   const portfolioId = c.req.param("id")
-  const ids = await getEditablePortfolioIds(ctx(user), "stocks")
-  if (!ids.includes(portfolioId)) return c.json({ error: "Forbidden" }, 403)
+  if (!(await canEditPortfolio(toAccessContext(user), "stocks", portfolioId))) return c.json({ error: "Forbidden" }, 403)
 
-  const body = await c.req.json<{ symbol: string; paymentDate: string; amount: string; notes?: string }>()
-  if (!body.symbol || !body.paymentDate || !body.amount) {
-    return c.json({ error: "symbol, paymentDate, amount are required" }, 400)
-  }
+  const body = c.req.valid("json")
 
   const [dividend] = await db
     .insert(stockDividends)
     .values({
       portfolioId,
-      symbol: body.symbol.toUpperCase().trim(),
+      symbol: body.symbol,
       paymentDate: body.paymentDate,
       amount: body.amount,
       notes: body.notes ?? null,
@@ -313,8 +287,7 @@ app.post("/:id/dividends", async (c) => {
 app.delete("/:id/dividends/:dividendId", async (c) => {
   const user = c.get("user")
   const { id: portfolioId, dividendId } = c.req.param()
-  const ids = await getEditablePortfolioIds(ctx(user), "stocks")
-  if (!ids.includes(portfolioId)) return c.json({ error: "Forbidden" }, 403)
+  if (!(await canEditPortfolio(toAccessContext(user), "stocks", portfolioId))) return c.json({ error: "Forbidden" }, 403)
 
   await db.delete(stockDividends)
     .where(and(eq(stockDividends.id, dividendId), eq(stockDividends.portfolioId, portfolioId)))

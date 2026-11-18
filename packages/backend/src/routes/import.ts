@@ -5,7 +5,7 @@ import { db } from "../db"
 import { accounts, transactions } from "../db/schema"
 import { parseCamt053 } from "../services/camt053"
 import { linkTransfers } from "../services/transferLinker"
-import { detectSubscriptions } from "../services/subscriptionDetector"
+import { runBackgroundJobs } from "../services/backgroundJobs"
 import { getEditableAccountIds } from "../services/accessControl"
 import type { ImportResult } from "@argent/shared"
 import type { AuthUser } from "../middleware/auth"
@@ -116,8 +116,7 @@ app.post("/", async (c) => {
 
   try {
     const result = await importXml(await file.text(), user.groups ?? [], user.sub, user.isAdmin, user.canImport)
-    linkTransfers().then((n) => n > 0 && console.log(`[linker] Linked ${n} transfer pair(s)`))
-    detectSubscriptions().then((n) => n > 0 && console.log(`[subscriptions] Detected ${n} new subscription(s)`))
+    void runBackgroundJobs("import")
     return c.json(result, 201)
   } catch (err) {
     const message = (err as Error).message
@@ -164,8 +163,7 @@ app.post("/zip", async (c) => {
     }
   }
 
-  linkTransfers().then((n) => n > 0 && console.log(`[linker] Linked ${n} transfer pair(s)`))
-  detectSubscriptions().then((n) => n > 0 && console.log(`[subscriptions] Detected ${n} new subscription(s)`))
+  void runBackgroundJobs("import")
   return c.json({ results, errors }, 201)
 })
 

@@ -1,4 +1,5 @@
-import { and, eq, inArray } from "drizzle-orm"
+import { and, eq, inArray, or, type SQL } from "drizzle-orm"
+import type { PgColumn, PgTable } from "drizzle-orm/pg-core"
 import { db } from "../db"
 import { accounts, accountMembers, portfolios, portfolioMembers, mortgages, mortgageMembers, loans, loanMembers } from "../db/schema"
 
@@ -8,164 +9,141 @@ export interface AccessContext {
   isAdmin: boolean
 }
 
-/** Account IDs the user can read (owner, viewer or editor role via any of their groups, or admin). */
-export async function getViewableAccountIds(ctx: AccessContext): Promise<string[]> {
-  if (ctx.isAdmin) {
-    const rows = await db.select({ id: accounts.id }).from(accounts)
-    return rows.map((r) => r.id)
-  }
-
-  const [byGroup, byOwner] = await Promise.all([
-    ctx.groups.length > 0
-      ? db
-          .select({ accountId: accountMembers.accountId })
-          .from(accountMembers)
-          .where(inArray(accountMembers.groupName, ctx.groups))
-      : Promise.resolve([]),
-    db.select({ id: accounts.id }).from(accounts).where(eq(accounts.ownerSub, ctx.sub)),
-  ])
-
-  return [...new Set([...byGroup.map((r) => r.accountId), ...byOwner.map((r) => r.id)])]
+/** Anything carrying the identity fields we need (e.g. the `AuthUser` set by the auth middleware). */
+interface AccessSubject {
+  sub: string
+  groups?: string[]
+  isAdmin: boolean
 }
 
-/** Portfolio IDs of the given type the user can read (owner, any-role member, or admin). */
-export async function getViewablePortfolioIds(ctx: AccessContext, type: string): Promise<string[]> {
-  if (ctx.isAdmin) {
-    const rows = await db.select({ id: portfolios.id }).from(portfolios).where(eq(portfolios.type, type))
-    return rows.map((r) => r.id)
-  }
-
-  const [byGroup, byOwner] = await Promise.all([
-    ctx.groups.length > 0
-      ? db
-          .select({ portfolioId: portfolioMembers.portfolioId })
-          .from(portfolioMembers)
-          .innerJoin(portfolios, eq(portfolios.id, portfolioMembers.portfolioId))
-          .where(and(inArray(portfolioMembers.groupName, ctx.groups), eq(portfolios.type, type)))
-      : Promise.resolve([]),
-    db.select({ id: portfolios.id }).from(portfolios).where(and(eq(portfolios.ownerSub, ctx.sub), eq(portfolios.type, type))),
-  ])
-
-  return [...new Set([...byGroup.map((r) => r.portfolioId), ...byOwner.map((r) => r.id)])]
+/** Builds the access context for an authenticated user. */
+export function toAccessContext(user: AccessSubject): AccessContext {
+  return { groups: user.groups ?? [], sub: user.sub, isAdmin: user.isAdmin }
 }
 
-/** Portfolio IDs of the given type the user can write to (owner, editor role, or admin). */
-export async function getEditablePortfolioIds(ctx: AccessContext, type: string): Promise<string[]> {
-  if (ctx.isAdmin) {
-    const rows = await db.select({ id: portfolios.id }).from(portfolios).where(eq(portfolios.type, type))
-    return rows.map((r) => r.id)
-  }
-
-  const [byGroup, byOwner] = await Promise.all([
-    ctx.groups.length > 0
-      ? db
-          .select({ portfolioId: portfolioMembers.portfolioId })
-          .from(portfolioMembers)
-          .innerJoin(portfolios, eq(portfolios.id, portfolioMembers.portfolioId))
-          .where(and(inArray(portfolioMembers.groupName, ctx.groups), eq(portfolioMembers.role, "editor"), eq(portfolios.type, type)))
-      : Promise.resolve([]),
-    db.select({ id: portfolios.id }).from(portfolios).where(and(eq(portfolios.ownerSub, ctx.sub), eq(portfolios.type, type))),
-  ])
-
-  return [...new Set([...byGroup.map((r) => r.portfolioId), ...byOwner.map((r) => r.id)])]
+/**
+ * Describes a resource that is owned by one user and can be shared with groups
+ * through a `*_members(resourceId, groupName, role)` table.
+ */
+interface SharedResource {
+  table: PgTable
+  id: PgColumn
+  ownerSub: PgColumn
+  members: PgTable
+  memberResourceId: PgColumn
+  memberGroup: PgColumn
+  memberRole: PgColumn
+  /** Extra restriction on the resource rows (e.g. portfolio type). */
+  scope?: SQL
 }
 
-/** Mortgage IDs the user can read (owner, any-role member, or admin). */
-export async function getViewableMortgageIds(ctx: AccessContext): Promise<string[]> {
-  if (ctx.isAdmin) {
-    const rows = await db.select({ id: mortgages.id }).from(mortgages)
-    return rows.map((r) => r.id)
-  }
+type Mode = "view" | "edit"
 
-  const [byGroup, byOwner] = await Promise.all([
-    ctx.groups.length > 0
-      ? db
-          .select({ mortgageId: mortgageMembers.mortgageId })
-          .from(mortgageMembers)
-          .where(inArray(mortgageMembers.groupName, ctx.groups))
-      : Promise.resolve([]),
-    db.select({ id: mortgages.id }).from(mortgages).where(eq(mortgages.ownerSub, ctx.sub)),
-  ])
-
-  return [...new Set([...byGroup.map((r) => r.mortgageId), ...byOwner.map((r) => r.id)])]
+const accountResource: SharedResource = {
+  table: accounts,
+  id: accounts.id,
+  ownerSub: accounts.ownerSub,
+  members: accountMembers,
+  memberResourceId: accountMembers.accountId,
+  memberGroup: accountMembers.groupName,
+  memberRole: accountMembers.role,
 }
 
-/** Mortgage IDs the user can write to (owner, editor role, or admin). */
-export async function getEditableMortgageIds(ctx: AccessContext): Promise<string[]> {
-  if (ctx.isAdmin) {
-    const rows = await db.select({ id: mortgages.id }).from(mortgages)
-    return rows.map((r) => r.id)
-  }
+const portfolioResource = (type: string): SharedResource => ({
+  table: portfolios,
+  id: portfolios.id,
+  ownerSub: portfolios.ownerSub,
+  members: portfolioMembers,
+  memberResourceId: portfolioMembers.portfolioId,
+  memberGroup: portfolioMembers.groupName,
+  memberRole: portfolioMembers.role,
+  scope: eq(portfolios.type, type),
+})
 
-  const [byGroup, byOwner] = await Promise.all([
-    ctx.groups.length > 0
-      ? db
-          .select({ mortgageId: mortgageMembers.mortgageId })
-          .from(mortgageMembers)
-          .where(and(inArray(mortgageMembers.groupName, ctx.groups), eq(mortgageMembers.role, "editor")))
-      : Promise.resolve([]),
-    db.select({ id: mortgages.id }).from(mortgages).where(eq(mortgages.ownerSub, ctx.sub)),
-  ])
-
-  return [...new Set([...byGroup.map((r) => r.mortgageId), ...byOwner.map((r) => r.id)])]
+const mortgageResource: SharedResource = {
+  table: mortgages,
+  id: mortgages.id,
+  ownerSub: mortgages.ownerSub,
+  members: mortgageMembers,
+  memberResourceId: mortgageMembers.mortgageId,
+  memberGroup: mortgageMembers.groupName,
+  memberRole: mortgageMembers.role,
 }
 
-/** Loan IDs the user can read (owner, any-role member, or admin). */
-export async function getViewableLoanIds(ctx: AccessContext): Promise<string[]> {
-  if (ctx.isAdmin) {
-    const rows = await db.select({ id: loans.id }).from(loans)
-    return rows.map((r) => r.id)
-  }
-
-  const [byGroup, byOwner] = await Promise.all([
-    ctx.groups.length > 0
-      ? db
-          .select({ loanId: loanMembers.loanId })
-          .from(loanMembers)
-          .where(inArray(loanMembers.groupName, ctx.groups))
-      : Promise.resolve([]),
-    db.select({ id: loans.id }).from(loans).where(eq(loans.ownerSub, ctx.sub)),
-  ])
-
-  return [...new Set([...byGroup.map((r) => r.loanId), ...byOwner.map((r) => r.id)])]
+const loanResource: SharedResource = {
+  table: loans,
+  id: loans.id,
+  ownerSub: loans.ownerSub,
+  members: loanMembers,
+  memberResourceId: loanMembers.loanId,
+  memberGroup: loanMembers.groupName,
+  memberRole: loanMembers.role,
 }
 
-/** Loan IDs the user can write to (owner, editor role, or admin). */
-export async function getEditableLoanIds(ctx: AccessContext): Promise<string[]> {
-  if (ctx.isAdmin) {
-    const rows = await db.select({ id: loans.id }).from(loans)
-    return rows.map((r) => r.id)
+/**
+ * WHERE clause selecting the resources `ctx` may access in the given mode:
+ *   - admins: everything (within scope)
+ *   - otherwise: resources they own, or that are shared with one of their
+ *     groups (any role for "view", `editor` role for "edit").
+ */
+function accessFilter(r: SharedResource, ctx: AccessContext, mode: Mode): SQL | undefined {
+  if (ctx.isAdmin) return r.scope
+
+  const grants: SQL[] = [eq(r.ownerSub, ctx.sub)]
+  if (ctx.groups.length > 0) {
+    const memberFilter = and(
+      inArray(r.memberGroup, ctx.groups),
+      mode === "edit" ? eq(r.memberRole, "editor") : undefined,
+    )
+    grants.push(
+      inArray(r.id, db.select({ id: r.memberResourceId }).from(r.members).where(memberFilter)),
+    )
   }
-
-  const [byGroup, byOwner] = await Promise.all([
-    ctx.groups.length > 0
-      ? db
-          .select({ loanId: loanMembers.loanId })
-          .from(loanMembers)
-          .where(and(inArray(loanMembers.groupName, ctx.groups), eq(loanMembers.role, "editor")))
-      : Promise.resolve([]),
-    db.select({ id: loans.id }).from(loans).where(eq(loans.ownerSub, ctx.sub)),
-  ])
-
-  return [...new Set([...byGroup.map((r) => r.loanId), ...byOwner.map((r) => r.id)])]
+  return and(r.scope, or(...grants))
 }
 
-/** Account IDs the user can write to (owner, editor role via any of their groups, or admin). */
-export async function getEditableAccountIds(ctx: AccessContext): Promise<string[]> {
-  if (ctx.isAdmin) {
-    const rows = await db.select({ id: accounts.id }).from(accounts)
-    return rows.map((r) => r.id)
-  }
-
-  const [byGroup, byOwner] = await Promise.all([
-    ctx.groups.length > 0
-      ? db
-          .select({ accountId: accountMembers.accountId })
-          .from(accountMembers)
-          .where(and(inArray(accountMembers.groupName, ctx.groups), eq(accountMembers.role, "editor")))
-      : Promise.resolve([]),
-    db.select({ id: accounts.id }).from(accounts).where(eq(accounts.ownerSub, ctx.sub)),
-  ])
-
-  return [...new Set([...byGroup.map((r) => r.accountId), ...byOwner.map((r) => r.id)])]
+async function resolveIds(r: SharedResource, ctx: AccessContext, mode: Mode): Promise<string[]> {
+  const rows = await db.select({ id: r.id }).from(r.table).where(accessFilter(r, ctx, mode))
+  return rows.map((row) => row.id as string)
 }
+
+async function hasAccess(r: SharedResource, ctx: AccessContext, mode: Mode, id: string): Promise<boolean> {
+  const rows = await db
+    .select({ id: r.id })
+    .from(r.table)
+    .where(and(eq(r.id, id), accessFilter(r, ctx, mode)))
+    .limit(1)
+  return rows.length > 0
+}
+
+// ── Accounts ─────────────────────────────────────────────────────────────────
+
+/** Account IDs the user can read (owner, any-role member via one of their groups, or admin). */
+export const getViewableAccountIds = (ctx: AccessContext) => resolveIds(accountResource, ctx, "view")
+/** Account IDs the user can write to (owner, editor role via one of their groups, or admin). */
+export const getEditableAccountIds = (ctx: AccessContext) => resolveIds(accountResource, ctx, "edit")
+export const canViewAccount = (ctx: AccessContext, id: string) => hasAccess(accountResource, ctx, "view", id)
+export const canEditAccount = (ctx: AccessContext, id: string) => hasAccess(accountResource, ctx, "edit", id)
+
+// ── Portfolios (crypto | metals | stocks) ────────────────────────────────────
+
+/** Portfolio IDs of the given type the user can read. */
+export const getViewablePortfolioIds = (ctx: AccessContext, type: string) => resolveIds(portfolioResource(type), ctx, "view")
+/** Portfolio IDs of the given type the user can write to. */
+export const getEditablePortfolioIds = (ctx: AccessContext, type: string) => resolveIds(portfolioResource(type), ctx, "edit")
+export const canViewPortfolio = (ctx: AccessContext, type: string, id: string) => hasAccess(portfolioResource(type), ctx, "view", id)
+export const canEditPortfolio = (ctx: AccessContext, type: string, id: string) => hasAccess(portfolioResource(type), ctx, "edit", id)
+
+// ── Mortgages ────────────────────────────────────────────────────────────────
+
+export const getViewableMortgageIds = (ctx: AccessContext) => resolveIds(mortgageResource, ctx, "view")
+export const getEditableMortgageIds = (ctx: AccessContext) => resolveIds(mortgageResource, ctx, "edit")
+export const canViewMortgage = (ctx: AccessContext, id: string) => hasAccess(mortgageResource, ctx, "view", id)
+export const canEditMortgage = (ctx: AccessContext, id: string) => hasAccess(mortgageResource, ctx, "edit", id)
+
+// ── Loans ────────────────────────────────────────────────────────────────────
+
+export const getViewableLoanIds = (ctx: AccessContext) => resolveIds(loanResource, ctx, "view")
+export const getEditableLoanIds = (ctx: AccessContext) => resolveIds(loanResource, ctx, "edit")
+export const canViewLoan = (ctx: AccessContext, id: string) => hasAccess(loanResource, ctx, "view", id)
+export const canEditLoan = (ctx: AccessContext, id: string) => hasAccess(loanResource, ctx, "edit", id)

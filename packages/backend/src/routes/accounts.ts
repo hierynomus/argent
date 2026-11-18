@@ -2,14 +2,16 @@ import { Hono } from "hono"
 import { and, eq, gte, inArray, sql } from "drizzle-orm"
 import { db } from "../db"
 import { accounts, transactions } from "../db/schema"
-import { getViewableAccountIds, getEditableAccountIds } from "../services/accessControl"
+import { getViewableAccountIds, toAccessContext, canEditAccount, canViewAccount } from "../services/accessControl"
 import type { AuthUser } from "../middleware/auth"
+import { validateJson } from "../middleware/validate"
+import { updateAccountSchema } from "@argent/shared"
 
 const app = new Hono<{ Variables: { user: AuthUser } }>()
 
 app.get("/", async (c) => {
   const user = c.get("user")
-  const ids = await getViewableAccountIds({ groups: user.groups ?? [], sub: user.sub, isAdmin: user.isAdmin })
+  const ids = await getViewableAccountIds(toAccessContext(user))
   if (ids.length === 0) return c.json([])
   const rows = await db
     .select()
@@ -39,26 +41,21 @@ app.get("/", async (c) => {
 
 app.get("/:id", async (c) => {
   const user = c.get("user")
-  const ids = await getViewableAccountIds({ groups: user.groups ?? [], sub: user.sub, isAdmin: user.isAdmin })
+  const access = toAccessContext(user)
   const id = c.req.param("id")
-  if (!ids.includes(id)) return c.json({ error: "Not found" }, 404)
+  if (!(await canViewAccount(access, id))) return c.json({ error: "Not found" }, 404)
   const account = await db.query.accounts.findFirst({ where: (a, { eq }) => eq(a.id, id) })
   if (!account) return c.json({ error: "Not found" }, 404)
   return c.json(account)
 })
 
-app.patch("/:id", async (c) => {
+app.patch("/:id", validateJson(updateAccountSchema), async (c) => {
   const user = c.get("user")
   const id = c.req.param("id")
-  const ids = await getEditableAccountIds({ groups: user.groups ?? [], sub: user.sub, isAdmin: user.isAdmin })
-  if (!ids.includes(id)) return c.json({ error: "Forbidden" }, 403)
+  const access = toAccessContext(user)
+  if (!(await canEditAccount(access, id))) return c.json({ error: "Forbidden" }, 403)
 
-  const body = await c.req.json<{
-    name?: string
-    type?: string
-    openingBalance?: string
-    openingBalanceDate?: string | null
-  }>()
+  const body = c.req.valid("json")
 
   const updates: Record<string, unknown> = {}
   if (body.name !== undefined) updates.name = body.name.trim() || null

@@ -68,6 +68,9 @@ export async function linkTransfers(): Promise<number> {
           eq(transactions.amount, tx.amount),
           eq(transactions.currency, tx.currency),
           inArray(transactions.accountId, ownIds),
+          // A transfer moves money BETWEEN accounts; a payment and its reversal on the
+          // same account sharing an EndToEndId are not a transfer.
+          ne(transactions.accountId, tx.accountId),
           isNull(transactions.transferPeerId),
           ne(transactions.id, tx.id),
           sql`${transactions.bookingDate}::date BETWEEN (${tx.bookingDate}::date - 3) AND (${tx.bookingDate}::date + 3)`,
@@ -100,7 +103,7 @@ export async function linkTransfers(): Promise<number> {
     if (linkedIds.has(tx.id)) continue
 
     const peerAccountId = ibanToId.get(tx.counterpartyIban!)
-    if (!peerAccountId) continue
+    if (!peerAccountId || peerAccountId === tx.accountId) continue
 
     const [peer] = await db.query.transactions.findMany({
       where: and(

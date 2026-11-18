@@ -1,6 +1,5 @@
 import { useState, useRef } from "react"
-import { useAuth } from "react-oidc-context"
-import { importCamt053, importCamt053Zip } from "../api"
+import { importCamt053, importCamt053Zip, useInvalidate } from "../../api"
 import type { ImportResult } from "@argent/shared"
 
 type FileResult =
@@ -9,32 +8,25 @@ type FileResult =
   | { filename: string; status: "done"; result: ImportResult }
   | { filename: string; status: "error"; error: string }
 
-export default function ImportPage() {
-  const auth = useAuth()
-  const token = auth.user?.access_token ?? ""
+export function ImportPanel() {
+  const invalidate = useInvalidate()
   const inputRef = useRef<HTMLInputElement>(null)
   const [items, setItems] = useState<FileResult[]>([])
 
-  function updateItem(filename: string, update: Partial<FileResult>) {
-    setItems((prev) =>
-      prev.map((item) => (item.filename === filename ? { ...item, ...update } : item))
-    )
+  /** Replaces the row with the same filename. */
+  function updateItem(next: FileResult) {
+    setItems((prev) => prev.map((item) => (item.filename === next.filename ? next : item)))
   }
 
   async function handleFiles(files: FileList | null) {
     if (!files?.length) return
-
     const fileArray = Array.from(files)
-
-    // Initialise all items as pending so the list renders immediately
     setItems(fileArray.map((f) => ({ filename: f.name, status: "pending" })))
-
     for (const file of fileArray) {
-      updateItem(file.name, { status: "importing" })
+      updateItem({ filename: file.name, status: "importing" })
       try {
         if (file.name.toLowerCase().endsWith(".zip")) {
-          const { results, errors } = await importCamt053Zip(token, file)
-          // Replace the ZIP row with per-file rows
+          const { results, errors } = await importCamt053Zip(file)
           setItems((prev) => {
             const without = prev.filter((i) => i.filename !== file.name)
             const expanded: FileResult[] = [
@@ -51,38 +43,29 @@ export default function ImportPage() {
             ]
             return [...without, ...expanded]
           })
+          if (results.length > 0) invalidate.afterImport()
         } else {
-          const result = await importCamt053(token, file)
-          updateItem(file.name, { status: "done", result })
+          const result = await importCamt053(file)
+          updateItem({ filename: file.name, status: "done", result })
+          if (result.imported > 0) invalidate.afterImport()
         }
       } catch (err) {
-        updateItem(file.name, { status: "error", error: (err as Error).message })
+        updateItem({ filename: file.name, status: "error", error: (err as Error).message })
       }
     }
   }
 
   const isDone = items.length > 0 && items.every((i) => i.status === "done" || i.status === "error")
-  const totalImported = items.reduce(
-    (sum, i) => sum + (i.status === "done" ? i.result.imported : 0),
-    0
-  )
-  const totalSkipped = items.reduce(
-    (sum, i) => sum + (i.status === "done" ? i.result.skipped : 0),
-    0
-  )
+  const totalImported = items.reduce((sum, i) => sum + (i.status === "done" ? i.result.imported : 0), 0)
+  const totalSkipped = items.reduce((sum, i) => sum + (i.status === "done" ? i.result.skipped : 0), 0)
 
   return (
     <div className="max-w-2xl">
-      <h1 className="text-2xl font-semibold text-gray-900 dark:text-gray-100 mb-6">Import CAMT.053</h1>
-
       <div
         className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl p-12 text-center cursor-pointer hover:border-indigo-400 dark:hover:border-indigo-500 transition-colors"
         onClick={() => inputRef.current?.click()}
         onDragOver={(e) => e.preventDefault()}
-        onDrop={(e) => {
-          e.preventDefault()
-          handleFiles(e.dataTransfer.files)
-        }}
+        onDrop={(e) => { e.preventDefault(); handleFiles(e.dataTransfer.files) }}
       >
         <p className="text-gray-500 dark:text-gray-400 mb-2">Drag & drop CAMT.053 XML or ZIP files here</p>
         <p className="text-sm text-gray-400 dark:text-gray-500">or click to select files</p>
@@ -92,6 +75,8 @@ export default function ImportPage() {
           accept=".xml,.zip"
           multiple
           className="hidden"
+          // the input sits inside the clickable drop zone: don't let its own click bubble up and re-trigger it
+          onClick={(e) => e.stopPropagation()}
           onChange={(e) => handleFiles(e.target.files)}
         />
       </div>
@@ -125,19 +110,11 @@ export default function ImportPage() {
                       {item.status === "done" ? item.result.skipped : "—"}
                     </td>
                     <td className="px-4 py-3">
-                      {item.status === "pending" && (
-                        <span className="text-gray-400 dark:text-gray-500 text-xs">Waiting…</span>
-                      )}
-                      {item.status === "importing" && (
-                        <span className="text-indigo-600 dark:text-indigo-400 text-xs">Importing…</span>
-                      )}
-                      {item.status === "done" && (
-                        <span className="text-green-600 dark:text-green-400 text-xs">Done</span>
-                      )}
+                      {item.status === "pending" && <span className="text-gray-400 dark:text-gray-500 text-xs">Waiting…</span>}
+                      {item.status === "importing" && <span className="text-indigo-600 dark:text-indigo-400 text-xs">Importing…</span>}
+                      {item.status === "done" && <span className="text-green-600 dark:text-green-400 text-xs">Done</span>}
                       {item.status === "error" && (
-                        <span className="text-red-600 dark:text-red-400 text-xs" title={item.error}>
-                          Error
-                        </span>
+                        <span className="text-red-600 dark:text-red-400 text-xs" title={(item as { error: string }).error}>Error</span>
                       )}
                     </td>
                   </tr>
@@ -146,9 +123,7 @@ export default function ImportPage() {
               {isDone && items.length > 1 && (
                 <tfoot>
                   <tr className="border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-xs font-medium text-gray-600 dark:text-gray-400">
-                    <td className="px-4 py-2" colSpan={2}>
-                      Total
-                    </td>
+                    <td className="px-4 py-2" colSpan={2}>Total</td>
                     <td className="px-4 py-2 text-right text-green-700 dark:text-green-400">{totalImported}</td>
                     <td className="px-4 py-2 text-right text-gray-400 dark:text-gray-500">{totalSkipped}</td>
                     <td />
@@ -160,13 +135,11 @@ export default function ImportPage() {
 
           {items.some((i) => i.status === "error") && (
             <div className="mt-3 space-y-1">
-              {items
-                .filter((i) => i.status === "error")
-                .map((i) => (
-                  <p key={i.filename} className="text-xs text-red-600 dark:text-red-400">
-                    <span className="font-mono">{i.filename}</span>: {(i as { error: string }).error}
-                  </p>
-                ))}
+              {items.filter((i) => i.status === "error").map((i) => (
+                <p key={i.filename} className="text-xs text-red-600 dark:text-red-400">
+                  <span className="font-mono">{i.filename}</span>: {(i as { error: string }).error}
+                </p>
+              ))}
             </div>
           )}
         </div>

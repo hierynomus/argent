@@ -4,7 +4,9 @@ import { transactions } from "../db/schema"
 import { and, eq, gte, ilike, inArray, isNull, lte, sql } from "drizzle-orm"
 import type { LinkTransferBody, TransactionFilters, UpdateTransactionBody } from "@argent/shared"
 import type { AuthUser } from "../middleware/auth"
-import { getViewableAccountIds, getEditableAccountIds } from "../services/accessControl"
+import { validateJson } from "../middleware/validate"
+import { updateTransactionSchema, linkTransferSchema } from "@argent/shared"
+import { getViewableAccountIds, toAccessContext, canEditAccount } from "../services/accessControl"
 
 const app = new Hono<{ Variables: { user: AuthUser } }>()
 
@@ -12,7 +14,7 @@ const withDetails = { account: true, category: true, transferPeer: { with: { acc
 
 app.get("/", async (c) => {
   const user = c.get("user")
-  const accessibleIds = await getViewableAccountIds({ groups: user.groups ?? [], sub: user.sub, isAdmin: user.isAdmin })
+  const accessibleIds = await getViewableAccountIds(toAccessContext(user))
   if (accessibleIds.length === 0) {
     return c.json({ data: [], total: 0, page: 1, pageSize: 50 })
   }
@@ -86,7 +88,7 @@ app.get("/", async (c) => {
 
 app.get("/:id/transfer-suggestions", async (c) => {
   const user = c.get("user")
-  const accessibleIds = await getViewableAccountIds({ groups: user.groups ?? [], sub: user.sub, isAdmin: user.isAdmin })
+  const accessibleIds = await getViewableAccountIds(toAccessContext(user))
 
   const tx = await db.query.transactions.findFirst({
     where: (t, { eq }) => eq(t.id, c.req.param("id")),
@@ -115,14 +117,14 @@ app.get("/:id/transfer-suggestions", async (c) => {
   return c.json(suggestions)
 })
 
-app.patch("/:id", async (c) => {
+app.patch("/:id", validateJson(updateTransactionSchema), async (c) => {
   const user = c.get("user")
-  const accessibleIds = await getEditableAccountIds({ groups: user.groups ?? [], sub: user.sub, isAdmin: user.isAdmin })
-  const body = await c.req.json<UpdateTransactionBody>()
+  const access = toAccessContext(user)
+  const body = c.req.valid("json")
   const id = c.req.param("id")
 
   const tx = await db.query.transactions.findFirst({ where: (t, { eq }) => eq(t.id, id) })
-  if (!tx || !accessibleIds.includes(tx.accountId)) return c.json({ error: "Not found" }, 404)
+  if (!tx || !(await canEditAccount(access, tx.accountId))) return c.json({ error: "Not found" }, 404)
 
   const [updated] = await db
     .update(transactions)
@@ -134,11 +136,11 @@ app.patch("/:id", async (c) => {
   return c.json(updated)
 })
 
-app.post("/:id/transfer", async (c) => {
+app.post("/:id/transfer", validateJson(linkTransferSchema), async (c) => {
   const user = c.get("user")
-  const accessibleIds = await getEditableAccountIds({ groups: user.groups ?? [], sub: user.sub, isAdmin: user.isAdmin })
+  const access = toAccessContext(user)
   const id = c.req.param("id")
-  const { peerId } = await c.req.json<LinkTransferBody>()
+  const { peerId } = c.req.valid("json")
 
   const [txA, txB] = await Promise.all([
     db.query.transactions.findFirst({ where: (t, { eq }) => eq(t.id, id) }),
@@ -146,7 +148,7 @@ app.post("/:id/transfer", async (c) => {
   ])
 
   if (!txA || !txB) return c.json({ error: "Not found" }, 404)
-  if (!accessibleIds.includes(txA.accountId) || !accessibleIds.includes(txB.accountId)) {
+  if (!(await canEditAccount(access, txA.accountId)) || !(await canEditAccount(access, txB.accountId))) {
     return c.json({ error: "Forbidden" }, 403)
   }
   if (txA.transferPeerId || txB.transferPeerId) {
@@ -168,11 +170,11 @@ app.post("/:id/transfer", async (c) => {
 
 app.delete("/:id/transfer", async (c) => {
   const user = c.get("user")
-  const accessibleIds = await getEditableAccountIds({ groups: user.groups ?? [], sub: user.sub, isAdmin: user.isAdmin })
+  const access = toAccessContext(user)
   const id = c.req.param("id")
 
   const tx = await db.query.transactions.findFirst({ where: (t, { eq }) => eq(t.id, id) })
-  if (!tx || !accessibleIds.includes(tx.accountId)) return c.json({ error: "Not found" }, 404)
+  if (!tx || !(await canEditAccount(access, tx.accountId))) return c.json({ error: "Not found" }, 404)
   if (!tx.transferPeerId) return c.json({ error: "Not linked to a transfer" }, 409)
 
   await Promise.all([

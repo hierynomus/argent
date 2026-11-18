@@ -8,7 +8,9 @@
 import { AuthContext } from "react-oidc-context"
 import type { AuthContextProps } from "react-oidc-context"
 
-const noop = async () => {}
+// Stubs for the oidc-client-ts methods; they resolve to nothing, so the return type is loosened.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const noop = async (..._args: unknown[]): Promise<any> => undefined
 
 const fakeContext: AuthContextProps = {
   isAuthenticated: true,
@@ -50,6 +52,8 @@ const fakeContext: AuthContextProps = {
   startSilentRenew: () => {},
   stopSilentRenew: () => {},
   events: {} as AuthContextProps["events"],
+  settings: {} as AuthContextProps["settings"],
+  querySessionStatus: noop,
 }
 
 export function FakeAuthProvider({ children }: { children: React.ReactNode }) {

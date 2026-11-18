@@ -3,6 +3,8 @@ import { eq } from "drizzle-orm"
 import { db } from "../db"
 import { userProfiles } from "../db/schema"
 import type { AuthUser } from "../middleware/auth"
+import { validateJson } from "../middleware/validate"
+import { updateMeSchema } from "@argent/shared"
 
 const app = new Hono<{ Variables: { user: AuthUser } }>()
 
@@ -28,12 +30,11 @@ app.get("/", async (c) => {
   return c.json(meResponse(user, (profile?.theme as Theme) ?? "system"))
 })
 
-app.patch("/", async (c) => {
+app.patch("/", validateJson(updateMeSchema), async (c) => {
   const user = c.get("user")
-  const { theme } = await c.req.json<{ theme?: string }>()
+  const { theme } = c.req.valid("json")
 
   if (theme === undefined) return c.json({ error: "No fields to update" }, 400)
-  if (!VALID_THEMES.includes(theme as Theme)) return c.json({ error: "Invalid theme value" }, 400)
 
   await db
     .update(userProfiles)

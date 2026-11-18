@@ -3,8 +3,10 @@ import { eq, and, inArray } from "drizzle-orm"
 import { db } from "../db"
 import { loans, loanParts, loanExtraPayments, loanMembers } from "../db/schema"
 import { computePartState } from "../services/amortization"
-import { getViewableLoanIds, getEditableLoanIds } from "../services/accessControl"
+import { getViewableLoanIds, getEditableLoanIds, toAccessContext, canEditLoan } from "../services/accessControl"
 import type { AuthUser } from "../middleware/auth"
+import { validateJson } from "../middleware/validate"
+import { createDebtSchema, updateDebtSchema, createDebtPartSchema, updateDebtPartSchema, createDebtExtraPaymentSchema, addMemberSchema } from "@argent/shared"
 
 const app = new Hono<{ Variables: { user: AuthUser } }>()
 
@@ -37,7 +39,7 @@ function enrichPart(
 // List all loans with parts
 app.get("/", async (c) => {
   const user = c.get("user")
-  const ctx = { groups: user.groups ?? [], sub: user.sub, isAdmin: user.isAdmin }
+  const ctx = toAccessContext(user)
   const [ids, editableIds] = await Promise.all([
     getViewableLoanIds(ctx),
     getEditableLoanIds(ctx),
@@ -91,12 +93,9 @@ app.get("/", async (c) => {
 })
 
 // Create loan
-app.post("/", async (c) => {
+app.post("/", validateJson(createDebtSchema), async (c) => {
   const user = c.get("user")
-  const body = await c.req.json<{ name: string; currency?: string }>()
-  const name = body.name?.trim()
-  if (!name) return c.json({ error: "name is required" }, 400)
-  const currency = body.currency === "USD" ? "USD" : "EUR"
+  const { name, currency = "EUR" } = c.req.valid("json")
   const [loan] = await db
     .insert(loans)
     .values({ name, currency, ownerSub: user.sub })
@@ -105,13 +104,12 @@ app.post("/", async (c) => {
 })
 
 // Update loan
-app.patch("/:id", async (c) => {
+app.patch("/:id", validateJson(updateDebtSchema), async (c) => {
   const user = c.get("user")
   const id = c.req.param("id")
-  const ctx = { groups: user.groups ?? [], sub: user.sub, isAdmin: user.isAdmin }
-  const editableIds = await getEditableLoanIds(ctx)
-  if (!editableIds.includes(id)) return c.json({ error: "Not found" }, 404)
-  const body = await c.req.json<{ name?: string; currency?: string }>()
+  const ctx = toAccessContext(user)
+  if (!(await canEditLoan(ctx, id))) return c.json({ error: "Not found" }, 404)
+  const body = c.req.valid("json")
   const updates: Partial<typeof loans.$inferInsert> = {}
   if (body.name?.trim()) updates.name = body.name.trim()
   if (body.currency === "EUR" || body.currency === "USD") updates.currency = body.currency
@@ -132,30 +130,14 @@ app.delete("/:id", async (c) => {
 })
 
 // Add part
-app.post("/:id/parts", async (c) => {
+app.post("/:id/parts", validateJson(createDebtPartSchema), async (c) => {
   const user = c.get("user")
   const loanId = c.req.param("id")
-  const ctx = { groups: user.groups ?? [], sub: user.sub, isAdmin: user.isAdmin }
-  const editableIds = await getEditableLoanIds(ctx)
-  if (!editableIds.includes(loanId)) return c.json({ error: "Not found" }, 404)
+  const ctx = toAccessContext(user)
+  if (!(await canEditLoan(ctx, loanId))) return c.json({ error: "Not found" }, 404)
 
-  const body = await c.req.json<{
-    name: string
-    type: string
-    principal: string
-    annualInterestRate: string
-    startDate: string
-    endDate: string
-  }>()
-
-  const name = body.name?.trim()
-  if (!name) return c.json({ error: "name is required" }, 400)
-  if (!["linear", "annuity", "interest_only"].includes(body.type)) {
-    return c.json({ error: "type must be linear, annuity, or interest_only" }, 400)
-  }
-  if (!body.principal || !body.annualInterestRate || !body.startDate || !body.endDate) {
-    return c.json({ error: "principal, annualInterestRate, startDate, endDate are required" }, 400)
-  }
+  const body = c.req.valid("json")
+  const name = body.name
 
   const [part] = await db
     .insert(loanParts)
@@ -174,18 +156,17 @@ app.post("/:id/parts", async (c) => {
 })
 
 // Update part
-app.patch("/:id/parts/:pid", async (c) => {
+app.patch("/:id/parts/:pid", validateJson(updateDebtPartSchema), async (c) => {
   const user = c.get("user")
   const { id: loanId, pid } = c.req.param()
-  const ctx = { groups: user.groups ?? [], sub: user.sub, isAdmin: user.isAdmin }
-  const editableIds = await getEditableLoanIds(ctx)
-  if (!editableIds.includes(loanId)) return c.json({ error: "Not found" }, 404)
+  const ctx = toAccessContext(user)
+  if (!(await canEditLoan(ctx, loanId))) return c.json({ error: "Not found" }, 404)
   const part = await db.query.loanParts.findFirst({
     where: (p, { and, eq }) => and(eq(p.id, pid), eq(p.loanId, loanId)),
   })
   if (!part) return c.json({ error: "Not found" }, 404)
 
-  const body = await c.req.json<{ name?: string; annualInterestRate?: string; endDate?: string }>()
+  const body = c.req.valid("json")
   const updates: Partial<typeof loanParts.$inferInsert> = {}
   if (body.name?.trim()) updates.name = body.name.trim()
   if (body.annualInterestRate !== undefined) updates.annualInterestRate = body.annualInterestRate
@@ -203,9 +184,8 @@ app.patch("/:id/parts/:pid", async (c) => {
 app.delete("/:id/parts/:pid", async (c) => {
   const user = c.get("user")
   const { id: loanId, pid } = c.req.param()
-  const ctx = { groups: user.groups ?? [], sub: user.sub, isAdmin: user.isAdmin }
-  const editableIds = await getEditableLoanIds(ctx)
-  if (!editableIds.includes(loanId)) return c.json({ error: "Not found" }, 404)
+  const ctx = toAccessContext(user)
+  if (!(await canEditLoan(ctx, loanId))) return c.json({ error: "Not found" }, 404)
   const deleted = await db.delete(loanParts)
     .where(and(eq(loanParts.id, pid), eq(loanParts.loanId, loanId)))
     .returning()
@@ -214,21 +194,17 @@ app.delete("/:id/parts/:pid", async (c) => {
 })
 
 // Add extra payment to part
-app.post("/:id/parts/:pid/payments", async (c) => {
+app.post("/:id/parts/:pid/payments", validateJson(createDebtExtraPaymentSchema), async (c) => {
   const user = c.get("user")
   const { id: loanId, pid } = c.req.param()
-  const ctx = { groups: user.groups ?? [], sub: user.sub, isAdmin: user.isAdmin }
-  const editableIds = await getEditableLoanIds(ctx)
-  if (!editableIds.includes(loanId)) return c.json({ error: "Not found" }, 404)
+  const ctx = toAccessContext(user)
+  if (!(await canEditLoan(ctx, loanId))) return c.json({ error: "Not found" }, 404)
   const part = await db.query.loanParts.findFirst({
     where: (p, { and, eq }) => and(eq(p.id, pid), eq(p.loanId, loanId)),
   })
   if (!part) return c.json({ error: "Not found" }, 404)
 
-  const body = await c.req.json<{ paymentDate: string; amount: string; notes?: string }>()
-  if (!body.paymentDate || !body.amount) {
-    return c.json({ error: "paymentDate and amount are required" }, 400)
-  }
+  const body = c.req.valid("json")
 
   const [payment] = await db
     .insert(loanExtraPayments)
@@ -241,9 +217,8 @@ app.post("/:id/parts/:pid/payments", async (c) => {
 app.delete("/:id/parts/:pid/payments/:paymentId", async (c) => {
   const user = c.get("user")
   const { id: loanId, pid, paymentId } = c.req.param()
-  const ctx = { groups: user.groups ?? [], sub: user.sub, isAdmin: user.isAdmin }
-  const editableIds = await getEditableLoanIds(ctx)
-  if (!editableIds.includes(loanId)) return c.json({ error: "Not found" }, 404)
+  const ctx = toAccessContext(user)
+  if (!(await canEditLoan(ctx, loanId))) return c.json({ error: "Not found" }, 404)
   const part = await db.query.loanParts.findFirst({
     where: (p, { and, eq }) => and(eq(p.id, pid), eq(p.loanId, loanId)),
   })
@@ -256,16 +231,15 @@ app.delete("/:id/parts/:pid/payments/:paymentId", async (c) => {
 })
 
 // Add/update member (owner-only)
-app.post("/:id/members", async (c) => {
+app.post("/:id/members", validateJson(addMemberSchema), async (c) => {
   const user = c.get("user")
   const loanId = c.req.param("id")
   const loan = await db.query.loans.findFirst({ where: (l, { eq }) => eq(l.id, loanId) })
   if (!loan) return c.json({ error: "Not found" }, 404)
   if (loan.ownerSub !== user.sub && !user.isAdmin) return c.json({ error: "Forbidden" }, 403)
 
-  const body = await c.req.json<{ groupName: string; role?: "viewer" | "editor" }>()
-  if (!body.groupName?.trim()) return c.json({ error: "groupName is required" }, 400)
-  const role = body.role === "editor" ? "editor" : "viewer"
+  const body = c.req.valid("json")
+  const role = body.role ?? "viewer"
 
   await db
     .insert(loanMembers)

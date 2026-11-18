@@ -6,16 +6,18 @@ import {
   detectSubscriptions,
   computeStatsFromTransactions,
 } from "../services/subscriptionDetector"
-import { getViewableAccountIds, getEditableAccountIds } from "../services/accessControl"
+import { getViewableAccountIds, toAccessContext, canEditAccount, canViewAccount } from "../services/accessControl"
 import type { UpdateSubscriptionBody, CreateSubscriptionBody } from "@argent/shared"
 import type { AuthUser } from "../middleware/auth"
+import { validateJson } from "../middleware/validate"
+import { createSubscriptionSchema, updateSubscriptionSchema } from "@argent/shared"
 
 const app = new Hono<{ Variables: { user: AuthUser } }>()
 
 // GET /api/subscriptions — list accessible subscriptions (excluding dismissed)
 app.get("/", async (c) => {
   const user = c.get("user")
-  const accessibleIds = await getViewableAccountIds({ groups: user.groups ?? [], sub: user.sub, isAdmin: user.isAdmin })
+  const accessibleIds = await getViewableAccountIds(toAccessContext(user))
   if (accessibleIds.length === 0) return c.json([])
 
   const rows = await db
@@ -51,14 +53,12 @@ app.get("/", async (c) => {
 })
 
 // POST /api/subscriptions — manually create a confirmed subscription
-app.post("/", async (c) => {
+app.post("/", validateJson(createSubscriptionSchema), async (c) => {
   const user = c.get("user")
-  const editableIds = await getEditableAccountIds({ groups: user.groups ?? [], sub: user.sub, isAdmin: user.isAdmin })
+  const access = toAccessContext(user)
 
-  const body = await c.req.json<CreateSubscriptionBody>()
-  if (!editableIds.includes(body.accountId)) return c.json({ error: "Forbidden" }, 403)
-  if (!body.counterpartyIban?.trim()) return c.json({ error: "counterpartyIban required" }, 400)
-
+  const body = c.req.valid("json")
+  if (!(await canEditAccount(access, body.accountId))) return c.json({ error: "Forbidden" }, 403)
   const counterpartyIban = body.counterpartyIban.trim()
 
   // Check for existing record with this (accountId, counterpartyIban)
@@ -101,7 +101,6 @@ app.post("/", async (c) => {
       .update(subscriptions)
       .set({
         status: "confirmed",
-        isActive: true,
         name: body.name ?? existing.name,
         ...stats,
       })
@@ -136,15 +135,15 @@ app.post("/", async (c) => {
 })
 
 // PATCH /api/subscriptions/:id — update name / isActive / status
-app.patch("/:id", async (c) => {
+app.patch("/:id", validateJson(updateSubscriptionSchema), async (c) => {
   const user = c.get("user")
-  const accessibleIds = await getEditableAccountIds({ groups: user.groups ?? [], sub: user.sub, isAdmin: user.isAdmin })
+  const access = toAccessContext(user)
   const id = c.req.param("id")
 
   const sub = await db.query.subscriptions.findFirst({ where: (s, { eq }) => eq(s.id, id) })
-  if (!sub || !accessibleIds.includes(sub.accountId)) return c.json({ error: "Not found" }, 404)
+  if (!sub || !(await canEditAccount(access, sub.accountId))) return c.json({ error: "Not found" }, 404)
 
-  const body = await c.req.json<UpdateSubscriptionBody>()
+  const body = c.req.valid("json")
 
   const updates: Partial<typeof subscriptions.$inferInsert> = {}
   if (body.name !== undefined) updates.name = body.name
@@ -176,11 +175,11 @@ app.patch("/:id", async (c) => {
 // DELETE /api/subscriptions/:id — unlink transactions, then delete
 app.delete("/:id", async (c) => {
   const user = c.get("user")
-  const accessibleIds = await getEditableAccountIds({ groups: user.groups ?? [], sub: user.sub, isAdmin: user.isAdmin })
+  const access = toAccessContext(user)
   const id = c.req.param("id")
 
   const sub = await db.query.subscriptions.findFirst({ where: (s, { eq }) => eq(s.id, id) })
-  if (!sub || !accessibleIds.includes(sub.accountId)) return c.json({ error: "Not found" }, 404)
+  if (!sub || !(await canEditAccount(access, sub.accountId))) return c.json({ error: "Not found" }, 404)
 
   await db.update(transactions).set({ subscriptionId: null }).where(eq(transactions.subscriptionId, id))
   await db.delete(subscriptions).where(eq(subscriptions.id, id))
@@ -196,11 +195,11 @@ app.post("/detect", async (c) => {
 // GET /api/subscriptions/:id/transactions — linked transactions for a subscription
 app.get("/:id/transactions", async (c) => {
   const user = c.get("user")
-  const accessibleIds = await getViewableAccountIds({ groups: user.groups ?? [], sub: user.sub, isAdmin: user.isAdmin })
+  const access = toAccessContext(user)
   const id = c.req.param("id")
 
   const sub = await db.query.subscriptions.findFirst({ where: (s, { eq }) => eq(s.id, id) })
-  if (!sub || !accessibleIds.includes(sub.accountId)) return c.json({ error: "Not found" }, 404)
+  if (!sub || !(await canViewAccount(access, sub.accountId))) return c.json({ error: "Not found" }, 404)
 
   const rows = await db
     .select({

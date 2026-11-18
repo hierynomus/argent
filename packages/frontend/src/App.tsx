@@ -1,39 +1,34 @@
+import { lazy, Suspense, type ReactNode } from "react"
 import { useAuth } from "react-oidc-context"
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom"
+import { LoadingText } from "./components/ui"
 import Layout from "./components/Layout"
 import AuthCallback from "./pages/AuthCallback"
-import OverviewPage from "./pages/Overview"
-import TransactionsPage from "./pages/Transactions"
-import AdminPage from "./pages/Admin"
-import ProfilePage from "./pages/Profile"
-import CryptoPage from "./pages/Crypto"
-import MetalsPage from "./pages/Metals"
-import StocksPage from "./pages/Stocks"
-import SavingsPage from "./pages/Savings"
-import CheckingPage from "./pages/Checking"
-import SubscriptionsPage from "./pages/Subscriptions"
-import SettingsPage from "./pages/Settings"
-import MortgagesPage from "./pages/Mortgages"
-import LoansPage from "./pages/Loans"
-import DashboardPage from "./pages/Dashboard"
 
-function RequireAuth({ children }: { children: React.ReactNode }) {
+// Each page is its own chunk, loaded when first visited, so the initial download stays small.
+const DashboardPage = lazy(() => import("./pages/Dashboard"))
+const OverviewPage = lazy(() => import("./pages/Overview"))
+const AdminPage = lazy(() => import("./pages/Admin"))
+const ProfilePage = lazy(() => import("./pages/Profile"))
+const CryptoPage = lazy(() => import("./pages/Crypto"))
+const MetalsPage = lazy(() => import("./pages/Metals"))
+const StocksPage = lazy(() => import("./pages/Stocks"))
+const SavingsPage = lazy(() => import("./pages/Savings"))
+const CheckingPage = lazy(() => import("./pages/Checking"))
+const SubscriptionsPage = lazy(() => import("./pages/Subscriptions"))
+const SettingsPage = lazy(() => import("./pages/Settings"))
+const MortgagesPage = lazy(() => import("./pages/Mortgages"))
+const LoansPage = lazy(() => import("./pages/Loans"))
+
+function RequireAuth({ children }: { children: ReactNode }) {
   const auth = useAuth()
 
   if (auth.isLoading) {
-    return (
-      <div className="flex h-screen items-center justify-center text-gray-500">
-        Loading…
-      </div>
-    )
+    return <div className="flex h-screen items-center justify-center text-gray-500">Loading…</div>
   }
 
   if (auth.error) {
-    return (
-      <div className="flex h-screen items-center justify-center text-red-500">
-        Auth error: {auth.error.message}
-      </div>
-    )
+    return <div className="flex h-screen items-center justify-center text-red-500">Auth error: {auth.error.message}</div>
   }
 
   if (!auth.isAuthenticated) {
@@ -44,21 +39,23 @@ function RequireAuth({ children }: { children: React.ReactNode }) {
   return <>{children}</>
 }
 
-export default function App() {
+/** All routes (without the router itself, so tests can mount them in a MemoryRouter). */
+export function AppRoutes() {
   return (
-    <BrowserRouter>
-      <Routes>
-        <Route path="/auth/callback" element={<AuthCallback />} />
-        <Route
-          path="/*"
-          element={
-            <RequireAuth>
-              <Layout>
+    <Routes>
+      <Route path="/auth/callback" element={<AuthCallback />} />
+      <Route
+        path="/*"
+        element={
+          <RequireAuth>
+            <Layout>
+              <Suspense fallback={<LoadingText />}>
                 <Routes>
                   <Route index element={<Navigate to="/dashboard" replace />} />
                   <Route path="dashboard" element={<DashboardPage />} />
                   <Route path="overview" element={<OverviewPage />} />
-                  <Route path="transactions" element={<TransactionsPage />} />
+                  {/* the old, simpler transactions list was folded into the overview */}
+                  <Route path="transactions" element={<Navigate to="/overview" replace />} />
                   <Route path="admin" element={<AdminPage />} />
                   <Route path="profile" element={<ProfilePage />} />
                   <Route path="checking" element={<CheckingPage />} />
@@ -71,11 +68,19 @@ export default function App() {
                   <Route path="metals" element={<MetalsPage />} />
                   <Route path="stocks" element={<StocksPage />} />
                 </Routes>
-              </Layout>
-            </RequireAuth>
-          }
-        />
-      </Routes>
+              </Suspense>
+            </Layout>
+          </RequireAuth>
+        }
+      />
+    </Routes>
+  )
+}
+
+export default function App() {
+  return (
+    <BrowserRouter>
+      <AppRoutes />
     </BrowserRouter>
   )
 }

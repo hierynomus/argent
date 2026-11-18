@@ -1,11 +1,14 @@
+import type { PostgresJsDatabase } from "drizzle-orm/postgres-js"
 import * as schema from "./schema"
+
+export type DB = PostgresJsDatabase<typeof schema>
 
 // When DATABASE_URL is unset or "memory", use an in-process PGlite instance.
 // PGlite is a WASM-compiled Postgres, so the schema and queries are identical —
 // no code changes needed anywhere else.
 const databaseUrl = process.env.DATABASE_URL
 
-async function createDb() {
+async function createDb(): Promise<DB> {
   if (!databaseUrl || databaseUrl === "memory") {
     const { PGlite } = await import("@electric-sql/pglite")
     const { drizzle } = await import("drizzle-orm/pglite")
@@ -25,7 +28,9 @@ async function createDb() {
       process.exit(1)
     }
 
-    return db
+    // PGlite and postgres-js expose the same query API; present them as one type
+    // so call sites don't deal with a union of two drivers.
+    return db as unknown as DB
   }
 
   const { default: postgres } = await import("postgres")
@@ -36,4 +41,3 @@ async function createDb() {
 
 // Top-level await is supported in Bun
 export const db = await createDb()
-export type DB = typeof db

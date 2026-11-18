@@ -1,3 +1,6 @@
+import type { z } from "zod"
+import type * as S from "./schemas"
+
 export type CreditDebitIndicator = "CRDT" | "DBIT"
 
 export interface Account {
@@ -83,27 +86,6 @@ export interface TransactionFilters {
   pageSize?: number
 }
 
-export interface UpdateTransactionBody {
-  categoryId: string | null
-}
-
-export interface LinkTransferBody {
-  peerId: string
-}
-
-export interface UpdateAccountBody {
-  name?: string
-  type?: "checking" | "savings"
-  openingBalance?: string
-  openingBalanceDate?: string | null
-}
-
-export interface CreateCategoryBody {
-  name: string
-  color?: string
-  parentId?: string
-}
-
 export interface Subscription {
   id: string
   accountId: string
@@ -120,18 +102,6 @@ export interface Subscription {
   status: "candidate" | "confirmed" | "dismissed"
   createdAt: string
   transactionCount?: number
-}
-
-export interface UpdateSubscriptionBody {
-  name?: string
-  isActive?: boolean
-  status?: "confirmed" | "dismissed"
-}
-
-export interface CreateSubscriptionBody {
-  accountId: string
-  counterpartyIban: string
-  name?: string
 }
 
 export interface UserProfile {
@@ -162,11 +132,6 @@ export interface PortfolioWithAccess extends Portfolio {
   members: PortfolioMember[]
   isOwner: boolean
   canEdit: boolean
-}
-
-export interface AddPortfolioMemberBody {
-  groupName: string
-  role?: "viewer" | "editor"
 }
 
 // ─── Crypto ────────────────────────────────────────────────────────────────
@@ -219,23 +184,6 @@ export interface PortfolioDetail extends Portfolio {
   canEdit: boolean
 }
 
-export interface CreatePortfolioBody {
-  name: string
-  currency?: string
-  broker?: string // stocks only
-}
-
-export interface CreateCryptoTradeBody {
-  tradeDate: string
-  fromSymbol: string
-  fromAmount: string
-  toSymbol: string
-  toAmount: string
-  baseCurrencyAmount?: string
-  assetName?: string
-  notes?: string
-}
-
 // ─── Metals ────────────────────────────────────────────────────────────────
 
 /** An immutable sale event against a metal lot */
@@ -282,25 +230,6 @@ export interface MetalPortfolioDetail extends Portfolio {
   members: PortfolioMember[]
   isOwner: boolean
   canEdit: boolean
-}
-
-export interface CreateMetalLotBody {
-  purchaseDate: string
-  metal: string
-  itemName?: string
-  itemForm?: string
-  weightPerPiece: string
-  unit?: string
-  quantity?: number
-  pricePerPiece: string
-  notes?: string
-}
-
-export interface CreateMetalSaleBody {
-  saleDate: string
-  quantitySold: number
-  totalReceived: string
-  notes?: string
 }
 
 // ─── Stocks / ETFs ──────────────────────────────────────────────────────────
@@ -367,23 +296,6 @@ export interface StockPortfolioDetail extends Portfolio {
   canEdit: boolean
 }
 
-export interface CreateStockTradeBody {
-  tradeDate: string
-  type: "buy" | "sell"
-  symbol: string
-  quantity: string
-  amount: string
-  assetName?: string
-  notes?: string
-}
-
-export interface CreateStockDividendBody {
-  symbol: string
-  paymentDate: string
-  amount: string
-  notes?: string
-}
-
 /** Ticker lookup result — used to auto-fill the asset name on the buy form */
 export interface StockLookup {
   symbol: string
@@ -445,37 +357,6 @@ export interface MortgageWithParts extends Mortgage {
   canEdit: boolean   // true when requester is owner or has editor role
 }
 
-export interface CreateMortgageBody {
-  name: string
-  currency?: string
-}
-
-export interface AddMortgageMemberBody {
-  groupName: string
-  role?: "viewer" | "editor"
-}
-
-export interface CreateMortgagePartBody {
-  name: string
-  type: "linear" | "annuity" | "interest_only"
-  principal: string
-  annualInterestRate: string
-  startDate: string
-  endDate: string
-}
-
-export interface UpdateMortgagePartBody {
-  name?: string
-  annualInterestRate?: string
-  endDate?: string
-}
-
-export interface CreateMortgageExtraPaymentBody {
-  paymentDate: string
-  amount: string
-  notes?: string
-}
-
 // ─── Loans ──────────────────────────────────────────────────────────────────
 
 export interface Loan {
@@ -531,37 +412,6 @@ export interface LoanWithParts extends Loan {
   canEdit: boolean   // true when requester is owner or has editor role
 }
 
-export interface CreateLoanBody {
-  name: string
-  currency?: string
-}
-
-export interface AddLoanMemberBody {
-  groupName: string
-  role?: "viewer" | "editor"
-}
-
-export interface CreateLoanPartBody {
-  name: string
-  type: "linear" | "annuity" | "interest_only"
-  principal: string
-  annualInterestRate: string
-  startDate: string
-  endDate: string
-}
-
-export interface UpdateLoanPartBody {
-  name?: string
-  annualInterestRate?: string
-  endDate?: string
-}
-
-export interface CreateLoanExtraPaymentBody {
-  paymentDate: string
-  amount: string
-  notes?: string
-}
-
 export interface AccountMember {
   groupName: string
   role: "viewer" | "editor"
@@ -587,3 +437,33 @@ export interface AdminSharingResponse {
   mortgages: AdminSharingEntry[]
   loans: AdminSharingEntry[]
 }
+
+// ─── Request bodies ─────────────────────────────────────────────────────────
+// Derived from the runtime schemas in `schemas.ts` (the single source of truth
+// the backend validates against). `z.input` = what a client is allowed to send.
+
+type Body<T extends z.ZodType> = z.input<T>
+
+export type UpdateTransactionBody = Body<typeof S.updateTransactionSchema>
+export type LinkTransferBody = Body<typeof S.linkTransferSchema>
+export type UpdateAccountBody = Body<typeof S.updateAccountSchema>
+export type CreateCategoryBody = Body<typeof S.createCategorySchema>
+export type UpdateSubscriptionBody = Body<typeof S.updateSubscriptionSchema>
+export type CreateSubscriptionBody = Body<typeof S.createSubscriptionSchema>
+export type AddPortfolioMemberBody = Body<typeof S.addMemberSchema>
+export type CreatePortfolioBody = Body<typeof S.createPortfolioSchema>
+export type CreateCryptoTradeBody = Body<typeof S.createCryptoTradeSchema>
+export type CreateMetalLotBody = Body<typeof S.createMetalLotSchema>
+export type CreateMetalSaleBody = Body<typeof S.createMetalSaleSchema>
+export type CreateStockTradeBody = Body<typeof S.createStockTradeSchema>
+export type CreateStockDividendBody = Body<typeof S.createStockDividendSchema>
+export type CreateMortgageBody = Body<typeof S.createDebtSchema>
+export type AddMortgageMemberBody = Body<typeof S.addMemberSchema>
+export type CreateMortgagePartBody = Body<typeof S.createDebtPartSchema>
+export type UpdateMortgagePartBody = Body<typeof S.updateDebtPartSchema>
+export type CreateMortgageExtraPaymentBody = Body<typeof S.createDebtExtraPaymentSchema>
+export type CreateLoanBody = Body<typeof S.createDebtSchema>
+export type AddLoanMemberBody = Body<typeof S.addMemberSchema>
+export type CreateLoanPartBody = Body<typeof S.createDebtPartSchema>
+export type UpdateLoanPartBody = Body<typeof S.updateDebtPartSchema>
+export type CreateLoanExtraPaymentBody = Body<typeof S.createDebtExtraPaymentSchema>

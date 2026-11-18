@@ -1,4 +1,5 @@
 import { Hono } from "hono"
+import { z } from "zod"
 import { and, eq } from "drizzle-orm"
 import { db } from "../db"
 import {
@@ -27,6 +28,8 @@ import {
   loanMembers,
 } from "../db/schema"
 import type { AuthUser } from "../middleware/auth"
+import { validateJson } from "../middleware/validate"
+import { setAccountOwnerSchema, addMemberSchema } from "@argent/shared"
 
 const app = new Hono<{ Variables: { user: AuthUser } }>()
 
@@ -59,10 +62,10 @@ app.get("/accounts", async (c) => {
 })
 
 // PATCH /api/admin/accounts/:id — update ownerSub (ownership transfer)
-app.patch("/accounts/:id", async (c) => {
+app.patch("/accounts/:id", validateJson(setAccountOwnerSchema), async (c) => {
   if (!c.get("user").isAdmin) return c.json({ error: "Forbidden" }, 403)
 
-  const { ownerSub } = await c.req.json<{ ownerSub: string | null }>()
+  const { ownerSub } = c.req.valid("json")
 
   const [updated] = await db
     .update(accounts)
@@ -75,14 +78,12 @@ app.patch("/accounts/:id", async (c) => {
 })
 
 // POST /api/admin/accounts/:id/members — grant a group access to an account
-app.post("/accounts/:id/members", async (c) => {
+app.post("/accounts/:id/members", validateJson(addMemberSchema), async (c) => {
   if (!c.get("user").isAdmin) return c.json({ error: "Forbidden" }, 403)
 
   const accountId = c.req.param("id")
-  const { groupName, role } = await c.req.json<{ groupName: string; role?: string }>()
-
-  if (!groupName) return c.json({ error: "groupName is required" }, 400)
-  const memberRole = role === "editor" ? "editor" : "viewer"
+  const { groupName, role } = c.req.valid("json")
+  const memberRole = role ?? "viewer"
 
   const [account] = await db.select({ id: accounts.id }).from(accounts).where(eq(accounts.id, accountId))
   if (!account) return c.json({ error: "Account not found" }, 404)
@@ -266,12 +267,30 @@ function withDates<T extends Record<string, unknown>>(rows: T[], fields: (keyof 
   })
 }
 
+/** Tables included in a backup, as they appear (camelCase) in the backup JSON. */
+const BACKUP_TABLES = [
+  "accounts", "accountMembers", "categories", "transactions", "subscriptions", "userProfiles",
+  "portfolios", "portfolioMembers", "cryptoTrades", "cryptoAssets", "metalLots", "metalSales",
+  "stockTrades", "stockAssets", "stockDividends",
+  "mortgages", "mortgageParts", "mortgageExtraPayments", "mortgageMembers",
+  "loans", "loanParts", "loanExtraPayments", "loanMembers",
+] as const
+
+/**
+ * Structural check of a backup file: right version, and every table (when present)
+ * is an array of objects. Row contents are enforced by the database inside the
+ * restore transaction — a bad row rolls the whole restore back.
+ */
+const restoreSchema = z.looseObject({
+  version: z.literal(1, { error: "Unsupported backup version" }),
+  ...Object.fromEntries(BACKUP_TABLES.map((t) => [t, z.array(z.looseObject({}), { error: `${t} must be an array` }).optional()])),
+})
+
 // POST /api/admin/restore — wipe all data and restore from a backup JSON
-app.post("/restore", async (c) => {
+app.post("/restore", validateJson(restoreSchema), async (c) => {
   if (!c.get("user").isAdmin) return c.json({ error: "Forbidden" }, 403)
 
-  const body = await c.req.json()
-  if (body?.version !== 1) return c.json({ error: "Unsupported backup version" }, 400)
+  const body = c.req.valid("json")
 
   type Backup = {
     accounts: (typeof accounts.$inferSelect)[]
@@ -298,7 +317,7 @@ app.post("/restore", async (c) => {
     loanExtraPayments: (typeof loanExtraPayments.$inferSelect)[]
     loanMembers: (typeof loanMembers.$inferSelect)[]
   }
-  const data = body as Backup
+  const data = body as unknown as Backup // rows are validated by the database inside the transaction
 
   await db.transaction(async (tx) => {
     // Delete in reverse FK dependency order

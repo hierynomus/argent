@@ -4,6 +4,8 @@ import { categories } from "../db/schema"
 import { eq } from "drizzle-orm"
 import type { CreateCategoryBody } from "@argent/shared"
 import type { AuthUser } from "../middleware/auth"
+import { validateJson } from "../middleware/validate"
+import { createCategorySchema, updateCategorySchema } from "@argent/shared"
 
 const app = new Hono<{ Variables: { user: AuthUser } }>()
 
@@ -15,11 +17,8 @@ app.get("/", async (c) => {
   return c.json(rows)
 })
 
-app.post("/", async (c) => {
-  const body = await c.req.json<CreateCategoryBody>()
-  if (!body.name?.trim()) {
-    return c.json({ error: "name is required" }, 400)
-  }
+app.post("/", validateJson(createCategorySchema), async (c) => {
+  const body = c.req.valid("json")
 
   const [category] = await db
     .insert(categories)
@@ -33,8 +32,8 @@ app.post("/", async (c) => {
   return c.json(category, 201)
 })
 
-app.put("/:id", async (c) => {
-  const body = await c.req.json<Partial<CreateCategoryBody>>()
+app.put("/:id", validateJson(updateCategorySchema), async (c) => {
+  const body = c.req.valid("json")
   const id = c.req.param("id")
 
   const updates: Partial<typeof categories.$inferInsert> = {}

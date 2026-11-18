@@ -1,8 +1,7 @@
 import { useEffect, useRef, useState } from "react"
 import { useAuth } from "react-oidc-context"
 import { NavLink, useNavigate } from "react-router-dom"
-import { useQuery } from "@tanstack/react-query"
-import { getMe } from "../api"
+import { useMe } from "../api"
 
 // ──────────────────────────────────────────────
 // Logo
@@ -199,14 +198,9 @@ function SectionHeader({ label, showLabel }: { label: string; showLabel: boolean
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const auth = useAuth()
-  const token = auth.user?.access_token ?? ""
   const navigate = useNavigate()
 
-  const { data: me } = useQuery({
-    queryKey: ["me"],
-    queryFn: () => getMe(token),
-    enabled: !!token,
-  })
+  const { data: me } = useMe()
 
   // Sidebar expanded/collapsed, persisted in localStorage
   const [expanded, setExpanded] = useState(() => localStorage.getItem("sidebar") !== "collapsed")

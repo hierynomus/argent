@@ -6,5 +6,12 @@
   "main": "./src/index.ts",
   "exports": {
     ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "zod": "^4.6.7"
+  },
+  "scripts": {
+    "typecheck": "bunx tsc --noEmit -p .",
+    "test": "bun test"
   }
 }

@@ -1,4 +1,4 @@
-import { pgTable, uuid, text, numeric, date, timestamp, integer, boolean, primaryKey } from "drizzle-orm/pg-core"
+import { type AnyPgColumn, index, pgTable, uuid, text, numeric, date, timestamp, integer, boolean, primaryKey } from "drizzle-orm/pg-core"
 import { relations } from "drizzle-orm"
 
 export const accounts = pgTable("accounts", {
@@ -11,13 +11,13 @@ export const accounts = pgTable("accounts", {
   openingBalanceDate: date("opening_balance_date"),   // date from which openingBalance is valid
   ownerSub: text("owner_sub"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
-})
+}, (t) => ({ accounts_owner_idx: index("accounts_owner_idx").on(t.ownerSub) }))
 
 export const categories = pgTable("categories", {
   id: uuid("id").primaryKey().defaultRandom(),
   name: text("name").notNull(),
   color: text("color"),
-  parentId: uuid("parent_id").references((): ReturnType<typeof uuid> => categories.id),
+  parentId: uuid("parent_id").references((): AnyPgColumn => categories.id),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 })
 
@@ -56,13 +56,22 @@ export const transactions = pgTable("transactions", {
   reference: text("reference"),
   categoryId: uuid("category_id").references(() => categories.id),
   // Links the two legs of an internal transfer between own accounts
-  transferPeerId: uuid("transfer_peer_id").references((): ReturnType<typeof uuid> => transactions.id),
+  transferPeerId: uuid("transfer_peer_id").references((): AnyPgColumn => transactions.id),
   // Links to a detected recurring subscription
-  subscriptionId: uuid("subscription_id").references((): ReturnType<typeof uuid> => subscriptions.id),
+  subscriptionId: uuid("subscription_id").references((): AnyPgColumn => subscriptions.id),
   // Used to deduplicate imports; hash of amount+date+reference+counterparty
   importHash: text("import_hash").notNull().unique(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
-})
+}, (t) => ({
+  // Listing/paging per account, newest first
+  accountBooking: index("tx_account_booking_idx").on(t.accountId, t.bookingDate.desc()),
+  category: index("tx_category_idx").on(t.categoryId),
+  subscription: index("tx_subscription_idx").on(t.subscriptionId),
+  transferPeer: index("tx_transfer_peer_idx").on(t.transferPeerId),
+  // Transfer linker + subscription detector lookups
+  counterpartyIban: index("tx_counterparty_iban_idx").on(t.counterpartyIban),
+  reference: index("tx_reference_idx").on(t.reference),
+}))
 
 export const userProfiles = pgTable("user_profiles", {
   sub: text("sub").primaryKey(),
@@ -78,7 +87,7 @@ export const accountMembers = pgTable("account_members", {
     .references(() => accounts.id),
   groupName: text("group_name").notNull(),
   role: text("role").notNull().default("viewer"), // "viewer" | "editor"
-}, (t) => ({ pk: primaryKey({ columns: [t.accountId, t.groupName] }) }))
+}, (t) => ({ pk: primaryKey({ columns: [t.accountId, t.groupName] }), account_members_group_idx: index("account_members_group_idx").on(t.groupName) }))
 
 export const portfolios = pgTable("portfolios", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -88,13 +97,13 @@ export const portfolios = pgTable("portfolios", {
   currency: text("currency").notNull().default("EUR"),
   broker: text("broker"), // stocks only — e.g. "DEGIRO", "Trade Republic"
   createdAt: timestamp("created_at").defaultNow().notNull(),
-})
+}, (t) => ({ portfolios_owner_type_idx: index("portfolios_owner_type_idx").on(t.ownerSub, t.type) }))
 
 export const portfolioMembers = pgTable("portfolio_members", {
   portfolioId: uuid("portfolio_id").notNull().references(() => portfolios.id, { onDelete: "cascade" }),
   groupName: text("group_name").notNull(),
   role: text("role").notNull().default("viewer"), // "viewer" | "editor"
-}, (t) => ({ pk: primaryKey({ columns: [t.portfolioId, t.groupName] }) }))
+}, (t) => ({ pk: primaryKey({ columns: [t.portfolioId, t.groupName] }), portfolio_members_group_idx: index("portfolio_members_group_idx").on(t.groupName) }))
 
 // ─── Crypto ────────────────────────────────────────────────────────────────
 // Every buy, sell, or swap is one immutable row.
@@ -115,7 +124,7 @@ export const cryptoTrades = pgTable("crypto_trades", {
   baseCurrencyAmount: numeric("base_currency_amount", { precision: 15, scale: 2 }),
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
-})
+}, (t) => ({ crypto_trades_portfolio_idx: index("crypto_trades_portfolio_idx").on(t.portfolioId, t.tradeDate) }))
 
 // Display metadata per (portfolio, symbol)
 export const cryptoAssets = pgTable("crypto_assets", {
@@ -141,7 +150,7 @@ export const metalLots = pgTable("metal_lots", {
   pricePerPiece: numeric("price_per_piece", { precision: 15, scale: 2 }).notNull(),
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
-})
+}, (t) => ({ metal_lots_portfolio_idx: index("metal_lots_portfolio_idx").on(t.portfolioId) }))
 
 // Records a sale against a specific lot
 export const metalSales = pgTable("metal_sales", {
@@ -153,7 +162,7 @@ export const metalSales = pgTable("metal_sales", {
   totalReceived: numeric("total_received", { precision: 15, scale: 2 }).notNull(),
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
-})
+}, (t) => ({ metal_sales_lot_idx: index("metal_sales_lot_idx").on(t.lotId), metal_sales_portfolio_idx: index("metal_sales_portfolio_idx").on(t.portfolioId) }))
 
 // ─── Stocks / ETFs ─────────────────────────────────────────────────────────
 // Same immutable ledger + FIFO cost-basis model as crypto. Each portfolio is
@@ -169,7 +178,7 @@ export const stockTrades = pgTable("stock_trades", {
   baseCurrencyAmount: numeric("base_currency_amount", { precision: 15, scale: 2 }),
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
-})
+}, (t) => ({ stock_trades_portfolio_idx: index("stock_trades_portfolio_idx").on(t.portfolioId, t.tradeDate) }))
 
 // Display metadata per (portfolio, ticker symbol)
 export const stockAssets = pgTable("stock_assets", {
@@ -188,7 +197,7 @@ export const stockDividends = pgTable("stock_dividends", {
   amount: numeric("amount", { precision: 15, scale: 2 }).notNull(),
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
-})
+}, (t) => ({ stock_dividends_portfolio_idx: index("stock_dividends_portfolio_idx").on(t.portfolioId) }))
 
 // ─── Mortgages ─────────────────────────────────────────────────────────────
 // A mortgage can have multiple parts (common in NL), each with its own type,
@@ -200,7 +209,7 @@ export const mortgages = pgTable("mortgages", {
   ownerSub: text("owner_sub"),
   currency: text("currency").notNull().default("EUR"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
-})
+}, (t) => ({ mortgages_owner_idx: index("mortgages_owner_idx").on(t.ownerSub) }))
 
 export const mortgageParts = pgTable("mortgage_parts", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -212,7 +221,7 @@ export const mortgageParts = pgTable("mortgage_parts", {
   startDate: date("start_date").notNull(),
   endDate: date("end_date").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
-})
+}, (t) => ({ mortgage_parts_mortgage_idx: index("mortgage_parts_mortgage_idx").on(t.mortgageId) }))
 
 export const mortgageExtraPayments = pgTable("mortgage_extra_payments", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -221,13 +230,13 @@ export const mortgageExtraPayments = pgTable("mortgage_extra_payments", {
   amount: numeric("amount", { precision: 15, scale: 2 }).notNull(),
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
-})
+}, (t) => ({ mortgage_extra_payments_part_idx: index("mortgage_extra_payments_part_idx").on(t.partId) }))
 
 export const mortgageMembers = pgTable("mortgage_members", {
   mortgageId: uuid("mortgage_id").notNull().references(() => mortgages.id, { onDelete: "cascade" }),
   groupName: text("group_name").notNull(),
   role: text("role").notNull().default("viewer"), // "viewer" | "editor"
-}, (t) => ({ pk: primaryKey({ columns: [t.mortgageId, t.groupName] }) }))
+}, (t) => ({ pk: primaryKey({ columns: [t.mortgageId, t.groupName] }), mortgage_members_group_idx: index("mortgage_members_group_idx").on(t.groupName) }))
 
 // ─── Loans ─────────────────────────────────────────────────────────────────
 // Personal loans, car loans, student loans, etc. — separate from mortgages.
@@ -238,7 +247,7 @@ export const loans = pgTable("loans", {
   ownerSub: text("owner_sub"),
   currency: text("currency").notNull().default("EUR"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
-})
+}, (t) => ({ loans_owner_idx: index("loans_owner_idx").on(t.ownerSub) }))
 
 export const loanParts = pgTable("loan_parts", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -250,7 +259,7 @@ export const loanParts = pgTable("loan_parts", {
   startDate: date("start_date").notNull(),
   endDate: date("end_date").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
-})
+}, (t) => ({ loan_parts_loan_idx: index("loan_parts_loan_idx").on(t.loanId) }))
 
 export const loanExtraPayments = pgTable("loan_extra_payments", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -259,13 +268,13 @@ export const loanExtraPayments = pgTable("loan_extra_payments", {
   amount: numeric("amount", { precision: 15, scale: 2 }).notNull(),
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
-})
+}, (t) => ({ loan_extra_payments_part_idx: index("loan_extra_payments_part_idx").on(t.partId) }))
 
 export const loanMembers = pgTable("loan_members", {
   loanId: uuid("loan_id").notNull().references(() => loans.id, { onDelete: "cascade" }),
   groupName: text("group_name").notNull(),
   role: text("role").notNull().default("viewer"), // "viewer" | "editor"
-}, (t) => ({ pk: primaryKey({ columns: [t.loanId, t.groupName] }) }))
+}, (t) => ({ pk: primaryKey({ columns: [t.loanId, t.groupName] }), loan_members_group_idx: index("loan_members_group_idx").on(t.groupName) }))
 
 // Relations for Drizzle query builder
 export const accountRelations = relations(accounts, ({ many }) => ({
