@@ -167,6 +167,27 @@ describe("crypto trades", () => {
     expect(swap.body.baseCurrencyAmount).toBe("12345.67")
   })
 
+  test("creating a second portfolio leaves the first one's trades, positions and the list untouched", async () => {
+    const first = await newPortfolio()
+    await trade(first, { fromSymbol: "EUR", fromAmount: "30000", toSymbol: "BTC", toAmount: "1", assetName: "Bitcoin" })
+    await trade(first, { fromSymbol: "EUR", fromAmount: "1000", toSymbol: "ETH", toAmount: "0.5" })
+    const before = (await get(`/crypto/${first}`)).body
+
+    const second = await newPortfolio()
+    expect(second).not.toBe(first)
+    await trade(second, { fromSymbol: "EUR", fromAmount: "10", toSymbol: "SHIB", toAmount: "1000" })
+
+    const after = (await get(`/crypto/${first}`)).body
+    expect(after.trades).toHaveLength(2)
+    expect(after.positions.map((p: any) => p.symbol).sort()).toEqual(["BTC", "ETH"])
+    expect(after).toEqual(before)
+    // each portfolio only ever sees its own ledger
+    expect((await get(`/crypto/${second}`)).body.positions.map((p: any) => p.symbol)).toEqual(["SHIB"])
+    const ids = (await get("/crypto")).body.map((p: any) => p.id)
+    expect(ids).toContain(first)
+    expect(ids).toContain(second)
+  })
+
   test("a sub-cent coin keeps its real price: 1 billion SHIB bought for 5 EUR", async () => {
     const id = await newPortfolio()
     await trade(id, { fromSymbol: "EUR", fromAmount: "5", toSymbol: "SHIB", toAmount: "1000000000", assetName: "Shiba Inu" })
