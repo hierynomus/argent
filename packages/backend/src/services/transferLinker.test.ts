@@ -193,7 +193,7 @@ describe("linkPair — both legs or neither", () => {
     const out = await tx({ accountId: a.id, ind: "DBIT" })
     const inn = await tx({ accountId: b.id, ind: "CRDT" })
     const other = await tx({ accountId: c.id, ind: "DBIT" })
-    await db.update(transactions).set({ transferPeerId: other.id }).where(eq(transactions.id, inn.id)) // someone else got there first
+    await linkPair(inn.id, other.id) // someone else got there first (a proper, two-sided link: the database is shared with other tests)
     expect(await linkPair(out.id, inn.id)).toBe(false)
     expect(await reload(out.id, inn.id)).toEqual({ [out.id]: null, [inn.id]: other.id }) // out must NOT point at inn
   })
@@ -203,7 +203,7 @@ describe("linkPair — both legs or neither", () => {
     const out = await tx({ accountId: a.id, ind: "DBIT" })
     const inn = await tx({ accountId: b.id, ind: "CRDT" })
     const other = await tx({ accountId: c.id, ind: "CRDT" })
-    await db.update(transactions).set({ transferPeerId: other.id }).where(eq(transactions.id, out.id))
+    await linkPair(out.id, other.id) // two-sided, see above
     expect(await linkPair(out.id, inn.id)).toBe(false)
     expect(await reload(out.id, inn.id)).toEqual({ [out.id]: other.id, [inn.id]: null })
   })
