@@ -6,7 +6,7 @@ import { getCategories } from "./categories"
 import { debtApis, type Debt } from "./debts"
 import { queryKeys, type DebtKind, type PortfolioKind } from "./keys"
 import { getMe } from "./me"
-import { portfolioApis, type PortfolioDetailByKind } from "./portfolios"
+import { portfolioApis, type HistoryParams, type PortfolioDetailByKind } from "./portfolios"
 import { getSubscriptions, getSubscriptionTransactions } from "./subscriptions"
 import { getTransactions, getTransferSuggestions, type TransactionQuery } from "./transactions"
 
@@ -90,6 +90,16 @@ export function usePortfolioDetails<K extends PortfolioKind>(kind: K, portfolios
         queryFn: () => portfolioApis[kind].get(p.id) as Promise<PortfolioDetailByKind[K]>,
       })),
     ),
+  })
+}
+
+/** Price history of one asset in a currency over a range (the asset chart). Prices barely change within minutes. */
+export function useAssetHistory(kind: "crypto" | "stocks", symbol: MaybeRefOrGetter<string>, currency: MaybeRefOrGetter<HistoryParams["currency"]>, range: MaybeRefOrGetter<HistoryParams["range"]>) {
+  return useQuery({
+    queryKey: computed(() => queryKeys.assetHistory(kind, toValue(symbol), toValue(currency), toValue(range))),
+    // parameters come from the key (see the note at the top of this file)
+    queryFn: ({ queryKey }) => portfolioApis[kind].history(queryKey[2] as string, { currency: queryKey[3] as HistoryParams["currency"], range: queryKey[4] as HistoryParams["range"] }),
+    staleTime: 10 * 60 * 1000,
   })
 }
 

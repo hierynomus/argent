@@ -13,8 +13,13 @@ export function formatIssues(error: { issues: ReadonlyArray<{ message: string }>
  * (`error` keeps the shape the frontend already surfaces). On success the parsed,
  * normalised value is available as `c.req.valid("json")`.
  */
-export const validateJson = <T extends z.ZodType>(schema: T) =>
-  zValidator("json", schema, (result, c) => {
+export const validateJson = <T extends z.ZodType>(schema: T) => validated("json", schema)
+
+/** Like `validateJson`, for the query string (`c.req.valid("query")`); same 400 shape. */
+export const validateQuery = <T extends z.ZodType>(schema: T) => validated("query", schema)
+
+function validated<Target extends "json" | "query", T extends z.ZodType>(target: Target, schema: T) {
+  return zValidator(target, schema, (result, c) => {
     if (!result.success) {
       return c.json(
         {
@@ -25,3 +30,4 @@ export const validateJson = <T extends z.ZodType>(schema: T) =>
       )
     }
   })
+}

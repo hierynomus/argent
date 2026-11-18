@@ -28,6 +28,9 @@ export const queryKeys = {
   portfolios: (kind: PortfolioKind) => ["portfolios", kind] as const,
   portfolio: (kind: PortfolioKind, id: string | null) => ["portfolios", kind, id] as const,
 
+  /** price history of one asset: its own prefix, so portfolio refreshes don't refetch it */
+  assetHistory: (kind: "crypto" | "stocks", symbol: string, currency: string, range: string) => ["history", kind, symbol, currency, range] as const,
+
   debts: (kind: DebtKind) => ["debts", kind] as const,
 
   adminAccounts: ["admin", "accounts"] as const,

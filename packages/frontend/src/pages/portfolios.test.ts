@@ -62,12 +62,17 @@ for (const k of kinds) {
       expect(api.unmatched).toEqual([])
     })
 
-    test("several portfolios show tabs; the first is active and clicking another loads it", async () => {
+    test("several portfolios show tabs, starting on the Overview; clicking a portfolio shows that one", async () => {
       const { api, user } = await setup([p("p1"), p("p2")])
-      expect(await screen.findByRole("button", { name: /P-p1/ })).toBeInTheDocument()
+      expect(await screen.findByRole("button", { name: "Overview" })).toHaveAttribute("aria-pressed", "true")
+      expect(screen.getByRole("button", { name: /P-p1/ })).toHaveAttribute("aria-pressed", "false")
+      // the overview needs every portfolio's detail
       await waitFor(() => expect(api.calls("GET", `${k.base}/p1`)).toHaveLength(1))
-      await user.click(screen.getByRole("button", { name: /P-p2/ }))
       await waitFor(() => expect(api.calls("GET", `${k.base}/p2`)).toHaveLength(1))
+      await user.click(screen.getByRole("button", { name: /P-p2/ }))
+      expect(screen.getByRole("button", { name: /P-p2/ })).toHaveAttribute("aria-pressed", "true")
+      expect(screen.getByRole("button", { name: "Overview" })).toHaveAttribute("aria-pressed", "false")
+      expect(await screen.findByRole("button", { name: "Share" })).toBeInTheDocument() // a single portfolio has owner actions; the overview does not
     })
 
     test("owner can share: add a group with a role, remove a group", async () => {

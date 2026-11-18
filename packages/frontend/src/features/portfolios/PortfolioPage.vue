@@ -1,7 +1,7 @@
 <script setup lang="ts" generic="K extends PortfolioKind">
-import { computed, ref } from "vue"
+import { computed, ref, useSlots } from "vue"
 import { useMutation } from "@tanstack/vue-query"
-import { portfolioApis, useInvalidate, usePortfolio, usePortfolios, type PortfolioDetailByKind, type PortfolioKind } from "../../api"
+import { portfolioApis, useInvalidate, usePortfolio, usePortfolioDetails, usePortfolios, type PortfolioDetailByKind, type PortfolioKind } from "../../api"
 import { Button, EmptyState, ErrorText, Input, LoadingText, SegmentedControl, vFocus } from "../../components/ui"
 import PortfolioActions from "./PortfolioActions.vue"
 
@@ -9,6 +9,8 @@ import PortfolioActions from "./PortfolioActions.vue"
  * The shell shared by Crypto, Precious Metals and Stocks: list of portfolios as tabs, the "new
  * portfolio" form, and the owner actions (share / delete) under the selected portfolio.
  * What a portfolio *contains* is the default slot, which receives the selected `portfolio`.
+ * With several portfolios, an "Overview" tab comes first (and is the default) when the page provides the
+ * `overview` slot: it receives the details of every portfolio the user can see, to sum them up.
  */
 const props = defineProps<{
   kind: K
@@ -18,16 +20,35 @@ const props = defineProps<{
   /** stock portfolios belong to a broker */
   withBroker?: boolean
 }>()
-defineSlots<{ default(props: { portfolio: PortfolioDetailByKind[K] }): unknown }>()
+defineSlots<{
+  default(props: { portfolio: PortfolioDetailByKind[K] }): unknown
+  overview?(props: { details: PortfolioDetailByKind[K][]; loading: boolean }): unknown
+}>()
+const slots = useSlots()
 
 const invalidate = useInvalidate()
 const { data: listData, isLoading: loadingList } = usePortfolios(props.kind)
 const portfolios = computed(() => listData.value ?? [])
 
+/** "overview" or a portfolio id; null = the default (the overview when there is one, else the first portfolio) */
+const OVERVIEW = "overview"
 const selectedId = ref<string | null>(null)
-const activeId = computed(() => selectedId.value ?? portfolios.value[0]?.id ?? null)
+const hasOverview = computed(() => !!slots.overview && portfolios.value.length > 1)
+const view = computed(() => {
+  const chosen = selectedId.value
+  if (chosen && chosen !== OVERVIEW && portfolios.value.some((p) => p.id === chosen)) return chosen
+  if (chosen === OVERVIEW && hasOverview.value) return OVERVIEW
+  return hasOverview.value ? OVERVIEW : portfolios.value[0]?.id ?? null
+})
+const showOverview = computed(() => view.value === OVERVIEW)
+const activeId = computed(() => (showOverview.value ? null : view.value))
 const { data: detail, isLoading: loadingDetail } = usePortfolio(props.kind, activeId)
 const portfolio = computed(() => detail.value as PortfolioDetailByKind[K] | undefined)
+
+// the overview needs every portfolio's detail (shared with the single-portfolio view through the cache)
+const overviewDetails = usePortfolioDetails(props.kind, () => (showOverview.value ? portfolios.value : []))
+const overviewLoading = computed(() => overviewDetails.value.some((q) => q.isLoading))
+const overviewData = computed(() => overviewDetails.value.map((q) => q.data).filter((d): d is NonNullable<typeof d> => !!d) as PortfolioDetailByKind[K][])
 
 const creating = ref(false)
 const name = ref("")
@@ -78,10 +99,21 @@ function handleCreate() {
 
     <div v-if="portfolios.length > 1" class="flex gap-2 mb-6 border-b border-gray-200 dark:border-gray-700">
       <button
+        v-if="hasOverview"
+        type="button"
+        :aria-pressed="showOverview"
+        class="px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors"
+        :class="showOverview ? 'border-indigo-500 text-indigo-700 dark:text-indigo-300' : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'"
+        @click="selectedId = OVERVIEW"
+      >
+        Overview
+      </button>
+      <button
         v-for="p in portfolios"
         :key="p.id"
         type="button"
         class="px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors"
+        :aria-pressed="activeId === p.id"
         :class="
           activeId === p.id
             ? 'border-indigo-500 text-indigo-700 dark:text-indigo-300'
@@ -93,10 +125,16 @@ function handleCreate() {
       </button>
     </div>
 
-    <LoadingText v-if="loadingDetail">Loading portfolio…</LoadingText>
-    <template v-if="portfolio">
-      <slot :portfolio="portfolio" />
-      <PortfolioActions v-if="portfolio.isOwner" :kind="kind" :portfolio="portfolio" @deleted="selectedId = null" />
+    <template v-if="showOverview">
+      <LoadingText v-if="overviewLoading && overviewData.length === 0">Loading portfolios…</LoadingText>
+      <slot name="overview" :details="overviewData" :loading="overviewLoading" />
+    </template>
+    <template v-else>
+      <LoadingText v-if="loadingDetail">Loading portfolio…</LoadingText>
+      <template v-if="portfolio">
+        <slot :portfolio="portfolio" />
+        <PortfolioActions v-if="portfolio.isOwner" :kind="kind" :portfolio="portfolio" @deleted="selectedId = null" />
+      </template>
     </template>
   </div>
 </template>

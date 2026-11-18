@@ -5,6 +5,7 @@
  *  CoinGecko   BTC 50000 EUR / 55000 USD, ETH 2000 EUR / 2200 USD, SHIB and PEPE (tiny, pinned), NEWCOIN (found by search only)
  *  metals.live XAU 2000 USD/oz, XAG 25 USD/oz            (gold & silver only)
  *  Frankfurter USD→EUR 0.9, EUR→USD 1.1
+ *  History     CoinGecko market_chart (bitcoin, shiba-inu: 5 daily points) and Yahoo chart ranges (AAPL, VWRL)
  *  Yahoo       AAPL 100 USD "Apple Inc.", VWRL 80 EUR "Vanguard FTSE All-World", others → no data
  */
 export const fakeFetch = {
@@ -44,6 +45,17 @@ export async function fakeFetchImpl(input: RequestInfo | URL): Promise<Response>
     ].filter((c) => c.symbol.startsWith(query))
     return json({ coins })
   }
+  if (url.includes("api.coingecko.com/api/v3/coins/") && url.includes("/market_chart")) {
+    const id = decodeURIComponent(url.split("/coins/")[1].split("/")[0])
+    const vs = new URL(url).searchParams.get("vs_currency") ?? "eur"
+    const base: Record<string, { eur: number; usd: number }> = { bitcoin: { eur: 50000, usd: 55000 }, "shiba-inu": { eur: 0.0000085, usd: 0.0000092 } }
+    const b = base[id]
+    if (!b) return json({ error: "coin not found" }, 404)
+    const day = 86_400_000
+    const t0 = Date.UTC(2024, 0, 1)
+    // five daily points rising 1% a day from the base price
+    return json({ prices: [0, 1, 2, 3, 4].map((i) => [t0 + i * day, (vs === "usd" ? b.usd : b.eur) * (1 + i / 100)]) })
+  }
   if (url.includes("api.coingecko.com")) {
     // only the requested ids are answered, as the real API does
     const ids = (new URL(url).searchParams.get("ids") ?? "").split(",")
@@ -68,6 +80,12 @@ export async function fakeFetchImpl(input: RequestInfo | URL): Promise<Response>
     const symbol = decodeURIComponent(url.split("/chart/")[1].split("?")[0])
     const q = YAHOO[symbol]
     if (!q) return json({ chart: { result: null } })
+    if (!url.includes("range=1d")) {
+      // a history request: five daily closes (one of them missing), rising 1% a day
+      const t0 = Date.UTC(2024, 0, 1) / 1000
+      const closes = [0, 1, 2, 3, 4].map((i) => (i === 2 ? null : q.price * (1 + i / 100)))
+      return json({ chart: { result: [{ meta: { regularMarketPrice: q.price, currency: q.currency }, timestamp: [0, 1, 2, 3, 4].map((i) => t0 + i * 86400), indicators: { quote: [{ close: closes }] } }] } })
+    }
     return json({ chart: { result: [{ meta: { regularMarketPrice: q.price, currency: q.currency, longName: q.name } }] } })
   }
   throw new Error(`Unexpected network request in tests: ${url}`)

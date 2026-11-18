@@ -3,13 +3,13 @@ import { and, eq, inArray } from "drizzle-orm"
 import { db } from "../db"
 import { portfolios, portfolioMembers, stockTrades, stockAssets, stockDividends } from "../db/schema"
 import { getViewablePortfolioIds, getEditablePortfolioIds, toAccessContext, canEditPortfolio, canViewPortfolio } from "../services/accessControl"
-import { getStockPrice, getStockName } from "../services/priceService"
+import { getStockPrice, getStockName, getStockHistory } from "../services/priceService"
 import { computeFifo, investmentSymbols } from "../services/fifo"
 import type { AuthUser } from "../middleware/auth"
 import { isOwnerOrAdmin } from "../middleware/guards"
 import { groupBy } from "../lib/groupBy"
-import { validateJson } from "../middleware/validate"
-import { createPortfolioSchema, updatePortfolioSchema, addMemberSchema, createStockTradeSchema, createStockDividendSchema } from "@argent/shared"
+import { validateJson, validateQuery } from "../middleware/validate"
+import { createPortfolioSchema, updatePortfolioSchema, addMemberSchema, createStockTradeSchema, createStockDividendSchema, historyQuerySchema } from "@argent/shared"
 
 const app = new Hono<{ Variables: { user: AuthUser } }>()
 
@@ -56,6 +56,15 @@ app.get("/lookup/:symbol", async (c) => {
   const symbol = c.req.param("symbol").toUpperCase().trim()
   const name = await getStockName(symbol)
   return c.json({ symbol, name })
+})
+
+// Price history of one ticker (for the asset chart). Like the ticker lookup it touches no portfolio data,
+// so there is no access check. Unknown symbols and provider failures give an empty `points` list.
+app.get("/history/:symbol", validateQuery(historyQuerySchema), async (c) => {
+  const symbol = c.req.param("symbol").toUpperCase().trim()
+  const { range, currency } = c.req.valid("query")
+  const points = await getStockHistory(symbol, currency, range)
+  return c.json({ symbol, currency, range, points: points ?? [] })
 })
 
 // Get portfolio with computed positions, trade history, and dividends

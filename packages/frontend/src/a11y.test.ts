@@ -94,4 +94,27 @@ describe("accessibility (axe)", () => {
     await user.click(screen.getByRole("button", { name: "Share" }))
     expect(await violations()).toEqual([])
   })
+
+  test("the overview tab and an open asset chart have no violations", async () => {
+    mockApi({
+      "GET /me": me(),
+      "GET /crypto": [portfolio({ id: "c1", name: "Main" }), portfolio({ id: "c2", name: "Second" })],
+      "GET /crypto/:id": ({ params }: any) => cryptoDetail({
+        id: params.id, name: params.id === "c1" ? "Main" : "Second",
+        positions: [{ symbol: "BTC", name: "Bitcoin", assetForm: null, balance: 1, avgCostBasis: 100, totalCostEur: 100, realizedPnL: 0, currentPrice: 150, currentValueEur: 150, unrealizedPnL: 50 }],
+        trades: [{ id: `t-${params.id}`, portfolioId: params.id, tradeDate: "2024-01-02", fromSymbol: "EUR", fromAmount: "100", toSymbol: "BTC", toAmount: "1", baseCurrencyAmount: "100", notes: null, createdAt: "" }],
+      }),
+      "GET /crypto/history/:symbol": { symbol: "BTC", currency: "EUR", range: "1y", points: [100, 120, 110, 130].map((v, i) => ({ t: Date.UTC(2024, 0, 1) + i * 86_400_000, v })) },
+      "GET /accounts": [], "GET /categories": [],
+    })
+    const auth = createFakeAuth()
+    const { user } = await renderApp(App, { route: "/crypto", auth, router: createAppRouter(createMemoryHistory(), auth) })
+    await screen.findByText(/2 portfolios: Main, Second/)
+    expect(await violations()).toEqual([])
+    await user.click(screen.getByRole("button", { name: "BTC" }))
+    await screen.findByRole("img", { name: /Bitcoin price/ })
+    expect(await violations()).toEqual([])
+    await user.click(screen.getByText("Show data as a table"))
+    expect(await violations()).toEqual([])
+  })
 })

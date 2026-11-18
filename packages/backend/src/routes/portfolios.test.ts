@@ -418,3 +418,35 @@ describe("metal lots & sales", () => {
     expect((await post(`/metals/${NIL}/lots`, { purchaseDate: "2024-01-01", metal: "gold", weightPerPiece: "1", pricePerPiece: "1" })).status).toBe(403)
   })
 })
+
+describe("price history endpoints", () => {
+  for (const [base, symbol, firstEur] of [["/crypto", "btc", 50000], ["/stocks", "vwrl", 80]] as const) {
+    describe(base, () => {
+      test("returns the series with the symbol, currency and range echoed", async () => {
+        const r = await get(`${base}/history/${symbol}?range=6m&currency=EUR`)
+        expect(r.status).toBe(200)
+        expect(r.body).toMatchObject({ symbol: symbol.toUpperCase(), currency: "EUR", range: "6m" })
+        expect(r.body.points.length).toBeGreaterThan(0)
+        expect(r.body.points[0]).toEqual({ t: expect.any(Number), v: firstEur })
+      })
+
+      test("range defaults to 1y and currency to EUR", async () => {
+        const r = await get(`${base}/history/${symbol}`)
+        expect(r.body).toMatchObject({ range: "1y", currency: "EUR" })
+      })
+
+      test("an unknown symbol gives an empty series, not an error", async () => {
+        const r = await get(`${base}/history/zzzznope`)
+        expect(r.status).toBe(200)
+        expect(r.body.points).toEqual([])
+      })
+
+      test("a bad range or currency is a 400 with a readable message", async () => {
+        const r = await get(`${base}/history/${symbol}?range=5y`)
+        expect(r.status).toBe(400)
+        expect(r.body.error).toContain("range must be one of")
+        expect((await get(`${base}/history/${symbol}?currency=GBP`)).status).toBe(400)
+      })
+    })
+  }
+})

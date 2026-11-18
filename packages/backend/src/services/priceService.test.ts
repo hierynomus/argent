@@ -155,3 +155,78 @@ describe("stock prices", () => {
     expect(await p.getStockName("AAPL")).toBeNull()
   })
 })
+
+describe("price history", () => {
+  test("downsample keeps first and last and caps the count", async () => {
+    const p = await load()
+    const pts = Array.from({ length: 1000 }, (_, i) => ({ t: i, v: i }))
+    const out = p.downsample(pts, 100)
+    expect(out).toHaveLength(100)
+    expect(out[0]).toEqual(pts[0])
+    expect(out.at(-1)).toEqual(pts.at(-1))
+    expect(p.downsample(pts.slice(0, 50), 100)).toHaveLength(50) // short series are untouched
+  })
+
+  test("crypto: points in the requested currency, tiny prices at full precision, range mapped to days", async () => {
+    const p = await load()
+    const btc = await p.getCryptoHistory("btc", "EUR", "3m")
+    expect(btc).toHaveLength(5)
+    expect(btc![0]).toEqual({ t: Date.UTC(2024, 0, 1), v: 50000 })
+    expect(btc![4].v).toBeCloseTo(52000, 6)
+    expect((await p.getCryptoHistory("BTC", "USD", "3m"))![0].v).toBe(55000)
+    expect((await p.getCryptoHistory("SHIB", "EUR", "1y"))![0].v).toBe(0.0000085)
+    const urls = fakeFetch.callsTo("market_chart")
+    expect(urls[0]).toContain("days=90")
+    expect(urls.some((u) => u.includes("days=365"))).toBe(true)
+    expect(urls[0]).toContain("precision=full")
+  })
+
+  test("crypto: max range, unknown symbol and provider failure", async () => {
+    const p = await load()
+    await p.getCryptoHistory("BTC", "EUR", "max")
+    expect(fakeFetch.callsTo("market_chart").at(-1)).toContain("days=max")
+    expect(await p.getCryptoHistory("ZZZNOPE", "EUR", "1y")).toBeNull()
+    fakeFetch.failing.add("coingecko")
+    const q = await load()
+    expect(await q.getCryptoHistory("BTC", "EUR", "1y")).toBeNull()
+  })
+
+  test("history is cached per symbol, currency and range", async () => {
+    const p = await load()
+    await p.getCryptoHistory("BTC", "EUR", "1y")
+    await p.getCryptoHistory("BTC", "EUR", "1y")
+    expect(fakeFetch.callsTo("market_chart")).toHaveLength(1)
+    await p.getCryptoHistory("BTC", "EUR", "1m") // other range → another request
+    await p.getCryptoHistory("BTC", "USD", "1y") // other currency → another request
+    expect(fakeFetch.callsTo("market_chart")).toHaveLength(3)
+  })
+
+  test("stocks: native currency is converted at the current rate, missing closes are skipped", async () => {
+    const p = await load()
+    const usd = await p.getStockHistory("AAPL", "USD", "1y")
+    expect(usd).toHaveLength(4) // five timestamps, one close missing
+    expect(usd![0].v).toBe(100)
+    const eur = await p.getStockHistory("AAPL", "EUR", "1y")
+    expect(eur![0].v).toBeCloseTo(90) // 100 USD × 0.9
+    expect((await p.getStockHistory("VWRL", "EUR", "6m"))![0].v).toBe(80) // already EUR
+  })
+
+  test("stocks: ranges map to Yahoo ranges and intervals", async () => {
+    const p = await load()
+    await p.getStockHistory("AAPL", "USD", "1m")
+    await p.getStockHistory("AAPL", "USD", "max")
+    const urls = fakeFetch.callsTo("finance.yahoo.com/v8/finance/chart/AAPL").filter((u) => !u.includes("range=1d"))
+    expect(urls[0]).toContain("range=1mo")
+    expect(urls[0]).toContain("interval=1d")
+    expect(urls[1]).toContain("range=max")
+    expect(urls[1]).toContain("interval=1wk")
+  })
+
+  test("stocks: unknown symbols and provider failures give null", async () => {
+    const p = await load()
+    expect(await p.getStockHistory("ZZZZ", "EUR", "1y")).toBeNull()
+    fakeFetch.failing.add("yahoo")
+    const q = await load()
+    expect(await q.getStockHistory("AAPL", "EUR", "1y")).toBeNull()
+  })
+})

@@ -1,7 +1,7 @@
 import type {
   AddPortfolioMemberBody, CreateCryptoTradeBody, CreateMetalLotBody, CreateMetalSaleBody, CreatePortfolioBody,
   CreateStockDividendBody, CreateStockTradeBody, CryptoTrade, MetalLot, MetalPortfolioDetail, MetalSale, Portfolio,
-  PortfolioDetail, PortfolioMember, PortfolioWithAccess, StockDividend, StockLookup, StockPortfolioDetail, StockTrade,
+  PortfolioDetail, PortfolioMember, PortfolioWithAccess, PriceHistory, HistoryRange, StockDividend, StockLookup, StockPortfolioDetail, StockTrade,
 } from "@argent/shared"
 import { http } from "./client"
 import type { PortfolioKind } from "./keys"
@@ -19,8 +19,17 @@ function portfolioApi<TDetail>(kind: PortfolioKind) {
   }
 }
 
+/** Price history of one asset (the asset chart). Not tied to a portfolio. */
+export interface HistoryParams {
+  range: HistoryRange
+  currency: "EUR" | "USD"
+}
+const historyApi = (kind: "crypto" | "stocks") => (symbol: string, { range, currency }: HistoryParams) =>
+  http.get<PriceHistory>(`/${kind}/history/${encodeURIComponent(symbol)}?range=${range}&currency=${currency}`)
+
 export const cryptoApi = {
   ...portfolioApi<PortfolioDetail>("crypto"),
+  history: historyApi("crypto"),
   addTrade: (portfolioId: string, body: CreateCryptoTradeBody) => http.post<CryptoTrade>(`/crypto/${portfolioId}/trades`, body),
 }
 
@@ -33,6 +42,7 @@ export const metalsApi = {
 
 export const stocksApi = {
   ...portfolioApi<StockPortfolioDetail>("stocks"),
+  history: historyApi("stocks"),
   addTrade: (portfolioId: string, body: CreateStockTradeBody) => http.post<StockTrade>(`/stocks/${portfolioId}/trades`, body),
   lookup: (symbol: string) => http.get<StockLookup>(`/stocks/lookup/${encodeURIComponent(symbol)}`),
   addDividend: (portfolioId: string, body: CreateStockDividendBody) => http.post<StockDividend>(`/stocks/${portfolioId}/dividends`, body),

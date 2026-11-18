@@ -475,3 +475,21 @@ export type AddLoanMemberBody = Body<typeof S.addMemberSchema>
 export type CreateLoanPartBody = Body<typeof S.createDebtPartSchema>
 export type UpdateLoanPartBody = Body<typeof S.updateDebtPartSchema>
 export type CreateLoanExtraPaymentBody = Body<typeof S.createDebtExtraPaymentSchema>
+
+// ─── Price history ──────────────────────────────────────────────────────────
+
+export type HistoryRange = "1m" | "3m" | "6m" | "1y" | "max"
+
+/** One point of a price history: `t` is a Unix timestamp in milliseconds, `v` the price per unit. */
+export interface PricePoint {
+  t: number
+  v: number
+}
+
+/** Price per unit over time. `points` is empty when no history is available for the symbol. */
+export interface PriceHistory {
+  symbol: string
+  currency: "EUR" | "USD"
+  range: HistoryRange
+  points: PricePoint[]
+}

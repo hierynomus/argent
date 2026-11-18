@@ -213,3 +213,11 @@ export const createDebtExtraPaymentSchema = z.object({
   amount: positiveDecimalString("amount"),
   notes: optionalText(),
 })
+
+// ─── Price history (GET /crypto/history/:symbol, /stocks/history/:symbol) ───────
+
+export const HISTORY_RANGES = ["1m", "3m", "6m", "1y", "max"] as const
+export const historyQuerySchema = z.object({
+  range: z.enum(HISTORY_RANGES, { error: `range must be one of ${HISTORY_RANGES.join(", ")}` }).default("1y"),
+  currency: z.enum(["EUR", "USD"], { error: "currency must be EUR or USD" }).default("EUR"),
+})

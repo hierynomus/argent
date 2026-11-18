@@ -25,7 +25,7 @@ Verify everything with `bun run check` (type-check all packages + all tests + "m
 - [x] Runtime validation with zod + `@hono/zod-validator` on every JSON route; schemas live in `@argent/shared` and the `*Body` types are derived from them
 - [x] Global `app.onError` / `notFound` → consistent JSON errors; malformed JSON is a 400
 - [x] `/admin/restore` validates its payload (it was already transactional; a bad row rolls back everything — tested)
-- [ ] Validate query parameters (`/transactions` filters, `page`, `pageSize`) with the same mechanism
+- [~] Validate query parameters with the same mechanism: `validateQuery(schema)` exists and covers the price-history endpoints; `/transactions` filters, `page`, `pageSize` still open
 - [ ] Validate multipart uploads (size limit, content type) on the import endpoints
 - [ ] Pass the parsed `TransactionFilters` type through a schema instead of casting `c.req.query()`
 
@@ -78,6 +78,8 @@ Rewritten from React to Vue 3 (branch `feat/vue-frontend`) on top of the cleaned
 - [x] Raw checkbox styling is the `Checkbox` primitive; header cells are `Th` (body cells `Td` still hand-written)
 - [x] Accessibility: `src/a11y.test.ts` runs axe-core on every page and the main interactive states (contrast excluded: no layout in happy-dom); fixed unlabeled navs, empty table headers, unlabeled file input
 - [ ] Try the app against a real Authentik (the OIDC flow was ported to `oidc-client-ts` directly and is only covered by fake-auth tests)
+
+- [x] Investment overview tab (all visible portfolios, per currency) and per-asset price chart with trade markers. Open: metals have no price history source; stock history uses today's FX rate; a portfolio-value-over-time chart
 
 ## Hygiene
 - [x] All migrations from now on come from `db:generate` (0018 does); `db:check` runs in `bun run check` and CI

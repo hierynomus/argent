@@ -123,6 +123,101 @@ export async function getCryptoPrice(symbol: string, currency: "EUR" | "USD" = "
 }
 
 // ──────────────────────────────────────────────
+// Price history (crypto + stocks)
+// ──────────────────────────────────────────────
+
+export type HistoryRange = "1m" | "3m" | "6m" | "1y" | "max"
+export interface HistoryPoint {
+  /** Unix timestamp, milliseconds */
+  t: number
+  /** price per unit */
+  v: number
+}
+
+const HISTORY_TTL_MS = 15 * 60 * 1000
+const MAX_HISTORY_POINTS = 400
+const historyCache = new Map<string, { points: HistoryPoint[]; fetchedAt: number }>()
+
+/** Keeps at most `max` points (evenly spread, always including the first and the last). */
+export function downsample(points: HistoryPoint[], max = MAX_HISTORY_POINTS): HistoryPoint[] {
+  if (points.length <= max) return points
+  const step = (points.length - 1) / (max - 1)
+  return Array.from({ length: max }, (_, i) => points[Math.round(i * step)])
+}
+
+async function cachedHistory(key: string, load: () => Promise<HistoryPoint[] | null>): Promise<HistoryPoint[] | null> {
+  const hit = historyCache.get(key)
+  if (hit && Date.now() - hit.fetchedAt < HISTORY_TTL_MS) return hit.points
+  const points = await load()
+  if (points && points.length > 0) historyCache.set(key, { points, fetchedAt: Date.now() })
+  return points
+}
+
+const COINGECKO_DAYS: Record<HistoryRange, string> = { "1m": "30", "3m": "90", "6m": "180", "1y": "365", max: "max" }
+
+/** Price history of a coin in the given currency, or null if unknown/unavailable. */
+export async function getCryptoHistory(symbol: string, currency: "EUR" | "USD", range: HistoryRange): Promise<HistoryPoint[] | null> {
+  try {
+    const sym = symbol.toUpperCase()
+    return await cachedHistory(`crypto|${sym}|${currency}|${range}`, async () => {
+      const id = await resolveCoinId(sym)
+      if (!id) return null
+      const url = `https://api.coingecko.com/api/v3/coins/${encodeURIComponent(id)}/market_chart?vs_currency=${currency.toLowerCase()}&days=${COINGECKO_DAYS[range]}&precision=full`
+      const res = await fetch(url, { signal: AbortSignal.timeout(10000) })
+      if (!res.ok) throw new Error(`CoinGecko HTTP ${res.status}`)
+      const json = await res.json() as { prices?: Array<[number, number]> }
+      const points = (json.prices ?? []).filter(([, v]) => typeof v === "number").map(([t, v]) => ({ t, v }))
+      return downsample(points)
+    })
+  } catch {
+    return null
+  }
+}
+
+const YAHOO_RANGE: Record<HistoryRange, { range: string; interval: string }> = {
+  "1m": { range: "1mo", interval: "1d" },
+  "3m": { range: "3mo", interval: "1d" },
+  "6m": { range: "6mo", interval: "1d" },
+  "1y": { range: "1y", interval: "1d" },
+  max: { range: "max", interval: "1wk" },
+}
+
+/**
+ * Price history of a stock/ETF in the given currency, or null if unknown/unavailable. Prices are in the
+ * listing's own currency converted at TODAY's exchange rate (historical rates are not used), so for a
+ * foreign listing the shape is exact but the level is approximate.
+ */
+export async function getStockHistory(symbol: string, currency: "EUR" | "USD", range: HistoryRange): Promise<HistoryPoint[] | null> {
+  try {
+    const sym = symbol.toUpperCase()
+    return await cachedHistory(`stock|${sym}|${currency}|${range}`, async () => {
+      const { range: r, interval } = YAHOO_RANGE[range]
+      const res = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(sym)}?interval=${interval}&range=${r}`, {
+        signal: AbortSignal.timeout(10000),
+        headers: { "User-Agent": YAHOO_USER_AGENT },
+      })
+      if (!res.ok) throw new Error(`Yahoo Finance HTTP ${res.status}`)
+      const json = await res.json() as {
+        chart: { result?: Array<{ meta: { currency?: string }; timestamp?: number[]; indicators: { quote: Array<{ close?: Array<number | null> }> } }> }
+      }
+      const result = json.chart.result?.[0]
+      const closes = result?.indicators.quote[0]?.close
+      if (!result?.timestamp || !closes || !result.meta.currency) return null
+      const rate = await getFxRate(result.meta.currency, currency)
+      if (rate == null) return null
+      const points: HistoryPoint[] = []
+      result.timestamp.forEach((ts, i) => {
+        const close = closes[i]
+        if (typeof close === "number") points.push({ t: ts * 1000, v: close * rate })
+      })
+      return downsample(points)
+    })
+  } catch {
+    return null
+  }
+}
+
+// ──────────────────────────────────────────────
 // Metals — metals.live (USD/troy oz) + Frankfurter (USD→EUR)
 // ──────────────────────────────────────────────
 
@@ -213,12 +308,14 @@ interface StockCacheEntry extends StockQuote {
 const stockCache = new Map<string, StockCacheEntry>()
 const fxCache = new Map<string, { rate: number; fetchedAt: number }>()
 
+// Yahoo's chart API 429s requests without a browser-like User-Agent
+const YAHOO_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+
 async function fetchStockQuote(symbol: string): Promise<StockQuote | null> {
   const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=1d`
   const res = await fetch(url, {
     signal: AbortSignal.timeout(8000),
-    // Yahoo's chart API 429s requests without a browser-like User-Agent
-    headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" },
+    headers: { "User-Agent": YAHOO_USER_AGENT },
   })
   if (!res.ok) throw new Error(`Yahoo Finance HTTP ${res.status}`)
   const json = await res.json() as {

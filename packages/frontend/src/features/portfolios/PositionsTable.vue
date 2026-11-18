@@ -14,8 +14,12 @@ const props = defineProps<{
   formatBalance: (n: number) => string
   showDividends?: boolean
   minWidth: string
+  /** the symbol whose chart is open (if any) */
+  selectedSymbol?: string | null
 }>()
+const emit = defineEmits<{ select: [symbol: string] }>()
 
+const heldIn = (pos: AssetPosition | StockPosition) => ((pos as { heldIn?: string[] }).heldIn ?? [])
 const columns = () => (props.showDividends ? 9 : 8)
 const dividends = (pos: AssetPosition | StockPosition) => ("totalDividends" in pos ? pos.totalDividends : 0)
 </script>
@@ -41,8 +45,13 @@ const dividends = (pos: AssetPosition | StockPosition) => ("totalDividends" in p
           <td :colspan="columns()" class="px-4 py-8 text-center text-gray-400 dark:text-gray-500">No positions yet. Record a buy trade below.</td>
         </tr>
         <tr v-for="pos in positions" :key="pos.symbol" class="hover:bg-gray-50 dark:hover:bg-gray-800/50">
-          <td class="px-4 py-3 font-mono font-semibold text-indigo-700 dark:text-indigo-300">{{ pos.symbol }}</td>
-          <td class="px-4 py-3 text-gray-700 dark:text-gray-300">{{ pos.name }}</td>
+          <td class="px-4 py-3 font-mono font-semibold text-indigo-700 dark:text-indigo-300">
+            <button type="button" class="hover:underline focus-visible:underline" :aria-pressed="selectedSymbol === pos.symbol" :title="`Show the ${pos.symbol} price chart`" @click="emit('select', pos.symbol)">{{ pos.symbol }}</button>
+          </td>
+          <td class="px-4 py-3 text-gray-700 dark:text-gray-300">
+            {{ pos.name }}
+            <div v-if="heldIn(pos).length > 0" class="text-xs text-gray-400 dark:text-gray-500">in {{ heldIn(pos).join(", ") }}</div>
+          </td>
           <td class="px-4 py-3 text-right font-mono text-gray-900 dark:text-gray-100">{{ formatBalance(pos.balance) }}</td>
           <td class="px-4 py-3 text-right font-mono text-gray-600 dark:text-gray-400">{{ fmtPrice(pos.avgCostBasis, currency) }}</td>
           <td class="px-4 py-3 text-right font-mono text-gray-600 dark:text-gray-400">

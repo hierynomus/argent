@@ -3,13 +3,13 @@ import { and, eq, inArray } from "drizzle-orm"
 import { db } from "../db"
 import { portfolios, portfolioMembers, cryptoTrades, cryptoAssets } from "../db/schema"
 import { getViewablePortfolioIds, getEditablePortfolioIds, toAccessContext, canEditPortfolio, canViewPortfolio } from "../services/accessControl"
-import { getCryptoPrices } from "../services/priceService"
+import { getCryptoPrices, getCryptoHistory } from "../services/priceService"
 import { computeFifo, investmentSymbols } from "../services/fifo"
 import type { AuthUser } from "../middleware/auth"
 import { isOwnerOrAdmin } from "../middleware/guards"
 import { groupBy } from "../lib/groupBy"
-import { validateJson } from "../middleware/validate"
-import { createPortfolioSchema, updatePortfolioSchema, addMemberSchema, createCryptoTradeSchema } from "@argent/shared"
+import { validateJson, validateQuery } from "../middleware/validate"
+import { createPortfolioSchema, updatePortfolioSchema, addMemberSchema, createCryptoTradeSchema, historyQuerySchema } from "@argent/shared"
 
 const app = new Hono<{ Variables: { user: AuthUser } }>()
 
@@ -47,6 +47,15 @@ app.post("/", validateJson(createPortfolioSchema), async (c) => {
     .values({ type: "crypto", name, currency, ownerSub: user.sub })
     .returning()
   return c.json(portfolio, 201)
+})
+
+// Price history of one coin (for the asset chart). Like the ticker lookup it touches no portfolio data,
+// so there is no access check. Unknown symbols and provider failures give an empty `points` list.
+app.get("/history/:symbol", validateQuery(historyQuerySchema), async (c) => {
+  const symbol = c.req.param("symbol").toUpperCase().trim()
+  const { range, currency } = c.req.valid("query")
+  const points = await getCryptoHistory(symbol, currency, range)
+  return c.json({ symbol, currency, range, points: points ?? [] })
 })
 
 // Get portfolio with computed positions and trade history
