@@ -7,6 +7,8 @@ export interface PartInput {
   type: string  // "linear" | "annuity" | "interest_only"
   principal: string
   annualInterestRate: string
+  /** "nominal" (default): monthly rate = rate/12. "effective": monthly rate = (1+rate)^(1/12) - 1. */
+  rateType?: string
   startDate: string  // ISO date
   endDate: string    // ISO date
 }
@@ -42,6 +44,11 @@ function parseDate(s: string): Date {
   return new Date(y, m - 1, d)
 }
 
+/** The monthly interest rate for an annual rate, depending on how it is quoted. */
+export function monthlyRate(annualRate: number, rateType: string = "nominal"): number {
+  return rateType === "effective" ? Math.pow(1 + annualRate, 1 / 12) - 1 : annualRate / 12
+}
+
 /** Round to the nearest cent (2 decimal places). */
 function cents(n: number): number {
   return Math.round(n * 100) / 100
@@ -63,7 +70,7 @@ export function computePartState(
 ): PartState {
   const principal = parseFloat(part.principal)
   const annualRate = parseFloat(part.annualInterestRate)
-  const r = annualRate / 12  // monthly rate
+  const r = monthlyRate(annualRate, part.rateType)
 
   const start = parseDate(part.startDate)
   const end = parseDate(part.endDate)

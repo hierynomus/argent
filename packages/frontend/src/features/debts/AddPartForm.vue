@@ -17,7 +17,8 @@ const TYPE_OPTIONS = (Object.keys(PART_TYPE_LABELS) as PartType[]).map((value) =
 const invalidate = useInvalidate()
 const { errors, check } = useFormErrors()
 const hints = DEBT_KINDS[props.kind].part
-const form = reactive({ name: "", type: "annuity" as PartType, principal: "", annualInterestRate: "", startDate: "", endDate: "" })
+const RATE_TYPES = [{ value: "nominal", label: "Nominal" }, { value: "effective", label: "Effective" }] as const
+const form = reactive({ name: "", type: "annuity" as PartType, principal: "", annualInterestRate: "", rateType: "nominal" as DebtPart["rateType"], startDate: "", endDate: "" })
 
 // the rate is entered as a percentage but sent as a fraction
 const body = () => ({
@@ -25,6 +26,7 @@ const body = () => ({
   type: form.type,
   principal: form.principal,
   annualInterestRate: (parseFloat(form.annualInterestRate) / 100).toFixed(6),
+  rateType: form.rateType,
   startDate: form.startDate,
   endDate: form.endDate,
 })
@@ -51,6 +53,7 @@ const complete = () => !!(form.name && form.principal && form.annualInterestRate
       <Field label="Rate (%/yr)" :error="errors.annualInterestRate">
         <Input v-model="form.annualInterestRate" type="number" min="0" step="0.001" :placeholder="hints.ratePlaceholder" class="w-24" />
       </Field>
+      <FieldGroup label="Rate is"><SegmentedControl v-model="form.rateType" :options="RATE_TYPES" padding="px-2 py-1.5" /></FieldGroup>
       <Field label="Start date" :error="errors.startDate"><Input v-model="form.startDate" type="date" class="w-36" /></Field>
       <Field label="End date" :error="errors.endDate"><Input v-model="form.endDate" type="date" class="w-36" /></Field>
       <Button :disabled="!complete() || add.isPending.value" @click="check(createDebtPartSchema, body()) && add.mutate()">

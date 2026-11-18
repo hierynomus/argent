@@ -3,7 +3,7 @@ import { reactive, ref } from "vue"
 import { useMutation } from "@tanstack/vue-query"
 import { updateDebtPartSchema } from "@argent/shared"
 import { debtApis, useInvalidate, type Debt, type DebtKind, type DebtPart } from "../../api"
-import { Button, ConfirmButton, ErrorText, Field, Input } from "../../components/ui"
+import { Button, ConfirmButton, ErrorText, Field, FieldGroup, Input, SegmentedControl } from "../../components/ui"
 import { fmtCur, fmtMonthYear, fmtRate } from "../../lib/format"
 import { useFormErrors } from "../../lib/validate"
 import ExtraPaymentsPanel from "./ExtraPaymentsPanel.vue"
@@ -21,9 +21,11 @@ const editing = ref(false)
 const form = reactive({
   name: props.part.name,
   annualInterestRate: (parseFloat(props.part.annualInterestRate) * 100).toFixed(4),
+  rateType: props.part.rateType ?? "nominal",
   endDate: props.part.endDate,
 })
-const body = () => ({ name: form.name, annualInterestRate: (parseFloat(form.annualInterestRate) / 100).toFixed(6), endDate: form.endDate })
+const RATE_TYPES = [{ value: "nominal", label: "Nominal" }, { value: "effective", label: "Effective" }] as const
+const body = () => ({ name: form.name, annualInterestRate: (parseFloat(form.annualInterestRate) / 100).toFixed(6), rateType: form.rateType, endDate: form.endDate })
 
 const update = useMutation({
   mutationFn: () => debtApis[props.kind].updatePart(props.debt.id, props.part.id, body()),
@@ -46,7 +48,7 @@ const progressPct = () => Math.round((props.part.monthsElapsed / props.part.tota
     <td class="px-4 py-3"><TypeBadge :type="part.type" /></td>
     <td class="px-4 py-3 text-sm text-right tabular-nums text-gray-600 dark:text-gray-400">{{ fmtCur(parseFloat(part.principal), debt.currency) }}</td>
     <td class="px-4 py-3 text-sm text-right tabular-nums font-semibold text-gray-900 dark:text-gray-100">{{ fmtCur(part.currentBalance, debt.currency) }}</td>
-    <td class="px-4 py-3 text-sm text-right tabular-nums text-gray-600 dark:text-gray-400">{{ fmtRate(part.annualInterestRate) }}</td>
+    <td class="px-4 py-3 text-sm text-right tabular-nums text-gray-600 dark:text-gray-400">{{ fmtRate(part.annualInterestRate) }}<span v-if="part.rateType === 'effective'" class="ml-1 text-xs text-gray-400 dark:text-gray-500" title="Effective annual rate">eff.</span></td>
     <td class="px-4 py-3 text-sm text-right tabular-nums text-gray-900 dark:text-gray-100">
       <span class="font-medium">{{ fmtCur(part.monthlyPayment, debt.currency) }}</span>
       <span class="text-xs text-gray-400 dark:text-gray-500 ml-1">/mo</span>
@@ -81,6 +83,7 @@ const progressPct = () => Math.round((props.part.monthsElapsed / props.part.tota
         <Field label="Rate (%)" :error="errors.annualInterestRate">
           <Input v-model="form.annualInterestRate" density="sm" type="number" min="0" step="0.001" class="w-24" />
         </Field>
+        <FieldGroup label="Rate is"><SegmentedControl v-model="form.rateType" :options="RATE_TYPES" padding="px-2 py-1" /></FieldGroup>
         <Field label="End date" :error="errors.endDate"><Input v-model="form.endDate" density="sm" type="date" class="w-36" /></Field>
         <Button :disabled="update.isPending.value" @click="check(updateDebtPartSchema, body()) && update.mutate()">Save</Button>
         <Button variant="secondary" @click="editing = false">Cancel</Button>

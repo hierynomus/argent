@@ -77,8 +77,23 @@ for (const k of kinds) {
       await user.click(screen.getByRole("button", { name: "Add part" }))
       await waitFor(() => expect(api.calls("POST", `${k.base}/d1/parts`)).toHaveLength(1))
       expect(api.calls("POST", `${k.base}/d1/parts`)[0].body).toEqual({
-        name: "Fixed", type: "linear", principal: "150000", annualInterestRate: "0.035000", startDate: "2024-01-01", endDate: "2044-01-01",
+        name: "Fixed", type: "linear", principal: "150000", annualInterestRate: "0.035000", rateType: "nominal", startDate: "2024-01-01", endDate: "2044-01-01",
       })
+    })
+
+    test("a rate quoted as effective is sent as such", async () => {
+      const { api, user } = await setup([debt({ parts: [] })])
+      await user.click(await screen.findByRole("button", { name: "+ Add part" }))
+      await user.type(screen.getByPlaceholderText(k.partPlaceholders.name), "Car loan")
+      await user.type(screen.getByPlaceholderText(k.partPlaceholders.principal), "28500")
+      await user.type(screen.getByPlaceholderText(k.partPlaceholders.rate), "5.9")
+      expect(screen.getByRole("button", { name: "Nominal" })).toHaveAttribute("aria-pressed", "true") // the default
+      await user.click(screen.getByRole("button", { name: "Effective" }))
+      await user.type(screen.getByLabelText("Start date"), "2024-11-28")
+      await user.type(screen.getByLabelText("End date"), "2027-12-28")
+      await user.click(screen.getByRole("button", { name: "Add part" }))
+      await waitFor(() => expect(api.calls("POST", `${k.base}/d1/parts`)).toHaveLength(1))
+      expect(api.calls("POST", `${k.base}/d1/parts`)[0].body).toMatchObject({ annualInterestRate: "0.059000", rateType: "effective" })
     })
 
     test("the add-part button stays disabled until the form is complete", async () => {
@@ -97,7 +112,19 @@ for (const k of kinds) {
       await user.type(rate, "4")
       await user.click(screen.getByRole("button", { name: "Save" }))
       await waitFor(() => expect(api.calls("PATCH", `${k.base}/d1/parts/part-1`)).toHaveLength(1))
-      expect(api.calls("PATCH", `${k.base}/d1/parts/part-1`)[0].body).toEqual({ name: "Part A", annualInterestRate: "0.040000", endDate: "2050-01-01" })
+      expect(api.calls("PATCH", `${k.base}/d1/parts/part-1`)[0].body).toEqual({ name: "Part A", annualInterestRate: "0.040000", rateType: "nominal", endDate: "2050-01-01" })
+    })
+
+    test("the table marks effective rates, and the edit form can switch the rate type", async () => {
+      const { api, user } = await setup([debt({ parts: [part({ rateType: "effective" })] })])
+      await screen.findByText("Part A")
+      expect(screen.getByTitle("Effective annual rate")).toBeInTheDocument()
+      await user.click(screen.getByRole("button", { name: "Edit" }))
+      expect(screen.getByRole("button", { name: "Effective" })).toHaveAttribute("aria-pressed", "true")
+      await user.click(screen.getByRole("button", { name: "Nominal" }))
+      await user.click(screen.getByRole("button", { name: "Save" }))
+      await waitFor(() => expect(api.calls("PATCH", `${k.base}/d1/parts/part-1`)).toHaveLength(1))
+      expect(api.calls("PATCH", `${k.base}/d1/parts/part-1`)[0].body).toMatchObject({ rateType: "nominal" })
     })
 
     test("deleting a part needs a confirmation", async () => {

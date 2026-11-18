@@ -23,7 +23,7 @@ Self-hosted personal finance app. Repo dir is `finance`, but the root package is
 - PGlite is a devDependency and is not in the production image.
 
 ## Database / migrations (important)
-- Drizzle migrations in `packages/backend/drizzle/` (currently 0000–0019) are tracked in git. Never gitignore them.
+- Drizzle migrations in `packages/backend/drizzle/` (currently 0000–0020) are tracked in git. Never gitignore them.
 - Run `db:generate` BEFORE editing `schema.ts`, or restart the backend after generating. Bun `--hot` restarts on `schema.ts` changes, and PGlite can end up on a stale schema.
 - Always create migrations with `db:generate` (0018 was generated this way). Don't hand-write them without also updating `drizzle/meta/` snapshots and the journal. Drift makes `db:generate` hang on an interactive rename prompt. Check with `db:check`.
 
@@ -40,7 +40,7 @@ Self-hosted personal finance app. Repo dir is `finance`, but the root package is
 - `services/subscriptionDetector.ts`: detects recurring DBIT patterns, grouped by `(accountId, counterpartyIban)`. Gaps must be within ±20% of the median (floor ±5 days) and amounts within ±5%. New ones are created as `candidate`. Existing `candidate`/`confirmed` rows only get their stats updated, and `dismissed` pairs are skipped. Manual `POST /subscriptions` creates `confirmed` and retroactively links transactions. Dismiss unlinks transactions and leaves a `dismissed` tombstone. Links are write-time via `transactions.subscriptionId`. Each detection pass first unlinks transactions that became transfers and removes `candidate`s left empty (confirmed ones are kept).
 - `services/fifo.ts`: `computeFifo(trades, symbol, baseCurrency)` returns `{ balance, avgCostBasis, totalCostEur, realizedPnL }`. Shared by crypto and stocks.
 - `services/priceService.ts`: CoinGecko (crypto), metals.live + Frankfurter (metals), Yahoo Finance + Frankfurter (stocks/ETFs). 5-min in-process cache.
-- `services/amortization.ts`: `computePartState(part, payments, asOf)` simulates month by month for linear/annuity/interest_only parts with extra payments. Shared by mortgages and loans.
+- `services/amortization.ts`: `computePartState(part, payments, asOf)` simulates month by month for linear/annuity/interest_only parts with extra payments. Shared by mortgages and loans. A part's `rateType` is `nominal` (monthly rate = rate/12, the default) or `effective` (monthly = (1+rate)^(1/12)-1); banks often quote the effective rate. The model has no stub period: payment 1 falls one calendar month after `startDate` (the day of month is ignored), so set the start date one month before the first installment.
 
 ## Testing (`bun test`)
 - Backend tests live next to the code (`*.test.ts`) and run on in-memory PGlite. `test/setup.ts` (a `bunfig.toml` preload) forces `DATABASE_URL=memory` and installs `test/fakeFetch.ts`, so **no test can touch a real database or the network**.

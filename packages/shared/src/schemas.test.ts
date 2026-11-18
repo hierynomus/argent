@@ -165,6 +165,9 @@ describe("mortgages & loans", () => {
     bad(createDebtPartSchema, { ...part, annualInterestRate: "-0.01" })
   })
   test("part update: partial", () => {
+    ok(createDebtPartSchema, { ...part, rateType: "effective" }); ok(createDebtPartSchema, { ...part, rateType: "nominal" })
+    bad(createDebtPartSchema, { ...part, rateType: "weekly" })
+    ok(updateDebtPartSchema, { rateType: "effective" }); bad(updateDebtPartSchema, { rateType: "x" })
     ok(updateDebtPartSchema, {}); ok(updateDebtPartSchema, { endDate: "2040-01-01" }); ok(updateDebtPartSchema, { annualInterestRate: "0.03" })
     bad(updateDebtPartSchema, { endDate: "soon" })
   })

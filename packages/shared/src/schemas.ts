@@ -187,12 +187,15 @@ export const updateDebtSchema = z.object({
   currency: currencySchema.optional(),
 })
 
+export const rateTypeSchema = z.enum(["nominal", "effective"], { error: "rateType must be nominal or effective" })
+
 export const createDebtPartSchema = z
   .object({
     name: requiredString("name"),
     type: amortizationTypeSchema,
     principal: positiveDecimalString("principal"),
     annualInterestRate: nonNegativeDecimalString("annualInterestRate"),
+    rateType: rateTypeSchema.optional(),
     startDate: isoDate("startDate"),
     endDate: isoDate("endDate"),
   })
@@ -201,6 +204,7 @@ export const createDebtPartSchema = z
 export const updateDebtPartSchema = z.object({
   name: z.string().trim().min(1, "name must not be empty").max(200).optional(),
   annualInterestRate: nonNegativeDecimalString("annualInterestRate").optional(),
+  rateType: rateTypeSchema.optional(),
   endDate: isoDate("endDate").optional(),
 })
 

@@ -218,6 +218,8 @@ export const mortgageParts = pgTable("mortgage_parts", {
   type: text("type").notNull(),  // "linear" | "annuity" | "interest_only"
   principal: numeric("principal", { precision: 15, scale: 2 }).notNull(),
   annualInterestRate: numeric("annual_interest_rate", { precision: 8, scale: 6 }).notNull(),
+  // how the rate is quoted: "nominal" (monthly rate = rate/12) or "effective" (monthly rate = (1+rate)^(1/12)-1)
+  rateType: text("rate_type").notNull().default("nominal"),
   startDate: date("start_date").notNull(),
   endDate: date("end_date").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -256,6 +258,8 @@ export const loanParts = pgTable("loan_parts", {
   type: text("type").notNull(),  // "linear" | "annuity" | "interest_only"
   principal: numeric("principal", { precision: 15, scale: 2 }).notNull(),
   annualInterestRate: numeric("annual_interest_rate", { precision: 8, scale: 6 }).notNull(),
+  // how the rate is quoted: "nominal" (monthly rate = rate/12) or "effective" (monthly rate = (1+rate)^(1/12)-1)
+  rateType: text("rate_type").notNull().default("nominal"),
   startDate: date("start_date").notNull(),
   endDate: date("end_date").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),

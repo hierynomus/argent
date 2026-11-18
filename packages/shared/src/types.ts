@@ -328,6 +328,8 @@ export interface MortgagePart {
   type: "linear" | "annuity" | "interest_only"
   principal: string
   annualInterestRate: string
+  /** how the rate is quoted: nominal (monthly = rate/12) or effective (monthly = (1+rate)^(1/12)-1) */
+  rateType: "nominal" | "effective"
   startDate: string
   endDate: string
   createdAt: string
@@ -383,6 +385,8 @@ export interface LoanPart {
   type: "linear" | "annuity" | "interest_only"
   principal: string
   annualInterestRate: string
+  /** how the rate is quoted: nominal (monthly = rate/12) or effective (monthly = (1+rate)^(1/12)-1) */
+  rateType: "nominal" | "effective"
   startDate: string
   endDate: string
   createdAt: string

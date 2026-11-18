@@ -141,6 +141,7 @@ app.post("/:id/parts", validateJson(createDebtPartSchema), async (c) => {
       type: body.type,
       principal: body.principal,
       annualInterestRate: body.annualInterestRate,
+      rateType: body.rateType ?? "nominal",
       startDate: body.startDate,
       endDate: body.endDate,
     })
@@ -164,6 +165,7 @@ app.patch("/:id/parts/:pid", validateJson(updateDebtPartSchema), async (c) => {
   const updates: Partial<typeof loanParts.$inferInsert> = {}
   if (body.name?.trim()) updates.name = body.name.trim()
   if (body.annualInterestRate !== undefined) updates.annualInterestRate = body.annualInterestRate
+  if (body.rateType !== undefined) updates.rateType = body.rateType
   if (body.endDate) updates.endDate = body.endDate
   if (Object.keys(updates).length === 0) return c.json({ error: "Nothing to update" }, 400)
 

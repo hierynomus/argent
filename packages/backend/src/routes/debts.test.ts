@@ -57,6 +57,30 @@ for (const kind of ["mortgages", "loans"] as const) {
       expect(listed.totalMonthlyPayment).toBe(listed.parts[0].monthlyPayment)
     })
 
+    test("the rate type defaults to nominal, can be set to effective on creation, and changed on update", async () => {
+      const d = (await create()).body
+      const nominal = (await post(`${base}/${d.id}/parts`, part())).body
+      expect(nominal.rateType).toBe("nominal")
+
+      const eff = (await post(`${base}/${d.id}/parts`, part({ principal: "28500", annualInterestRate: "0.059", rateType: "effective", startDate: "2024-11-28", endDate: "2027-12-28" }))).body
+      expect(eff.rateType).toBe("effective")
+      expect(eff.totalMonths).toBe(37)
+      expect(eff.originalMonthlyPayment).toBe(842.36)
+
+      const flipped = await patch(`${base}/${d.id}/parts/${eff.id}`, { rateType: "nominal" })
+      expect(flipped.status).toBe(200)
+      expect(flipped.body.rateType).toBe("nominal")
+      expect(flipped.body.originalMonthlyPayment).toBe(844.34)
+      expect((await detail(d.id)).parts.find((p: any) => p.id === eff.id).rateType).toBe("nominal")
+    })
+
+    test("an unknown rate type is rejected", async () => {
+      const d = (await create()).body
+      expect((await post(`${base}/${d.id}/parts`, part({ rateType: "weekly" }))).status).toBe(400)
+      const p = (await post(`${base}/${d.id}/parts`, part())).body
+      expect((await patch(`${base}/${d.id}/parts/${p.id}`, { rateType: "weekly" })).status).toBe(400)
+    })
+
     test("totals add up over several parts", async () => {
       const d = (await create()).body
       await post(`${base}/${d.id}/parts`, part({ type: "interest_only", principal: "100000", annualInterestRate: "0.12", startDate: "2020-01-01", endDate: "2050-01-01" }))
