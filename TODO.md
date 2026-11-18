@@ -56,7 +56,7 @@ Verify everything with `bun run check` (type-check all packages + all tests + "m
 ## Deployment readiness
 - [ ] CI has never run on GitHub (`.github/workflows/ci.yml`; frontend tests now run through Vitest)
 - [ ] Set the `k8s/` placeholders (registry, domain, `AUTHENTIK_*` groups, optional `COINGECKO_API_KEY`) and try the real Authentik login
-- [ ] Dev uses an in-memory PGlite that `bun --hot` recreates on every backend change: consider a persistent dev database or a seed script, since data entered during testing is lost
+- [x] Dev database persists (PGlite in `packages/backend/.data/pglite`, reused across `bun --hot` reloads); `bun run db:reset` to start over; tracked `.env.example` files; production requires `DATABASE_URL`. Still open: a seed script with sample data
 
 ## Background jobs / ops
 - [~] Job runner: sequential, no overlap, errors logged (`services/backgroundJobs.ts`). Still open: named per-job scheduling/enable flags

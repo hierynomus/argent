@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import { loadConfig } from "./config"
 
-const prod = { NODE_ENV: "production", AUTHENTIK_ISSUER: "https://a/o/x", AUTHENTIK_ADMIN_GROUP: "adm", AUTHENTIK_IMPORT_GROUP: "imp", CORS_ORIGIN: "https://app" }
+const prod = { NODE_ENV: "production", DATABASE_URL: "postgresql://u:p@db:5432/argent", AUTHENTIK_ISSUER: "https://a/o/x", AUTHENTIK_ADMIN_GROUP: "adm", AUTHENTIK_IMPORT_GROUP: "imp", CORS_ORIGIN: "https://app" }
 
 describe("loadConfig", () => {
   test("a complete production environment is accepted", () => {
@@ -36,5 +36,16 @@ describe("loadConfig", () => {
     expect(loadConfig({ AUTH_MODE: "fake", COINGECKO_API_KEY: "CG-abc" }).coingeckoApiKey).toBe("CG-abc")
     expect(loadConfig({ AUTH_MODE: "fake" }).coingeckoApiKey).toBeUndefined()
     expect(loadConfig({ AUTH_MODE: "fake", COINGECKO_API_KEY: "" }).coingeckoApiKey).toBeUndefined()
+  })
+
+  test("production needs a real database: no fallback to the embedded development one", () => {
+    const { DATABASE_URL: _omit, ...withoutDb } = prod
+    expect(() => loadConfig(withoutDb)).toThrow("DATABASE_URL")
+    expect(() => loadConfig({ ...prod, DATABASE_URL: "memory" })).toThrow("DATABASE_URL")
+    expect(() => loadConfig({ ...prod, DATABASE_URL: "" })).toThrow("DATABASE_URL")
+  })
+
+  test("outside production DATABASE_URL is optional (the development database)", () => {
+    expect(() => loadConfig({ AUTH_MODE: "fake" })).not.toThrow()
   })
 })

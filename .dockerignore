@@ -1,0 +1,4 @@
+# keep local development state out of the image build context
+**/.data
+**/.env.development
+.git

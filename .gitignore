@@ -9,6 +9,9 @@ dist/
 # Bun
 bun.lockb
 
+# Local development database (PGlite data directory)
+packages/backend/.data/
+
 # Build output
 packages/frontend/dist/
 packages/backend/dist/

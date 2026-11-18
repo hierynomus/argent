@@ -27,6 +27,8 @@ export function loadConfig(env: Env = process.env): Config {
   const problems: string[] = []
 
   if (production && authMode === "fake") problems.push("AUTH_MODE=fake is not allowed when NODE_ENV=production")
+  // without it the app would silently fall back to the embedded development database
+  if (production && (!env.DATABASE_URL || env.DATABASE_URL === "memory")) problems.push("DATABASE_URL (a Postgres connection string) is required in production")
   if (authMode === "oidc" && !env.AUTHENTIK_ISSUER) problems.push("AUTHENTIK_ISSUER is required")
   if (production && authMode === "oidc") {
     for (const name of ["AUTHENTIK_ADMIN_GROUP", "AUTHENTIK_IMPORT_GROUP", "CORS_ORIGIN"] as const) {

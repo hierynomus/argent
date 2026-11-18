@@ -10,6 +10,7 @@
     "dev:frontend": "bun run --cwd packages/frontend dev",
     "build": "bun run build --filter '*'",
     "db:generate": "bun run --cwd packages/backend db:generate",
+    "db:reset": "bun run --cwd packages/backend db:reset",
     "db:migrate": "bun run --cwd packages/backend db:migrate",
     "test": "bun run --cwd packages/shared test && bun run --cwd packages/backend test && bun run --cwd packages/frontend test",
     "typecheck": "bun run --cwd packages/shared typecheck && bun run --cwd packages/backend typecheck && bun run --cwd packages/frontend typecheck",

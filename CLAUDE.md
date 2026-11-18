@@ -18,13 +18,14 @@ Self-hosted personal finance app. Repo dir is `finance`, but the root package is
 - `bun run build`: build all packages.
 
 ## Local dev mode
-- Backend `.env.development`: `AUTH_MODE=fake` injects a static dev user. With `DATABASE_URL` unset it uses PGlite (in-memory Postgres WASM) and auto-migrates.
+- The `.env.development` files are not committed: copy `packages/backend/.env.example` and `packages/frontend/.env.example` (they document every dev setting).
+- Backend `.env.development`: `AUTH_MODE=fake` injects a static dev user. **With `DATABASE_URL` unset it uses an embedded PGlite database that persists in `packages/backend/.data/pglite`** (gitignored): what you enter survives restarts and `bun --hot` reloads, and pending migrations are applied on start. `bun run db:reset` throws it away; `PGLITE_DATA_DIR` moves it; `DATABASE_URL=memory` gives a throw-away in-memory database (the tests force this); a postgres URL uses that server. Where it lives is decided by `resolveDbLocation` (`db/location.ts`); production requires a real `DATABASE_URL` (`config.ts`).
 - Frontend `.env.development`: `VITE_AUTH_MODE=fake` uses `createFakeAuth()`, which is the same `Auth` object the real OIDC flow produces, so `useAuth()` works unchanged.
 - PGlite is a devDependency and is not in the production image.
 
 ## Database / migrations (important)
 - Drizzle migrations in `packages/backend/drizzle/` (currently 0000–0022) are tracked in git. Never gitignore them.
-- Run `db:generate` BEFORE editing `schema.ts`, or restart the backend after generating. Bun `--hot` restarts on `schema.ts` changes, and PGlite can end up on a stale schema.
+- Run `db:generate` BEFORE editing `schema.ts`, or restart the backend after generating. Bun `--hot` re-evaluates `db/index.ts` on source changes; it reuses the already open PGlite client (kept on `globalThis`) so data is not lost and the directory is never opened twice, and it applies new migrations — but a `schema.ts` edit without a generated migration leaves the dev database on the old schema.
 - Always create migrations with `db:generate` (0018 was generated this way). Don't hand-write them without also updating `drizzle/meta/` snapshots and the journal. Drift makes `db:generate` hang on an interactive rename prompt. Check with `db:check`.
 
 ## Backend layout (`packages/backend/src`)
