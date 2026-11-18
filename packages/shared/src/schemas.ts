@@ -296,3 +296,31 @@ export const createEquityPriceSchema = z.object({
   price: positiveDecimalString("price"),
   note: optionalText(200),
 })
+
+// ─── Transaction list filters (GET /transactions?…) ─────────────────────────────
+
+/** Query strings give "" for an unset field: treat it as absent. */
+const emptyAsUndefined = <T extends z.ZodType>(schema: T) => z.preprocess((v) => (v === "" ? undefined : v), schema)
+const id = (what: string) => z.uuid({ error: `${what} must be an id` })
+
+export const MAX_PAGE_SIZE = 200
+export const transactionFiltersSchema = z
+  .object({
+    accountId: emptyAsUndefined(id("accountId").optional()),
+    /** several accounts: comma-separated ids */
+    accountIds: emptyAsUndefined(
+      z.string().transform((s) => s.split(",").map((x) => x.trim()).filter(Boolean)).pipe(z.array(id("accountIds")).max(100, "accountIds has too many ids")).optional(),
+    ),
+    categoryId: emptyAsUndefined(
+      z.string().refine((v) => v === "uncategorized" || z.uuid().safeParse(v).success, { message: 'categoryId must be an id or "uncategorized"' }).optional(),
+    ),
+    from: emptyAsUndefined(isoDate("from").optional()),
+    to: emptyAsUndefined(isoDate("to").optional()),
+    search: emptyAsUndefined(z.string().trim().max(200, "search is too long").optional()),
+    page: emptyAsUndefined(z.coerce.number({ error: "page must be a number" }).int("page must be a whole number").min(1, "page must be at least 1").default(1)),
+    /** more than MAX_PAGE_SIZE is not an error: it is capped */
+    pageSize: emptyAsUndefined(
+      z.coerce.number({ error: "pageSize must be a number" }).int("pageSize must be a whole number").min(1, "pageSize must be at least 1").transform((n) => Math.min(n, MAX_PAGE_SIZE)).default(50),
+    ),
+  })
+  .refine((f) => !f.from || !f.to || f.from <= f.to, { message: "from must not be after to", path: ["from"] })

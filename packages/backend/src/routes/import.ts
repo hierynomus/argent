@@ -1,4 +1,5 @@
-import { Hono } from "hono"
+import { Hono, type Context } from "hono"
+import { bodyLimit } from "hono/body-limit"
 import { unzipSync, strFromU8 } from "fflate"
 import { eq } from "drizzle-orm"
 import { db } from "../db"
@@ -11,6 +12,25 @@ import type { ImportResult } from "@argent/shared"
 import type { AuthUser } from "../middleware/auth"
 
 const app = new Hono<{ Variables: { user: AuthUser } }>()
+
+const MB = 1024 * 1024
+/** Upload limits. A year of bank statements is a few hundred kB: these leave plenty of room and stop accidents and abuse. */
+export const IMPORT_LIMITS = { xmlBytes: 10 * MB, zipBytes: 25 * MB, unzippedBytes: 100 * MB, zipEntries: 1000 }
+
+/** Rejects oversized request bodies early (a little above the file limit: the multipart envelope adds some). */
+const limitBody = (maxFileBytes: number) =>
+  bodyLimit({ maxSize: maxFileBytes + MB, onError: (c) => c.json({ error: `File too large (the maximum is ${maxFileBytes / MB} MB)` }, 413) })
+
+/** The uploaded `file` field, or the error response to send. */
+async function uploadedFile(c: Context, maxBytes: number): Promise<{ file: File } | { response: Response }> {
+  const file = (await c.req.formData().catch(() => null))?.get("file")
+  if (!file || typeof file === "string") return { response: c.json({ error: "file field is required" }, 400) }
+  if (file.size === 0) return { response: c.json({ error: "The file is empty" }, 400) }
+  if (file.size > maxBytes) return { response: c.json({ error: `File too large (the maximum is ${maxBytes / MB} MB)` }, 413) }
+  return { file }
+}
+
+class ZipTooLarge extends Error {}
 
 /**
  * Import a parsed CAMT.053 XML for the given user.
@@ -105,17 +125,18 @@ async function importXml(
   return { accountIban: account.iban, imported, skipped }
 }
 
-app.post("/", async (c) => {
+app.post("/", limitBody(IMPORT_LIMITS.xmlBytes), async (c) => {
   const user = c.get("user")
-  const formData = await c.req.formData()
-  const file = formData.get("file")
+  const upload = await uploadedFile(c, IMPORT_LIMITS.xmlBytes)
+  if ("response" in upload) return upload.response
 
-  if (!file || typeof file === "string") {
-    return c.json({ error: "file field is required" }, 400)
+  const xml = await upload.file.text()
+  if (!xml.replace(/^\uFEFF/, "").trimStart().startsWith("<")) {
+    return c.json({ error: "That does not look like an XML file (expected a CAMT.053 statement)" }, 422)
   }
 
   try {
-    const result = await importXml(await file.text(), user.groups ?? [], user.sub, user.isAdmin, user.canImport)
+    const result = await importXml(xml, user.groups ?? [], user.sub, user.isAdmin, user.canImport)
     void runBackgroundJobs("import")
     return c.json(result, 201)
   } catch (err) {
@@ -125,20 +146,32 @@ app.post("/", async (c) => {
   }
 })
 
-app.post("/zip", async (c) => {
+app.post("/zip", limitBody(IMPORT_LIMITS.zipBytes), async (c) => {
   const user = c.get("user")
-  const formData = await c.req.formData()
-  const file = formData.get("file")
+  const upload = await uploadedFile(c, IMPORT_LIMITS.zipBytes)
+  if ("response" in upload) return upload.response
 
-  if (!file || typeof file === "string") {
-    return c.json({ error: "file field is required" }, 400)
-  }
+  const bytes = new Uint8Array(await upload.file.arrayBuffer())
+  if (bytes[0] !== 0x50 || bytes[1] !== 0x4b) return c.json({ error: "That does not look like a ZIP file" }, 422)
 
   let entries: Record<string, Uint8Array>
   try {
-    const bytes = new Uint8Array(await (file as File).arrayBuffer())
-    entries = unzipSync(bytes)
+    // the filter sees each entry's declared size BEFORE it is decompressed, so a zip bomb is refused up front
+    let count = 0
+    let total = 0
+    entries = unzipSync(bytes, {
+      filter: (entry) => {
+        if (!entry.name.toLowerCase().endsWith(".xml") || entry.name.startsWith("__MACOSX")) return false
+        count++
+        total += entry.originalSize
+        if (count > IMPORT_LIMITS.zipEntries) throw new ZipTooLarge(`The ZIP has more than ${IMPORT_LIMITS.zipEntries} statements`)
+        if (entry.originalSize > IMPORT_LIMITS.xmlBytes) throw new ZipTooLarge(`"${entry.name}" is larger than ${IMPORT_LIMITS.xmlBytes / MB} MB`)
+        if (total > IMPORT_LIMITS.unzippedBytes) throw new ZipTooLarge(`The ZIP expands to more than ${IMPORT_LIMITS.unzippedBytes / MB} MB`)
+        return true
+      },
+    })
   } catch (err) {
+    if (err instanceof ZipTooLarge) return c.json({ error: err.message }, 413)
     return c.json({ error: `Failed to open ZIP: ${(err as Error).message}` }, 422)
   }
 

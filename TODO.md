@@ -25,9 +25,9 @@ Verify everything with `bun run check` (type-check all packages + all tests + "m
 - [x] Runtime validation with zod + `@hono/zod-validator` on every JSON route; schemas live in `@argent/shared` and the `*Body` types are derived from them
 - [x] Global `app.onError` / `notFound` → consistent JSON errors; malformed JSON is a 400
 - [x] `/admin/restore` validates its payload (it was already transactional; a bad row rolls back everything — tested)
-- [~] Validate query parameters with the same mechanism: `validateQuery(schema)` exists and covers the price-history endpoints; `/transactions` filters, `page`, `pageSize` still open
-- [ ] Validate multipart uploads (size limit, content type) on the import endpoints
-- [ ] Pass the parsed `TransactionFilters` type through a schema instead of casting `c.req.query()`
+- [x] Query parameters are validated with `validateQuery(schema)`: price history and the `/transactions` filters (`transactionFiltersSchema` in `@argent/shared`; also fixed: asking only for inaccessible accounts used to return everything, `%`/`_` in a search acted as wildcards)
+- [x] Uploads are validated: body limit (10 MB XML / 25 MB ZIP), empty and wrong-type files, zip bombs (entry count and declared sizes checked before decompressing); limits in `IMPORT_LIMITS`
+- [x] `/transactions` reads `c.req.valid("query")` (typed, parsed) instead of casting the raw query
 
 ## Correctness
 - [x] Transfer linker: a payment and its reversal on the SAME account were linked as an "internal transfer" (strategy 1 had no same-account guard) — fixed + tested

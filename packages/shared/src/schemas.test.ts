@@ -6,7 +6,7 @@ import {
   linkTransferSchema, nonNegativeDecimalString, positiveDecimalString, setAccountOwnerSchema,
   updateAccountSchema, updateDebtPartSchema, updateDebtSchema, updateMeSchema, updatePortfolioSchema,
   updateSubscriptionSchema, updateTransactionSchema,
-  createEquityPlanSchema, updateEquityPlanSchema, createEquityGrantSchema, updateEquityGrantSchema, createEquityPriceSchema,
+  transactionFiltersSchema, MAX_PAGE_SIZE, createEquityPlanSchema, updateEquityPlanSchema, createEquityGrantSchema, updateEquityGrantSchema, createEquityPriceSchema,
   createPropertySchema, updatePropertySchema, createPropertyValuationSchema, setPropertyLinksSchema,
 } from "./schemas"
 import type { z } from "zod"
@@ -303,5 +303,48 @@ describe("equity schemas", () => {
     ok(createEquityPriceSchema, { priceDate: "2024-06-01", price: "12.5", note: "Series A" })
     bad(createEquityPriceSchema, { priceDate: "2024-13-01", price: "1" })
     bad(createEquityPriceSchema, { priceDate: "2024-06-01", price: "0" }, "price must be greater than 0")
+  })
+})
+
+describe("transactionFiltersSchema", () => {
+  const parse = (q: Record<string, string>) => transactionFiltersSchema.parse(q)
+  const ID = "123e4567-e89b-42d3-a456-426614174000"
+
+  test("defaults: page 1, 50 per page, no filters", () => {
+    expect(parse({})).toEqual({ page: 1, pageSize: 50 })
+  })
+
+  test("numbers arrive as strings and come out as numbers; pageSize is capped", () => {
+    expect(parse({ page: "3", pageSize: "25" })).toMatchObject({ page: 3, pageSize: 25 })
+    expect(parse({ pageSize: "9999" }).pageSize).toBe(MAX_PAGE_SIZE)
+  })
+
+  test("accountIds is a comma-separated list of ids (blanks ignored)", () => {
+    expect(parse({ accountIds: `${ID}, ${ID},` }).accountIds).toEqual([ID, ID])
+    bad(transactionFiltersSchema, { accountIds: `${ID},nope` }, "accountIds must be an id")
+  })
+
+  test("category: an id or the word uncategorized", () => {
+    expect(parse({ categoryId: "uncategorized" }).categoryId).toBe("uncategorized")
+    expect(parse({ categoryId: ID }).categoryId).toBe(ID)
+    bad(transactionFiltersSchema, { categoryId: "x" }, 'must be an id or "uncategorized"')
+  })
+
+  test("dates are real and in order; the search is trimmed and bounded", () => {
+    expect(parse({ from: "2024-01-01", to: "2024-01-01" })).toMatchObject({ from: "2024-01-01", to: "2024-01-01" })
+    bad(transactionFiltersSchema, { from: "2024-02-30" }, "not a valid date")
+    bad(transactionFiltersSchema, { from: "2024-03-01", to: "2024-02-01" }, "from must not be after to")
+    expect(parse({ search: "  coffee " }).search).toBe("coffee")
+    bad(transactionFiltersSchema, { search: "x".repeat(201) }, "too long")
+  })
+
+  test("blank values are treated as not set", () => {
+    expect(parse({ accountId: "", categoryId: "", from: "", search: "", page: "", pageSize: "" })).toEqual({ page: 1, pageSize: 50 })
+  })
+
+  test("page and pageSize must be positive whole numbers", () => {
+    bad(transactionFiltersSchema, { page: "0" }, "at least 1")
+    bad(transactionFiltersSchema, { page: "1.5" }, "whole number")
+    bad(transactionFiltersSchema, { pageSize: "abc" }, "must be a number")
   })
 })

@@ -2,59 +2,43 @@ import { Hono } from "hono"
 import { db } from "../db"
 import { transactions } from "../db/schema"
 import { and, eq, gte, ilike, inArray, isNull, lte, sql } from "drizzle-orm"
-import type { LinkTransferBody, TransactionFilters, UpdateTransactionBody } from "@argent/shared"
 import type { AuthUser } from "../middleware/auth"
-import { validateJson } from "../middleware/validate"
-import { updateTransactionSchema, linkTransferSchema } from "@argent/shared"
+import { validateJson, validateQuery } from "../middleware/validate"
+import { updateTransactionSchema, linkTransferSchema, transactionFiltersSchema } from "@argent/shared"
 import { getViewableAccountIds, toAccessContext, canEditAccount } from "../services/accessControl"
 
 const app = new Hono<{ Variables: { user: AuthUser } }>()
 
 const withDetails = { account: true, category: true, transferPeer: { with: { account: true } } } as const
 
-app.get("/", async (c) => {
+app.get("/", validateQuery(transactionFiltersSchema), async (c) => {
   const user = c.get("user")
-  const accessibleIds = await getViewableAccountIds(toAccessContext(user))
-  if (accessibleIds.length === 0) {
-    return c.json({ data: [], total: 0, page: 1, pageSize: 50 })
-  }
-
-  const query = c.req.query() as TransactionFilters
-
-  const page = Number(query.page ?? 1)
-  const pageSize = Math.min(Number(query.pageSize ?? 50), 200)
+  const query = c.req.valid("query")
+  const { page, pageSize } = query
   const offset = (page - 1) * pageSize
+
+  const accessibleIds = await getViewableAccountIds(toAccessContext(user))
+  if (accessibleIds.length === 0) return c.json({ data: [], total: 0, page, pageSize })
 
   const conditions = [inArray(transactions.accountId, accessibleIds)]
 
-  const accountIdsParam = c.req.query("accountIds")
-  if (accountIdsParam) {
-    const requested = accountIdsParam.split(",").filter(Boolean)
-    // Intersect requested with accessible
+  // restrict to the requested accounts the user may see; asking only for accounts they may not see gives nothing
+  const requested = [...(query.accountId ? [query.accountId] : []), ...(query.accountIds ?? [])]
+  if (requested.length > 0) {
     const allowed = requested.filter((id) => accessibleIds.includes(id))
-    if (allowed.length > 0) {
-      conditions.push(inArray(transactions.accountId, allowed))
-    }
-  } else if (query.accountId) {
-    if (accessibleIds.includes(query.accountId)) {
-      conditions.push(eq(transactions.accountId, query.accountId))
-    } else {
-      return c.json({ data: [], total: 0, page, pageSize })
-    }
+    if (allowed.length === 0) return c.json({ data: [], total: 0, page, pageSize })
+    conditions.push(inArray(transactions.accountId, allowed))
   }
   if (query.categoryId === "uncategorized") {
     conditions.push(isNull(transactions.categoryId))
   } else if (query.categoryId) {
     conditions.push(eq(transactions.categoryId, query.categoryId))
   }
-  if (query.from) {
-    conditions.push(gte(transactions.bookingDate, query.from))
-  }
-  if (query.to) {
-    conditions.push(lte(transactions.bookingDate, query.to))
-  }
+  if (query.from) conditions.push(gte(transactions.bookingDate, query.from))
+  if (query.to) conditions.push(lte(transactions.bookingDate, query.to))
   if (query.search) {
-    conditions.push(ilike(transactions.description, `%${query.search}%`))
+    // % and _ in the text are literal characters, not wildcards
+    conditions.push(ilike(transactions.description, `%${query.search.replace(/[\\%_]/g, "\\$&")}%`))
   }
 
   const where = and(...conditions)
