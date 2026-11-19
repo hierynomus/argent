@@ -14,7 +14,7 @@ import * as schema from "../db/schema"
  */
 export const BACKUP_ORDER = [
   "accounts", "categories", "userProfiles", "subscriptions", "accountMembers",
-  "portfolios", "portfolioMembers", "cryptoTrades", "cryptoAssets", "metalLots", "metalSales",
+  "portfolios", "portfolioMembers", "portfolioCashMovements", "cryptoTrades", "cryptoAssets", "metalLots", "metalSales",
   "stockTrades", "stockAssets", "stockDividends",
   "mortgages", "mortgageParts", "mortgageExtraPayments", "mortgageMembers",
   "loans", "loanParts", "loanExtraPayments", "loanMembers",

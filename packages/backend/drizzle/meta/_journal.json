@@ -169,6 +169,13 @@
       "when": 1795072037794,
       "tag": "0023_nostalgic_fantastic_four",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1795077942567,
+      "tag": "0024_ambitious_speed",
+      "breakpoints": true
     }
   ]
 }

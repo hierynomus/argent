@@ -8,6 +8,7 @@ import PositionsTable from "../PositionsTable.vue"
 import SummaryTiles from "../SummaryTiles.vue"
 import { standardTiles } from "../tiles"
 import TradeHistory from "../TradeHistory.vue"
+import CashPanel from "../cash/CashPanel.vue"
 import DividendForm from "./DividendForm.vue"
 import DividendHistory from "./DividendHistory.vue"
 import StockTradeForm from "./StockTradeForm.vue"
@@ -24,7 +25,7 @@ const fmt4 = (n: number) => fmtMaxDecimals(n, 4)
 
 const tiles = computed(() => [
   ...standardTiles(
-    { openCost: props.portfolio.totalOpenCost, currentValue: props.portfolio.totalCurrentValue, unrealized: props.portfolio.totalUnrealizedPnL, realized: props.portfolio.totalRealizedPnL },
+    { openCost: props.portfolio.totalOpenCost, currentValue: props.portfolio.totalCurrentValue, unrealized: props.portfolio.totalUnrealizedPnL, realized: props.portfolio.totalRealizedPnL, cash: props.portfolio.cash },
     props.portfolio.currency,
   ),
   { label: "Dividends", value: fmtSymbolCur(props.portfolio.totalDividends, props.portfolio.currency), color: props.portfolio.totalDividends > 0 ? "text-green-600 dark:text-green-400" : undefined },
@@ -35,6 +36,8 @@ const tiles = computed(() => [
   <SummaryTiles :tiles="tiles" />
   <PositionsTable :positions="portfolio.positions" :currency="portfolio.currency" balance-header="Shares" :format-balance="fmt4" show-dividends min-width="min-w-[780px]" :selected-symbol="selected" @select="(s) => (selected = selected === s ? null : s)" />
   <AssetChart v-if="selectedPosition" :key="selectedPosition.symbol" kind="stocks" :symbol="selectedPosition.symbol" :name="selectedPosition.name" :currency="portfolio.currency as 'EUR' | 'USD'" :trades="portfolio.trades" @close="selected = null" />
+
+  <CashPanel kind="stocks" :portfolio="portfolio" />
 
   <div v-if="portfolio.canEdit && mode === 'idle'" class="flex gap-4 mb-4">
     <Button variant="link" class="font-normal" @click="mode = 'trade'">+ Record trade</Button>

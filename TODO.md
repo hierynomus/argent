@@ -107,6 +107,12 @@ Vue 3 (rewritten from React; merged). `api/`, `lib/`, the shared zod schemas and
 - [ ] Frontend `overview.ts` aggregation sums floats per symbol; round to cents/decimals when aggregating money (display is rounded, so this is cosmetic)
 - [ ] `Td` leaves cells with extra classes (e.g. colour from a function) hand-written; consider a `class` passthrough convention or a `negative`/`positive` tone
 
+## Cash accounts of portfolios
+- [x] Account number + cash balance for crypto/stocks portfolios (opening cash + deposits/withdrawals/fees/interest, derived from trades and dividends), shown on the page, in the overview tab and in net worth
+- [ ] Suggest deposits/withdrawals from checking-account transactions whose counterparty IBAN is the portfolio's account number (one click to accept; avoid double entry)
+- [ ] Warn when a buy exceeds the cash balance (shown negative today, never refused)
+- [ ] Cash movements are not editable (delete and re-enter); add an edit row if that becomes annoying
+
 ## Hygiene
 - [x] All migrations from now on come from `db:generate` (0018 does); `db:check` runs in `bun run check` and CI
 - [x] `tsconfig.tsbuildinfo` is no longer tracked (the Vue build does not emit it)

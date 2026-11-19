@@ -24,7 +24,7 @@ export const portfolio = (over: Partial<PortfolioWithAccess> = {}): PortfolioWit
 })
 
 export const cryptoDetail = (over: Partial<PortfolioDetail> = {}): PortfolioDetail => ({
-  ...portfolio(), trades: [], positions: [], totalOpenCost: 0, totalCurrentValue: null, totalRealizedPnL: 0, totalUnrealizedPnL: null, ...over,
+  ...portfolio(), trades: [], positions: [], cash: 0, cashMovements: [], totalOpenCost: 0, totalCurrentValue: null, totalRealizedPnL: 0, totalUnrealizedPnL: null, ...over,
 } as PortfolioDetail)
 
 export const stockPosition = (over: Partial<StockPosition> = {}): StockPosition => ({
@@ -33,7 +33,7 @@ export const stockPosition = (over: Partial<StockPosition> = {}): StockPosition 
 })
 
 export const stockDetail = (over: Partial<StockPortfolioDetail> = {}): StockPortfolioDetail => ({
-  ...portfolio({ type: "stocks", broker: "DEGIRO", currency: "USD" }), trades: [], dividends: [], positions: [], totalOpenCost: 0,
+  ...portfolio({ type: "stocks", broker: "DEGIRO", currency: "USD" }), trades: [], dividends: [], positions: [], cash: 0, cashMovements: [], totalOpenCost: 0,
   totalCurrentValue: null, totalRealizedPnL: 0, totalUnrealizedPnL: null, totalDividends: 0, ...over,
 } as StockPortfolioDetail)
 

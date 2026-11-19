@@ -107,3 +107,14 @@ describe("aggregateMetals", () => {
     expect(groups.map((g) => [g.currency, g.openCost, g.currentValue])).toEqual([["EUR", 1000, 1200], ["USD", 900, 1100]])
   })
 })
+
+describe("aggregateAssets: cash", () => {
+  test("the cash of the portfolios is summed per currency, and EUR and USD stay apart", () => {
+    const groups = aggregateAssets([
+      cryptoDetail({ id: "a", name: "A", currency: "EUR", cash: 100.1 }),
+      cryptoDetail({ id: "b", name: "B", currency: "EUR", cash: 200.2 }),
+      cryptoDetail({ id: "c", name: "C", currency: "USD", cash: 50 }),
+    ])
+    expect(groups.map((g) => [g.currency, g.cash])).toEqual([["EUR", 300.3], ["USD", 50]])
+  })
+})

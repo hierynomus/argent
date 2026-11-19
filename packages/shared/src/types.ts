@@ -120,6 +120,11 @@ export interface Portfolio {
   ownerSub: string | null
   currency: string
   broker: string | null // stocks only
+  /** crypto/stocks: IBAN or broker account id of the cash account behind the portfolio */
+  accountNumber?: string | null
+  /** cash in the account on `openingCashDate` (a decimal string) */
+  openingCash?: string
+  openingCashDate?: string | null
   createdAt: string
 }
 
@@ -132,6 +137,28 @@ export interface PortfolioWithAccess extends Portfolio {
   members: PortfolioMember[]
   isOwner: boolean
   canEdit: boolean
+}
+
+// ─── Cash account of a crypto/stocks portfolio ─────────────────────────────
+
+export type CashMovementType = "deposit" | "withdrawal" | "fee" | "interest"
+
+export interface CashMovement {
+  id: string
+  portfolioId: string
+  movementDate: string
+  type: CashMovementType
+  /** always positive; the type gives the direction */
+  amount: string
+  notes: string | null
+  createdAt: string
+}
+
+/** What a crypto/stocks portfolio reports about its cash account (the read model adds these to the detail). */
+export interface PortfolioCash {
+  /** opening cash + deposits − withdrawals − fees + interest − buys + sells (+ dividends for stocks) */
+  cash: number
+  cashMovements: CashMovement[]
 }
 
 // ─── Crypto ────────────────────────────────────────────────────────────────
@@ -172,7 +199,7 @@ export interface AssetPosition {
   unrealizedPnL: number | null
 }
 
-export interface PortfolioDetail extends Portfolio {
+export interface PortfolioDetail extends Portfolio, PortfolioCash {
   trades: CryptoTrade[]
   positions: AssetPosition[]
   totalOpenCost: number
@@ -282,7 +309,7 @@ export interface StockPosition {
   totalDividends: number
 }
 
-export interface StockPortfolioDetail extends Portfolio {
+export interface StockPortfolioDetail extends Portfolio, PortfolioCash {
   trades: StockTrade[]
   dividends: StockDividend[]
   positions: StockPosition[]
@@ -587,6 +614,8 @@ export type UpdateSubscriptionBody = Body<typeof S.updateSubscriptionSchema>
 export type CreateSubscriptionBody = Body<typeof S.createSubscriptionSchema>
 export type AddPortfolioMemberBody = Body<typeof S.addMemberSchema>
 export type CreatePortfolioBody = Body<typeof S.createPortfolioSchema>
+export type UpdatePortfolioBody = Body<typeof S.updatePortfolioSchema>
+export type CreateCashMovementBody = Body<typeof S.createCashMovementSchema>
 export type CreateCryptoTradeBody = Body<typeof S.createCryptoTradeSchema>
 export type CreateMetalLotBody = Body<typeof S.createMetalLotSchema>
 export type CreateMetalSaleBody = Body<typeof S.createMetalSaleSchema>

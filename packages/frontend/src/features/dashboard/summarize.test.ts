@@ -3,7 +3,7 @@ import { account, debt, equityPlan, portfolio, property, transaction } from "../
 import { bankingLabel, summarize, toHoldings, unrealizedLabel, type DashboardInput, type Holding } from "./summarize"
 
 const empty: DashboardInput = { accounts: [], mortgages: [], loans: [], crypto: [], metals: [], stocks: [], monthTransactions: [] }
-const holding = (over: Partial<Holding> = {}): Holding => ({ currency: "EUR", value: 1000, unrealizedPnL: 100, loading: false, ...over })
+const holding = (over: Partial<Holding> = {}): Holding => ({ currency: "EUR", value: 1000, unrealizedPnL: 100, cash: 0, loading: false, ...over })
 const fmt = (n: number) => `€${n.toFixed(2)}`
 
 describe("summarize: net worth", () => {
@@ -138,12 +138,12 @@ describe("toHoldings", () => {
       (d) => d.v,
     )
     expect(h).toEqual([
-      { currency: "EUR", value: 100, unrealizedPnL: 5, loading: false },
-      { currency: "USD", value: null, unrealizedPnL: null, loading: true },
+      { currency: "EUR", value: 100, unrealizedPnL: 5, cash: 0, loading: false },
+      { currency: "USD", value: null, unrealizedPnL: null, cash: 0, loading: true },
     ])
   })
   test("a missing detail entry is treated as loading-less and empty", () => {
-    expect(toHoldings([portfolio()], [], () => 1)).toEqual([{ currency: "EUR", value: null, unrealizedPnL: null, loading: false }])
+    expect(toHoldings([portfolio()], [], () => 1)).toEqual([{ currency: "EUR", value: null, unrealizedPnL: null, cash: 0, loading: false }])
   })
 })
 
@@ -213,5 +213,29 @@ describe("summarize: stock options", () => {
   test("net worth is loading while the plans are, and callers without equity get zeros", () => {
     expect(summarize({ ...empty, equityLoading: true }).netWorthLoading).toBe(true)
     expect(summarize(empty).equity).toEqual({ vestedValue: 0, unvestedValue: 0, onExitValue: 0, count: 0, loading: false })
+  })
+})
+
+describe("summarize: cash in investment accounts", () => {
+  const base = { accounts: [], mortgages: [], loans: [], crypto: [], metals: [], stocks: [], monthTransactions: [] } as DashboardInput
+
+  test("cash counts in net worth with the positions, also when a position has no price", () => {
+    const s = summarize({ ...base, crypto: [holding({ value: null, unrealizedPnL: null, cash: 250 })], stocks: [holding({ value: 1000, cash: 100.1 }), holding({ value: 0, cash: 0.2 })] })
+    expect(s.crypto.total).toBe(250)
+    expect(s.stocks.total).toBe(1100.3)
+    expect(s.totalAssets).toBe(1350.3)
+  })
+
+  test("cash in another currency is left out like the rest of that portfolio", () => {
+    const s = summarize({ ...base, crypto: [holding({ currency: "USD", value: 500, cash: 999 })] })
+    expect(s.crypto.total).toBe(0)
+    expect(s.hasExcludedNonEur).toBe(true)
+  })
+
+  test("toHoldings reads the cash from the detail (metals have none)", () => {
+    const withCash = toHoldings([{ currency: "EUR" }], [{ data: { totalUnrealizedPnL: null, cash: 75 } as any, isLoading: false }], () => 10)
+    expect(withCash[0].cash).toBe(75)
+    const metals = toHoldings([{ currency: "EUR" }], [{ data: { totalUnrealizedPnL: null } as any, isLoading: false }], () => 10)
+    expect(metals[0].cash).toBe(0)
   })
 })

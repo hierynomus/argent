@@ -1,11 +1,14 @@
+import { sumCents } from "../../lib/money"
 import type { Account, EquityPlanWithDetails, PortfolioWithAccess, PropertyWithDetails, TransactionWithDetails } from "@argent/shared"
 import type { Debt } from "../../api"
 
-/** An investment portfolio reduced to what the dashboard needs. `null` = no value yet (still loading, or no live price). */
+/** An investment portfolio reduced to what the dashboard needs (its value is positions + cash). `null` = no value yet (still loading, or no live price). */
 export interface Holding {
   currency: string
   value: number | null
   unrealizedPnL: number | null
+  /** cash in the account behind the portfolio (crypto/stocks); counts even when a position has no price */
+  cash: number
   loading: boolean
 }
 
@@ -20,7 +23,7 @@ export function toHoldings<D extends { totalUnrealizedPnL: number | null }>(
 ): Holding[] {
   return portfolios.map((p, i) => {
     const d = details[i]?.data
-    return { currency: p.currency, value: d ? value(d) : null, unrealizedPnL: d?.totalUnrealizedPnL ?? null, loading: details[i]?.isLoading ?? false }
+    return { currency: p.currency, value: d ? value(d) : null, unrealizedPnL: d?.totalUnrealizedPnL ?? null, cash: (d as { cash?: number } | undefined)?.cash ?? 0, loading: details[i]?.isLoading ?? false }
   })
 }
 
@@ -71,13 +74,12 @@ export interface DashboardSummary {
 }
 
 const EUR = "EUR"
-// summed in whole cents so that 0.1 + 0.2 is 0.3 (the amounts are money)
-const sum = <T,>(items: T[], f: (item: T) => number) => items.reduce((s, i) => s + Math.round(f(i) * 100), 0) / 100
+const sum = <T,>(items: T[], f: (item: T) => number) => sumCents(items.map(f))
 
 function summarizeHoldings(holdings: Holding[]): AssetClassSummary {
   const eur = holdings.filter((h) => h.currency === EUR)
   return {
-    total: sum(eur, (h) => h.value ?? 0),
+    total: sum(eur, (h) => (h.value ?? 0) + (h.cash ?? 0)),
     unrealizedPnL: sum(eur, (h) => h.unrealizedPnL ?? 0),
     count: holdings.length,
     loading: holdings.some((h) => h.loading),

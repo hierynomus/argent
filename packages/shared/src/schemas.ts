@@ -115,12 +115,31 @@ export const createPortfolioSchema = z.object({
   name: requiredString("name"),
   currency: currencySchema.optional(),
   broker: z.string().trim().max(100).optional(), // stocks only
+  accountNumber: z.string().trim().max(100).optional(), // crypto/stocks: IBAN or broker account id of the cash account
 })
 
-export const updatePortfolioSchema = z.object({
-  name: z.string().trim().min(1, "name must not be empty").max(200).optional(),
-  currency: currencySchema.optional(),
-  broker: z.string().trim().max(100).nullable().optional(),
+export const updatePortfolioSchema = z
+  .object({
+    name: z.string().trim().min(1, "name must not be empty").max(200).optional(),
+    currency: currencySchema.optional(),
+    broker: z.string().trim().max(100).nullable().optional(),
+    accountNumber: z.string().trim().max(100).nullable().optional(),
+    /** cash in the account on `openingCashDate`; movements and trades from that date on are added to it */
+    openingCash: nonNegativeDecimalString("openingCash").optional(),
+    openingCashDate: isoDate("openingCashDate").nullable().optional(),
+  })
+  .refine((p) => p.openingCash === undefined || Number(p.openingCash) === 0 || !!p.openingCashDate, {
+    message: "openingCashDate is required with an opening cash amount",
+    path: ["openingCashDate"],
+  })
+
+export const CASH_MOVEMENT_TYPES = ["deposit", "withdrawal", "fee", "interest"] as const
+/** A deposit or withdrawal of the cash account of a crypto/stocks portfolio, or a fee/interest charged on it. */
+export const createCashMovementSchema = z.object({
+  movementDate: isoDate("movementDate"),
+  type: z.enum(CASH_MOVEMENT_TYPES, { error: `type must be one of ${CASH_MOVEMENT_TYPES.join(", ")}` }),
+  amount: positiveDecimalString("amount"),
+  notes: optionalText(),
 })
 
 export const createCryptoTradeSchema = z

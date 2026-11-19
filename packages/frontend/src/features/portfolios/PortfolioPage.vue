@@ -19,6 +19,8 @@ const props = defineProps<{
   emptyNoun: string
   /** stock portfolios belong to a broker */
   withBroker?: boolean
+  /** crypto and stock portfolios have a cash account behind them (metals do not) */
+  withAccount?: boolean
 }>()
 defineSlots<{
   default(props: { portfolio: PortfolioDetailByKind[K] }): unknown
@@ -54,15 +56,17 @@ const creating = ref(false)
 const name = ref("")
 const currency = ref<"EUR" | "USD">("EUR")
 const broker = ref("")
+const accountNumber = ref("")
 
 const create = useMutation({
   mutationFn: () =>
-    portfolioApis[props.kind].create({ name: name.value.trim(), currency: currency.value, broker: props.withBroker ? broker.value.trim() || undefined : undefined }),
+    portfolioApis[props.kind].create({ name: name.value.trim(), currency: currency.value, broker: props.withBroker ? broker.value.trim() || undefined : undefined, accountNumber: props.withAccount ? accountNumber.value.trim() || undefined : undefined }),
   onSuccess: (created) => {
     invalidate.portfolios(props.kind)
     selectedId.value = created.id
     name.value = ""
     broker.value = ""
+    accountNumber.value = ""
     creating.value = false
   },
 })
@@ -91,6 +95,7 @@ function handleCreate() {
     <form v-if="creating" class="mb-6 flex gap-2 flex-wrap items-center" @submit.prevent="handleCreate">
       <Input v-model="name" v-focus density="lg" placeholder="Portfolio name" aria-label="Portfolio name" class="flex-1 min-w-40 !py-2 rounded-lg" />
       <Input v-if="withBroker" v-model="broker" density="lg" placeholder="Broker (e.g. DEGIRO)" aria-label="Broker" class="flex-1 min-w-40 !py-2 rounded-lg" />
+      <Input v-if="withAccount" v-model="accountNumber" density="lg" placeholder="Account number (optional)" aria-label="Account number" class="flex-1 min-w-40 !py-2 rounded-lg" />
       <SegmentedControl v-model="currency" :options="['EUR', 'USD'] as const" padding="px-3 py-2 font-medium" class="rounded-lg" />
       <Button type="submit" size="md" class="rounded-lg" :disabled="create.isPending.value">Create</Button>
       <Button variant="muted-link" size="md" class="rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800" @click="creating = false">Cancel</Button>

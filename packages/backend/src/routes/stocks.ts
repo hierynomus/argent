@@ -1,7 +1,7 @@
 import { Hono } from "hono"
 import { and, eq, inArray } from "drizzle-orm"
 import { db } from "../db"
-import { portfolios, portfolioMembers, stockTrades, stockAssets, stockDividends } from "../db/schema"
+import { portfolios, portfolioMembers, portfolioCashMovements, stockTrades, stockAssets, stockDividends } from "../db/schema"
 import { getViewablePortfolioIds, getEditablePortfolioIds, toAccessContext, canEditPortfolio, canViewPortfolio } from "../services/accessControl"
 import { getStockPrice, getStockName, getStockHistory } from "../services/priceService"
 import { computeFifo, investmentSymbols } from "../services/fifo"
@@ -10,6 +10,8 @@ import { Decimal, cents, exceedsBalance } from "../services/money"
 import type { AuthUser } from "../middleware/auth"
 import { isOwnerOrAdmin } from "../middleware/guards"
 import { mountOwnerRoutes } from "./ownerRoutes"
+import { mountCashRoutes } from "./cashRoutes"
+import { computeCash } from "../services/cash"
 import { portfolioResource } from "../services/sharedResources"
 import { groupBy } from "../lib/groupBy"
 import { validateJson, validateQuery } from "../middleware/validate"
@@ -45,11 +47,11 @@ app.get("/", async (c) => {
 // Create portfolio
 app.post("/", validateJson(createPortfolioSchema), async (c) => {
   const user = c.get("user")
-  const { name, currency = "EUR", broker: brokerInput } = c.req.valid("json")
+  const { name, currency = "EUR", broker: brokerInput, accountNumber } = c.req.valid("json")
   const broker = brokerInput || null
   const [portfolio] = await db
     .insert(portfolios)
-    .values({ type: "stocks", name, currency, broker, ownerSub: user.sub })
+    .values({ type: "stocks", name, currency, broker, accountNumber: accountNumber || null, ownerSub: user.sub })
     .returning()
   return c.json(portfolio, 201)
 })
@@ -80,10 +82,11 @@ app.get("/:id", async (c) => {
   const portfolio = await db.query.portfolios.findFirst({ where: (p, { eq }) => eq(p.id, id) })
   if (!portfolio) return c.json({ error: "Not found" }, 404)
 
-  const [trades, assets, dividends] = await Promise.all([
+  const [trades, assets, dividends, cashMovements] = await Promise.all([
     db.select().from(stockTrades).where(eq(stockTrades.portfolioId, id)).orderBy(stockTrades.tradeDate),
     db.select().from(stockAssets).where(eq(stockAssets.portfolioId, id)),
     db.select().from(stockDividends).where(eq(stockDividends.portfolioId, id)).orderBy(stockDividends.paymentDate),
+    db.select().from(portfolioCashMovements).where(eq(portfolioCashMovements.portfolioId, id)).orderBy(portfolioCashMovements.movementDate),
   ])
 
   const symbols = investmentSymbols(trades, portfolio.currency)
@@ -110,6 +113,8 @@ app.get("/:id", async (c) => {
     trades,
     dividends,
     positions,
+    cash: computeCash(portfolio, cashMovements, trades, dividends),
+    cashMovements,
     totalOpenCost,
     totalCurrentValue,
     totalRealizedPnL,
@@ -131,6 +136,9 @@ app.patch("/:id", validateJson(updatePortfolioSchema), async (c) => {
   const updates: Partial<typeof portfolios.$inferInsert> = {}
   if (body.name !== undefined) updates.name = body.name
   if (body.currency !== undefined) updates.currency = body.currency
+  if (body.accountNumber !== undefined) updates.accountNumber = body.accountNumber || null
+  if (body.openingCash !== undefined) updates.openingCash = body.openingCash
+  if (body.openingCashDate !== undefined) updates.openingCashDate = body.openingCashDate
   if (body.broker !== undefined) updates.broker = body.broker || null
   if (Object.keys(updates).length === 0) return c.json({ error: "Nothing to update" }, 400)
 
@@ -226,6 +234,8 @@ app.delete("/:id/dividends/:dividendId", async (c) => {
     .where(and(eq(stockDividends.id, dividendId), eq(stockDividends.portfolioId, portfolioId)))
   return c.body(null, 204)
 })
+
+mountCashRoutes(app, "stocks")
 
 // delete the resource and manage who it is shared with (owner/admin only)
 mountOwnerRoutes(app, { resource: portfolioResource("stocks"), canView: (ctx, id) => canViewPortfolio(ctx, "stocks", id) })

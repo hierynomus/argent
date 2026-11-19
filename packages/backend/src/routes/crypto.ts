@@ -1,7 +1,7 @@
 import { Hono } from "hono"
 import { eq, inArray } from "drizzle-orm"
 import { db } from "../db"
-import { portfolios, portfolioMembers, cryptoTrades, cryptoAssets } from "../db/schema"
+import { portfolios, portfolioMembers, portfolioCashMovements, cryptoTrades, cryptoAssets } from "../db/schema"
 import { getViewablePortfolioIds, getEditablePortfolioIds, toAccessContext, canEditPortfolio, canViewPortfolio } from "../services/accessControl"
 import { getCryptoPrices, getCryptoHistory, PriceProviderError } from "../services/priceService"
 import { computeFifo, investmentSymbols } from "../services/fifo"
@@ -10,6 +10,8 @@ import { exceedsBalance, swapCostBasis } from "../services/money"
 import type { AuthUser } from "../middleware/auth"
 import { isOwnerOrAdmin } from "../middleware/guards"
 import { mountOwnerRoutes } from "./ownerRoutes"
+import { mountCashRoutes } from "./cashRoutes"
+import { computeCash } from "../services/cash"
 import { portfolioResource } from "../services/sharedResources"
 import { groupBy } from "../lib/groupBy"
 import { validateJson, validateQuery } from "../middleware/validate"
@@ -45,10 +47,10 @@ app.get("/", async (c) => {
 // Create portfolio
 app.post("/", validateJson(createPortfolioSchema), async (c) => {
   const user = c.get("user")
-  const { name, currency = "EUR" } = c.req.valid("json")
+  const { name, currency = "EUR", accountNumber } = c.req.valid("json")
   const [portfolio] = await db
     .insert(portfolios)
-    .values({ type: "crypto", name, currency, ownerSub: user.sub })
+    .values({ type: "crypto", name, currency, accountNumber: accountNumber || null, ownerSub: user.sub })
     .returning()
   return c.json(portfolio, 201)
 })
@@ -78,9 +80,10 @@ app.get("/:id", async (c) => {
   const portfolio = await db.query.portfolios.findFirst({ where: (p, { eq }) => eq(p.id, id) })
   if (!portfolio) return c.json({ error: "Not found" }, 404)
 
-  const [trades, assets] = await Promise.all([
+  const [trades, assets, cashMovements] = await Promise.all([
     db.select().from(cryptoTrades).where(eq(cryptoTrades.portfolioId, id)).orderBy(cryptoTrades.tradeDate),
     db.select().from(cryptoAssets).where(eq(cryptoAssets.portfolioId, id)),
+    db.select().from(portfolioCashMovements).where(eq(portfolioCashMovements.portfolioId, id)).orderBy(portfolioCashMovements.movementDate),
   ])
 
   const symbols = investmentSymbols(trades, portfolio.currency)
@@ -101,6 +104,8 @@ app.get("/:id", async (c) => {
     ...portfolio,
     trades,
     positions,
+    cash: computeCash(portfolio, cashMovements, trades),
+    cashMovements,
     totalOpenCost,
     totalCurrentValue,
     totalRealizedPnL,
@@ -121,6 +126,9 @@ app.patch("/:id", validateJson(updatePortfolioSchema), async (c) => {
   const updates: Partial<typeof portfolios.$inferInsert> = {}
   if (body.name !== undefined) updates.name = body.name
   if (body.currency !== undefined) updates.currency = body.currency
+  if (body.accountNumber !== undefined) updates.accountNumber = body.accountNumber || null
+  if (body.openingCash !== undefined) updates.openingCash = body.openingCash
+  if (body.openingCashDate !== undefined) updates.openingCashDate = body.openingCashDate
   if (Object.keys(updates).length === 0) return c.json({ error: "Nothing to update" }, 400)
 
   const [updated] = await db.update(portfolios).set(updates).where(eq(portfolios.id, id)).returning()
@@ -203,6 +211,8 @@ app.post("/:id/trades", validateJson(createCryptoTradeSchema), async (c) => {
 app.delete("/:id/trades/:tradeId", (c) =>
   c.json({ error: "Trades are immutable ledger entries and cannot be deleted. Delete the entire portfolio to start over." }, 405)
 )
+
+mountCashRoutes(app, "crypto")
 
 // delete the resource and manage who it is shared with (owner/admin only)
 mountOwnerRoutes(app, { resource: portfolioResource("crypto"), canView: (ctx, id) => canViewPortfolio(ctx, "crypto", id) })

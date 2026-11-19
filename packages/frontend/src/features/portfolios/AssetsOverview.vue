@@ -33,7 +33,7 @@ const chartFor = (currency: string) => {
 }
 const tradesOf = (currency: string) => props.details.filter((d) => d.currency === currency).flatMap((d) => d.trades)
 const tilesOf = (g: (typeof groups.value)[number]) => [
-  ...standardTiles({ openCost: g.openCost, currentValue: g.currentValue, unrealized: g.unrealized, realized: g.realized }, g.currency),
+  ...standardTiles({ openCost: g.openCost, currentValue: g.currentValue, unrealized: g.unrealized, realized: g.realized, cash: g.cash }, g.currency),
   ...(stocks.value ? [{ label: "Dividends", value: fmtSymbolCur(g.dividends, g.currency), color: g.dividends > 0 ? "text-green-600 dark:text-green-400" : undefined }] : []),
 ]
 </script>

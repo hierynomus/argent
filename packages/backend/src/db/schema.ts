@@ -96,6 +96,10 @@ export const portfolios = pgTable("portfolios", {
   ownerSub: text("owner_sub"),
   currency: text("currency").notNull().default("EUR"),
   broker: text("broker"), // stocks only — e.g. "DEGIRO", "Trade Republic"
+  // the cash account behind a crypto/stocks portfolio: the money is deposited here before it is exchanged
+  accountNumber: text("account_number"), // IBAN or the broker's account id
+  openingCash: numeric("opening_cash", { precision: 15, scale: 2 }).notNull().default("0"),
+  openingCashDate: date("opening_cash_date"), // cash movements and trades from this date on are added to openingCash
   createdAt: timestamp("created_at").defaultNow().notNull(),
 }, (t) => ({ portfolios_owner_type_idx: index("portfolios_owner_type_idx").on(t.ownerSub, t.type) }))
 
@@ -104,6 +108,17 @@ export const portfolioMembers = pgTable("portfolio_members", {
   groupName: text("group_name").notNull(),
   role: text("role").notNull().default("viewer"), // "viewer" | "editor"
 }, (t) => ({ pk: primaryKey({ columns: [t.portfolioId, t.groupName] }), portfolio_members_group_idx: index("portfolio_members_group_idx").on(t.groupName) }))
+
+// Money moved in and out of a portfolio's cash account (the rest of the cash follows from its trades and dividends)
+export const portfolioCashMovements = pgTable("portfolio_cash_movements", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  portfolioId: uuid("portfolio_id").notNull().references(() => portfolios.id, { onDelete: "cascade" }),
+  movementDate: date("movement_date").notNull(),
+  type: text("type").notNull(), // "deposit" | "withdrawal" | "fee" | "interest"
+  amount: numeric("amount", { precision: 15, scale: 2 }).notNull(), // always positive; the type gives the direction
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (t) => ({ portfolio_cash_portfolio_idx: index("portfolio_cash_portfolio_idx").on(t.portfolioId, t.movementDate) }))
 
 // ─── Crypto ────────────────────────────────────────────────────────────────
 // Every buy, sell, or swap is one immutable row.

@@ -1,3 +1,4 @@
+import { sumCents } from "../../lib/money"
 import type { AssetPosition, MetalPortfolioDetail, PortfolioDetail, StockPortfolioDetail, StockPosition } from "@argent/shared"
 
 /**
@@ -25,6 +26,8 @@ export interface AssetGroup {
   unrealized: number | null
   realized: number
   dividends: number
+  /** the cash in the portfolios' accounts */
+  cash: number
 }
 
 const sum = (xs: number[]) => xs.reduce((a, b) => a + b, 0)
@@ -76,6 +79,7 @@ export function aggregateAssets(details: AssetDetail[]): AssetGroup[] {
         unrealized: currentValue === null ? null : currentValue - openCost,
         realized: sum(positions.map((p) => p.realizedPnL)),
         dividends: sum(positions.map((p) => p.totalDividends)),
+        cash: sumCents(group.map((d) => d.cash ?? 0)),
       }
     })
 }
