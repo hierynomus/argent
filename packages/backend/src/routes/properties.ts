@@ -1,3 +1,4 @@
+import { Decimal, cents } from "../services/money"
 import { Hono } from "hono"
 import { and, eq, inArray } from "drizzle-orm"
 import { db } from "../db"
@@ -54,7 +55,7 @@ async function load(user: AuthUser, ids: string[]): Promise<PropertyWithDetails[
       ...(loansOf.get(p.id) ?? []).map((l) => loanDebts.get(l.loanId)),
     ].filter((l): l is NonNullable<typeof l> => !!l)
     const { value, date } = currentValueOf(valuations, { price: p.purchasePrice, date: p.purchaseDate }, now)
-    const debt = liabilities.reduce((s, l) => s + l.balance, 0)
+    const debt = cents(liabilities.reduce((s, l) => s.plus(l.balance), new Decimal(0)))
     return {
       ...p,
       type: p.type as PropertyWithDetails["type"],
@@ -62,10 +63,10 @@ async function load(user: AuthUser, ids: string[]): Promise<PropertyWithDetails[
       valuations: valuations.map((v) => ({ ...v, createdAt: v.createdAt.toISOString() })),
       currentValue: value,
       currentValueDate: date,
-      gainSincePurchase: value !== null && p.purchasePrice !== null ? value - parseFloat(p.purchasePrice) : null,
+      gainSincePurchase: value !== null && p.purchasePrice !== null ? cents(new Decimal(value).minus(p.purchasePrice)) : null,
       liabilities,
       debt,
-      equity: value === null ? null : value - debt,
+      equity: value === null ? null : cents(new Decimal(value).minus(debt)),
       members: (membersOf.get(p.id) ?? []).map(({ groupName, role }) => ({ groupName, role: role as "viewer" | "editor" })),
       isOwner: isOwnerOrAdmin(p, user),
       canEdit: editable.has(p.id),

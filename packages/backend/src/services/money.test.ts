@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { DUST_QUANTITY, Decimal, cents, exceedsBalance, isOpenQuantity } from "./money"
+import { DUST_QUANTITY, Decimal, cents, exceedsBalance, isOpenQuantity, swapCostBasis } from "./money"
 
 describe("cents: round half up in decimal, not in binary", () => {
   test("values that binary floats get wrong", () => {
@@ -41,5 +41,18 @@ describe("quantities", () => {
   test("Decimal is exact where floats are not", () => {
     expect(new Decimal("0.1").plus("0.2").toString()).toBe("0.3")
     expect(0.1 + 0.2).not.toBe(0.3)
+  })
+})
+
+describe("swapCostBasis", () => {
+  test("moves the proportional share of the open cost, exact to the cent", () => {
+    expect(swapCostBasis("1", { balance: 3, totalCost: 100 }).toString()).toBe("33.33")
+    expect(swapCostBasis("2", { balance: 3, totalCost: 100 }).toString()).toBe("66.67")
+    expect(swapCostBasis("3", { balance: 3, totalCost: 100 }).toString()).toBe("100") // all of it, with no rounding loss
+  })
+
+  test("cannot move more than the position holds, and nothing from an empty one", () => {
+    expect(swapCostBasis("5", { balance: 3, totalCost: 100 }).toString()).toBe("100")
+    expect(swapCostBasis("1", { balance: 0, totalCost: 0 }).toString()).toBe("0")
   })
 })

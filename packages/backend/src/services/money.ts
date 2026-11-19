@@ -33,3 +33,13 @@ export const isOpenQuantity = (quantity: number): boolean => quantity > DUST_QUA
  */
 export const exceedsBalance = (amount: DecimalLike, balance: number): boolean =>
   new Decimal(amount).greaterThan(new Decimal(balance).toDecimalPlaces(8, Decimal.ROUND_HALF_UP))
+
+/**
+ * The cost basis that moves with `amount` units in a swap: the same share of the open position's cost as the
+ * units are of its balance (capped at the whole position). Exact, instead of units × a rounded average price.
+ */
+export const swapCostBasis = (amount: DecimalLike, position: { balance: number; totalCost: number }): Decimal => {
+  if (position.balance <= 0) return new Decimal(0)
+  const share = Decimal.min(new Decimal(amount), new Decimal(position.balance))
+  return new Decimal(position.totalCost).times(share).div(position.balance).toDecimalPlaces(2, Decimal.ROUND_HALF_UP)
+}

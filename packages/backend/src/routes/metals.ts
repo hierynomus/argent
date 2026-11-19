@@ -1,3 +1,4 @@
+import { Decimal, cents } from "../services/money"
 import { Hono } from "hono"
 import { eq, inArray } from "drizzle-orm"
 import { db } from "../db"
@@ -139,10 +140,10 @@ app.get("/:id", async (c) => {
   return c.json({
     ...portfolio,
     lots: enrichedLots,
-    totalInvestedOpen,
-    totalCurrentValueOpen: allHavePrices ? totalCurrentValueOpen : null,
-    totalUnrealizedPnL: allHavePrices ? totalCurrentValueOpen - totalInvestedOpen : null,
-    totalRealizedPnL,
+    totalInvestedOpen: cents(totalInvestedOpen),
+    totalCurrentValueOpen: allHavePrices ? cents(totalCurrentValueOpen) : null,
+    totalUnrealizedPnL: allHavePrices ? cents(new Decimal(totalCurrentValueOpen).minus(totalInvestedOpen)) : null,
+    totalRealizedPnL: cents(totalRealizedPnL),
     members,
     isOwner: isOwnerOrAdmin(portfolio, user),
     canEdit: editableIds.includes(id),

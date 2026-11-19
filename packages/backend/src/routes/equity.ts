@@ -3,6 +3,7 @@ import { and, eq, inArray } from "drizzle-orm"
 import { db } from "../db"
 import { equityGrants, equityPlanMembers, equityPlans, equityPrices } from "../db/schema"
 import { canEditEquityPlan, getEditableEquityPlanIds, getViewableEquityPlanIds, toAccessContext, canViewEquityPlan } from "../services/accessControl"
+import { Decimal, cents } from "../services/money"
 import { currentPriceOf, nextVestingDate, valuePerOption, vestedOptions } from "../services/equity"
 import type { AuthUser } from "../middleware/auth"
 import { isOwnerOrAdmin } from "../middleware/guards"
@@ -15,7 +16,7 @@ import { createEquityGrantSchema, createEquityPlanSchema, createEquityPriceSchem
 const app = new Hono<{ Variables: { user: AuthUser } }>()
 
 const today = () => new Date().toISOString().slice(0, 10)
-const sum = (xs: number[]) => xs.reduce((a, b) => a + b, 0)
+const sum = (xs: number[]) => cents(xs.reduce((a, b) => a.plus(b), new Decimal(0)))
 const sumOrNull = (xs: Array<number | null>) => (xs.some((x) => x === null) ? null : sum(xs as number[]))
 
 /** The plans with the given ids as the API returns them: prices, grants with their vesting state, totals. */
@@ -53,9 +54,9 @@ async function load(user: AuthUser, ids: string[]): Promise<EquityPlanWithDetail
         onExit,
         nextVestingDate: nextVestingDate(input, now),
         valuePerOption: per,
-        vestedValue: per === null ? null : vested * per,
-        unvestedValue: per === null ? null : unvested * per,
-        onExitValue: per === null ? null : onExit * per,
+        vestedValue: per === null ? null : cents(new Decimal(vested).times(per)),
+        unvestedValue: per === null ? null : cents(new Decimal(unvested).times(per)),
+        onExitValue: per === null ? null : cents(new Decimal(onExit).times(per)),
       }
     })
     return {

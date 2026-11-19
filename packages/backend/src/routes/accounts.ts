@@ -1,3 +1,4 @@
+import { Decimal } from "../services/money"
 import { Hono } from "hono"
 import { and, eq, gte, inArray, sql } from "drizzle-orm"
 import { db } from "../db"
@@ -32,7 +33,7 @@ app.get("/", async (c) => {
       })
       .from(transactions)
       .where(condition)
-    const balance = (parseFloat(acc.openingBalance ?? "0") + parseFloat(row?.txSum ?? "0")).toFixed(2)
+    const balance = new Decimal(acc.openingBalance ?? "0").plus(row?.txSum ?? "0").toFixed(2)
     return { ...acc, balance }
   }))
 

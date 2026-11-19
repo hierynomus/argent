@@ -6,7 +6,7 @@ import { getViewablePortfolioIds, getEditablePortfolioIds, toAccessContext, canE
 import { getCryptoPrices, getCryptoHistory, PriceProviderError } from "../services/priceService"
 import { computeFifo, investmentSymbols } from "../services/fifo"
 import { buildPositions, summarizePositions } from "../services/positions"
-import { exceedsBalance } from "../services/money"
+import { exceedsBalance, swapCostBasis } from "../services/money"
 import type { AuthUser } from "../middleware/auth"
 import { isOwnerOrAdmin } from "../middleware/guards"
 import { mountOwnerRoutes } from "./ownerRoutes"
@@ -167,8 +167,7 @@ app.post("/:id/trades", validateJson(createCryptoTradeSchema), async (c) => {
     // Auto-compute for swaps: use FIFO cost of consumed fromSym (cost-transfer, zero realized P&L)
     const existingTrades = await db.select().from(cryptoTrades).where(eq(cryptoTrades.portfolioId, portfolioId))
     const fifo = computeFifo(existingTrades, fromSym, baseCur)
-    const consumed = Math.min(parseFloat(body.fromAmount), fifo.balance)
-    baseCurrencyAmount = (consumed * fifo.avgCostBasis).toFixed(2)
+    baseCurrencyAmount = swapCostBasis(body.fromAmount, fifo).toFixed(2)
   }
 
   const [trade] = await db
