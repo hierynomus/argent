@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Card, Th } from "../../components/ui"
+import { Badge, Card, Td, Th } from "../../components/ui"
 import type { AssetPosition, StockPosition } from "@argent/shared"
 import { fmtPrice, fmtSymbolCur, pnlColor, pnlFmt } from "../../lib/format"
 
@@ -20,6 +20,7 @@ const props = defineProps<{
 const emit = defineEmits<{ select: [symbol: string] }>()
 
 const heldIn = (pos: AssetPosition | StockPosition) => ((pos as { heldIn?: string[] }).heldIn ?? [])
+const isOpen = (pos: AssetPosition | StockPosition) => pos.balance > 1e-10
 const columns = () => (props.showDividends ? 9 : 8)
 const dividends = (pos: AssetPosition | StockPosition) => ("totalDividends" in pos ? pos.totalDividends : 0)
 </script>
@@ -48,28 +49,29 @@ const dividends = (pos: AssetPosition | StockPosition) => ("totalDividends" in p
           <td class="px-4 py-3 font-mono font-semibold text-indigo-700 dark:text-indigo-300">
             <button type="button" class="hover:underline focus-visible:underline" :aria-pressed="selectedSymbol === pos.symbol" :title="`Show the ${pos.symbol} price chart`" @click="emit('select', pos.symbol)">{{ pos.symbol }}</button>
           </td>
-          <td class="px-4 py-3 text-gray-700 dark:text-gray-300">
+          <Td tone="normal">
             {{ pos.name }}
             <div v-if="heldIn(pos).length > 0" class="text-xs text-gray-400 dark:text-gray-500">in {{ heldIn(pos).join(", ") }}</div>
-          </td>
-          <td class="px-4 py-3 text-right font-mono text-gray-900 dark:text-gray-100">{{ formatBalance(pos.balance) }}</td>
-          <td class="px-4 py-3 text-right font-mono text-gray-600 dark:text-gray-400">{{ fmtPrice(pos.avgCostBasis, currency) }}</td>
-          <td class="px-4 py-3 text-right font-mono text-gray-600 dark:text-gray-400">
+          </Td>
+          <Td align="right" mono tone="strong">{{ formatBalance(pos.balance) }}</Td>
+          <Td align="right" mono tone="muted">{{ fmtPrice(pos.avgCostBasis, currency) }}</Td>
+          <Td align="right" mono tone="muted">
             <template v-if="pos.currentPrice != null">{{ fmtPrice(pos.currentPrice, currency) }}</template>
+            <Badge v-else-if="isOpen(pos)" class="bg-amber-50 dark:bg-amber-950 text-amber-700 dark:text-amber-300" title="No live price found for this symbol, so its value is left out of the totals">no price</Badge>
             <span v-else class="text-gray-300 dark:text-gray-600">—</span>
-          </td>
-          <td class="px-4 py-3 text-right font-mono text-gray-900 dark:text-gray-100">
+          </Td>
+          <Td align="right" mono tone="strong">
             <template v-if="pos.currentValue != null">{{ fmtSymbolCur(pos.currentValue, currency) }}</template>
             <span v-else class="text-gray-300 dark:text-gray-600">—</span>
-          </td>
-          <td class="px-4 py-3 text-right font-mono" :class="pos.unrealizedPnL != null ? pnlColor(pos.unrealizedPnL) : 'text-gray-300 dark:text-gray-600'">
+          </Td>
+          <Td align="right" mono :class="pos.unrealizedPnL != null ? pnlColor(pos.unrealizedPnL) : 'text-gray-300 dark:text-gray-600'">
             {{ pos.unrealizedPnL != null ? pnlFmt(pos.unrealizedPnL, currency) : "—" }}
-          </td>
-          <td class="px-4 py-3 text-right font-mono" :class="pnlColor(pos.realizedPnL)">{{ pnlFmt(pos.realizedPnL, currency) }}</td>
-          <td v-if="showDividends" class="px-4 py-3 text-right font-mono text-gray-600 dark:text-gray-400">
+          </Td>
+          <Td align="right" mono :class="pnlColor(pos.realizedPnL)">{{ pnlFmt(pos.realizedPnL, currency) }}</Td>
+          <Td align="right" mono tone="muted" v-if="showDividends">
             <template v-if="dividends(pos) > 0">{{ fmtSymbolCur(dividends(pos), currency) }}</template>
             <span v-else class="text-gray-300 dark:text-gray-600">—</span>
-          </td>
+          </Td>
         </tr>
       </tbody>
     </table>

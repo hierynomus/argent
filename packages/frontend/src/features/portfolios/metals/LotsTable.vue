@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Card, Th } from "../../../components/ui"
+import { Card, Td, Th } from "../../../components/ui"
 import { ref } from "vue"
 import type { MetalLot } from "@argent/shared"
 import { capitalize, fmtSignificant, fmtSymbolCur, pnlColor, pnlFmt } from "../../../lib/format"
@@ -40,24 +40,24 @@ const sellingId = ref<string | null>(null)
               <template v-if="lot.itemName">{{ lot.itemName }}</template>
               <span v-else class="text-gray-400 dark:text-gray-500 italic">—</span>
             </td>
-            <td class="px-4 py-3 text-gray-700 dark:text-gray-300">{{ capitalize(lot.metal) }}</td>
-            <td class="px-4 py-3 text-gray-500 dark:text-gray-400">
+            <Td tone="normal">{{ capitalize(lot.metal) }}</Td>
+            <Td tone="faint">
               <template v-if="lot.itemForm">{{ capitalize(lot.itemForm) }}</template>
               <span v-else class="text-gray-300 dark:text-gray-600">—</span>
-            </td>
-            <td class="px-4 py-3 text-right font-mono text-gray-700 dark:text-gray-300">{{ lot.quantity }}</td>
-            <td class="px-4 py-3 text-right font-mono text-gray-600 dark:text-gray-400">{{ fmtSignificant(parseFloat(lot.weightPerPiece), 6) }} {{ lot.unit }}</td>
-            <td class="px-4 py-3 text-right font-mono text-gray-900 dark:text-gray-100">{{ lot.remainingQuantity }}</td>
-            <td class="px-4 py-3 text-right font-mono text-gray-600 dark:text-gray-400">{{ fmtSymbolCur(parseFloat(lot.pricePerPiece), currency) }}</td>
-            <td class="px-4 py-3 text-right font-mono text-gray-600 dark:text-gray-400">
+            </Td>
+            <Td align="right" mono tone="normal">{{ lot.quantity }}</Td>
+            <Td align="right" mono tone="muted">{{ fmtSignificant(parseFloat(lot.weightPerPiece), 6) }} {{ lot.unit }}</Td>
+            <Td align="right" mono tone="strong">{{ lot.remainingQuantity }}</Td>
+            <Td align="right" mono tone="muted">{{ fmtSymbolCur(parseFloat(lot.pricePerPiece), currency) }}</Td>
+            <Td align="right" mono tone="muted">
               <template v-if="lot.currentValuePerPiece != null">{{ fmtSymbolCur(lot.currentValuePerPiece, currency) }}</template>
               <span v-else class="text-gray-300 dark:text-gray-600">—</span>
-            </td>
-            <td class="px-4 py-3 text-right font-mono" :class="lot.unrealizedPnL != null ? pnlColor(lot.unrealizedPnL) : 'text-gray-300 dark:text-gray-600'">
+            </Td>
+            <Td align="right" mono :class="lot.unrealizedPnL != null ? pnlColor(lot.unrealizedPnL) : 'text-gray-300 dark:text-gray-600'">
               {{ lot.unrealizedPnL != null ? pnlFmt(lot.unrealizedPnL, currency) : "—" }}
-            </td>
-            <td class="px-4 py-3 text-right font-mono" :class="pnlColor(lot.realizedPnL)">{{ pnlFmt(lot.realizedPnL, currency) }}</td>
-            <td class="px-4 py-3 text-right">
+            </Td>
+            <Td align="right" mono :class="pnlColor(lot.realizedPnL)">{{ pnlFmt(lot.realizedPnL, currency) }}</Td>
+            <Td align="right">
               <button
                 v-if="canEdit && lot.remainingQuantity > 0"
                 type="button"
@@ -71,7 +71,7 @@ const sellingId = ref<string | null>(null)
               >
                 {{ sellingId === lot.id ? "Cancel" : "Sell" }}
               </button>
-            </td>
+            </Td>
           </tr>
           <tr v-if="sellingId === lot.id">
             <td :colspan="COLUMNS" class="px-4 py-3 bg-red-50 dark:bg-red-900/10 border-t border-red-100 dark:border-red-900/30">

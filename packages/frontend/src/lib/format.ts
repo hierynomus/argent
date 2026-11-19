@@ -60,6 +60,11 @@ export function pnlColor(n: number): string {
   return "text-gray-500 dark:text-gray-400"
 }
 
+/** A signed percentage, e.g. `+12,5%` / `-3,0%` (zero counts as positive). */
+export function fmtPct(n: number, decimals = 2): string {
+  return `${n >= 0 ? "+" : ""}${fmt(n, decimals)}%`
+}
+
 /** Signed profit/loss, e.g. `+€120,00` / `-€45,50`. Zero counts as positive. */
 export function pnlFmt(n: number, currency: string): string {
   return (n >= 0 ? "+" : "") + fmtSymbolCur(n, currency)

@@ -3,7 +3,7 @@ import { ref } from "vue"
 import { useMutation } from "@tanstack/vue-query"
 import type { EquityPlanWithDetails } from "@argent/shared"
 import { equityApi, useInvalidate } from "../../api"
-import { Badge, Button, ConfirmButton, ErrorText, Th } from "../../components/ui"
+import { Badge, Button, ConfirmButton, ErrorText, Td, Th } from "../../components/ui"
 import { fmtDate, fmtMaxDecimals, fmtSymbolCur } from "../../lib/format"
 import GrantForm from "./GrantForm.vue"
 
@@ -44,12 +44,12 @@ const label = (g: { label: string | null; grantDate: string }) => g.label ?? `Gr
         <tbody class="divide-y divide-gray-50 dark:divide-gray-800">
           <template v-for="g in plan.grants" :key="g.id">
             <tr>
-              <td class="px-4 py-2 text-gray-900 dark:text-gray-100">
+              <Td dense tone="strong">
                 {{ label(g) }}
                 <Badge class="ml-1 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400">{{ g.vestingType === "time" ? "over time" : "on exit" }}</Badge>
-              </td>
-              <td class="px-4 py-2 text-right font-mono text-gray-900 dark:text-gray-100">{{ fmtMaxDecimals(parseFloat(g.options), 2) }}</td>
-              <td class="px-4 py-2 text-right font-mono text-gray-600 dark:text-gray-400">{{ fmtMaxDecimals(parseFloat(g.strikePrice), 6) }}</td>
+              </Td>
+              <Td dense align="right" mono tone="strong">{{ fmtMaxDecimals(parseFloat(g.options), 2) }}</Td>
+              <Td dense align="right" mono tone="muted">{{ fmtMaxDecimals(parseFloat(g.strikePrice), 6) }}</Td>
               <td class="px-4 py-2 w-48">
                 <template v-if="g.vestingType === 'time'">
                   <div class="flex items-center gap-2">
@@ -61,10 +61,10 @@ const label = (g: { label: string | null; grantDate: string }) => g.label ?? `Gr
                 <span v-else class="text-xs text-gray-500 dark:text-gray-400">pays out on an exit</span>
               </td>
               <td class="px-4 py-2 text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">{{ g.nextVestingDate ? fmtDate(g.nextVestingDate) : g.vestingType === "time" ? "fully vested" : "—" }}</td>
-              <td class="px-4 py-2 text-right font-mono text-gray-900 dark:text-gray-100">
+              <Td dense align="right" mono tone="strong">
                 {{ money(g.vestingType === "time" ? g.vestedValue : g.onExitValue) }}
                 <div class="text-[11px] text-gray-400 dark:text-gray-500">{{ g.vestingType === "time" ? "vested" : "if exit today" }}</div>
-              </td>
+              </Td>
               <td class="px-4 py-2 text-right whitespace-nowrap">
                 <template v-if="plan.canEdit">
                   <Button variant="link" size="xs" :aria-label="`Edit ${label(g)}`" @click="editingId = editingId === g.id ? null : g.id">Edit</Button>

@@ -129,6 +129,14 @@ describe("stock prices", () => {
     expect(await p.getStockName("ZZZZ")).toBeNull()
   })
 
+  test("a London quote in pence (GBp) is converted from pence, not valued as pounds (100 times too high)", async () => {
+    const p = await load()
+    expect(await p.getStockPrice("VOD.L", "EUR")).toBeCloseTo(0.84) // 70 pence = £0.70 × 1.2
+    expect(await p.getStockPrice("VOD.L", "USD")).toBeCloseTo(0.91) // £0.70 × 1.3
+    const history = await p.getStockHistory("VOD.L", "EUR", "1m")
+    expect(history?.[0].v).toBeCloseTo(0.84)
+  })
+
   test("looks up the display name", async () => {
     const p = await load()
     expect(await p.getStockName("AAPL")).toBe("Apple Inc.")

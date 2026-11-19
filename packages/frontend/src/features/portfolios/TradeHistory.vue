@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import type { CryptoTrade, StockTrade } from "@argent/shared"
-import { Badge, Th } from "../../components/ui"
+import { Badge, Td, Th } from "../../components/ui"
 import Collapsible from "./Collapsible.vue"
 
 /**
@@ -32,10 +32,10 @@ const kindOf = (t: CryptoTrade | StockTrade, currency: string) => (t.fromSymbol 
       </thead>
       <tbody class="divide-y divide-gray-50 dark:divide-gray-800">
         <tr v-for="t in [...trades].reverse()" :key="t.id" class="hover:bg-gray-50 dark:hover:bg-gray-800/50">
-          <td class="px-4 py-2 text-gray-500 dark:text-gray-400">{{ t.tradeDate }}</td>
-          <td class="px-4 py-2"><Badge :class="BADGE[kindOf(t, currency)]">{{ kindOf(t, currency) }}</Badge></td>
-          <td class="px-4 py-2 text-right font-mono text-gray-700 dark:text-gray-300">{{ formatAmount(parseFloat(t.fromAmount)) }} {{ t.fromSymbol }}</td>
-          <td class="px-4 py-2 text-right font-mono text-gray-700 dark:text-gray-300">{{ formatAmount(parseFloat(t.toAmount)) }} {{ t.toSymbol }}</td>
+          <Td dense tone="faint">{{ t.tradeDate }}</Td>
+          <Td dense><Badge :class="BADGE[kindOf(t, currency)]">{{ kindOf(t, currency) }}</Badge></Td>
+          <Td dense align="right" mono tone="normal">{{ formatAmount(parseFloat(t.fromAmount)) }} {{ t.fromSymbol }}</Td>
+          <Td dense align="right" mono tone="normal">{{ formatAmount(parseFloat(t.toAmount)) }} {{ t.toSymbol }}</Td>
           <td class="px-4 py-2 text-gray-500 dark:text-gray-400 text-xs">{{ t.notes ?? "" }}</td>
         </tr>
       </tbody>

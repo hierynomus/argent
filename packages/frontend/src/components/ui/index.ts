@@ -1,6 +1,7 @@
 export { default as Badge } from "./Badge.vue"
 export { default as Card } from "./Card.vue"
 export { default as Checkbox } from "./Checkbox.vue"
+export { default as Td } from "./Td.vue"
 export { default as Th } from "./Th.vue"
 export { default as Button, type ButtonVariant } from "./Button.vue"
 export { default as ConfirmButton } from "./ConfirmButton.vue"

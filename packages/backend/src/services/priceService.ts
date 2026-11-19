@@ -441,7 +441,24 @@ export async function getStockName(symbol: string): Promise<string | null> {
   }
 }
 
+/**
+ * Some exchanges quote in a minor unit: London in pence ("GBp", sometimes "GBX"), Johannesburg in cents
+ * ("ZAc"), Tel Aviv in agorot ("ILA"). Valued as whole pounds/rand/shekels they would be 100 times too high.
+ */
+const MINOR_UNITS: Record<string, { major: string; factor: number }> = {
+  GBp: { major: "GBP", factor: 0.01 },
+  GBX: { major: "GBP", factor: 0.01 },
+  ZAc: { major: "ZAR", factor: 0.01 },
+  ILA: { major: "ILS", factor: 0.01 },
+}
+
+/** The exchange rate from `from` (a currency code, or a minor unit such as "GBp") to `to`; null when unknown. */
 async function getFxRate(from: string, to: string): Promise<number | null> {
+  const minor = MINOR_UNITS[from]
+  if (minor) {
+    const rate = await getFxRate(minor.major, to)
+    return rate == null ? null : rate * minor.factor
+  }
   if (from === to) return 1
   const key = `${from}_${to}`
   const now = Date.now()

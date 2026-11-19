@@ -4,7 +4,7 @@ import { useMutation } from "@tanstack/vue-query"
 import type { EquityPlanWithDetails } from "@argent/shared"
 import { equityApi, useInvalidate } from "../../api"
 import LineChart, { type ChartPoint } from "../../components/charts/LineChart.vue"
-import { Badge, Button, ErrorText, Th } from "../../components/ui"
+import { Badge, Button, ErrorText, Td, Th } from "../../components/ui"
 import { fmtDate, fmtPrice } from "../../lib/format"
 import PriceForm from "./PriceForm.vue"
 
@@ -47,15 +47,15 @@ const day = (t: number) => fmtDate(new Date(t).toISOString().slice(0, 10))
       <tbody class="divide-y divide-gray-50 dark:divide-gray-800">
         <tr v-for="p in rows" :key="p.id">
           <td class="px-4 py-2 text-gray-600 dark:text-gray-400 whitespace-nowrap">{{ fmtDate(p.priceDate) }}</td>
-          <td class="px-4 py-2 text-right font-mono text-gray-900 dark:text-gray-100">{{ money(parseFloat(p.price)) }}</td>
+          <Td dense align="right" mono tone="strong">{{ money(parseFloat(p.price)) }}</Td>
           <td class="px-4 py-2 text-xs text-gray-500 dark:text-gray-400">
             {{ p.note ?? "" }}
             <Badge v-if="p.priceDate === plan.currentPriceDate && p.priceDate <= today" class="ml-1 bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300">current</Badge>
             <Badge v-else-if="p.priceDate > today" class="ml-1 bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400">upcoming</Badge>
           </td>
-          <td class="px-4 py-2 text-right">
+          <Td dense align="right">
             <Button v-if="plan.canEdit" variant="danger-link" size="xs" :disabled="remove.isPending.value" :aria-label="`Delete the price of ${fmtDate(p.priceDate)}`" @click="remove.mutate(p.id)">Delete</Button>
-          </td>
+          </Td>
         </tr>
       </tbody>
     </table>

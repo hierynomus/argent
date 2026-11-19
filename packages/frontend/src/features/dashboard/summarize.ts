@@ -71,7 +71,8 @@ export interface DashboardSummary {
 }
 
 const EUR = "EUR"
-const sum = <T,>(items: T[], f: (item: T) => number) => items.reduce((s, i) => s + f(i), 0)
+// summed in whole cents so that 0.1 + 0.2 is 0.3 (the amounts are money)
+const sum = <T,>(items: T[], f: (item: T) => number) => items.reduce((s, i) => s + Math.round(f(i) * 100), 0) / 100
 
 function summarizeHoldings(holdings: Holding[]): AssetClassSummary {
   const eur = holdings.filter((h) => h.currency === EUR)

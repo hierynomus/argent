@@ -31,6 +31,8 @@ const json = (body: unknown, status = 200) =>
 const YAHOO: Record<string, { price: number; currency: string; name: string }> = {
   AAPL: { price: 100, currency: "USD", name: "Apple Inc." },
   VWRL: { price: 80, currency: "EUR", name: "Vanguard FTSE All-World" },
+  // London quotes in pence ("GBp"), not pounds
+  "VOD.L": { price: 70, currency: "GBp", name: "Vodafone Group" },
   // coins Yahoo lists as pairs (the fallback when CoinGecko is rate limited)
   "DOGE-EUR": { price: 0.1, currency: "EUR", name: "Dogecoin EUR" },
   "ADA-USD": { price: 0.5, currency: "USD", name: "Cardano USD" },
@@ -81,7 +83,7 @@ export async function fakeFetchImpl(input: RequestInfo | URL): Promise<Response>
   if (url.includes("frankfurter.app")) {
     const to = new URL(url).searchParams.get("to") ?? "EUR"
     const from = new URL(url).searchParams.get("from") ?? "USD"
-    const rates: Record<string, number> = { "USD>EUR": 0.9, "EUR>USD": 1.1 }
+    const rates: Record<string, number> = { "USD>EUR": 0.9, "EUR>USD": 1.1, "GBP>EUR": 1.2, "GBP>USD": 1.3 }
     const rate = rates[`${from}>${to}`]
     return rate ? json({ rates: { [to]: rate } }) : json({ rates: {} })
   }

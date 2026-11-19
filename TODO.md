@@ -45,7 +45,7 @@ Verify everything with `bun run check` (type-check all packages + all tests + "m
 - [x] Currency-specific names are gone: `totalCostEur`→`totalCost`, `currentValueEur`→`currentValue`, `totalOpenCostEur`→`totalOpenCost`, `totalCurrentValueEur`→`totalCurrentValue` (backend, shared types, frontend, tests; portfolios can be USD)
 - [x] `linkPair` runs in a `db.transaction`, only touches still-unlinked rows and rolls back when the other leg was taken (both legs or neither)
 - [x] Date arithmetic is time-zone independent (`lib/dates.ts`: ISO date strings, UTC calendar): `addDays` used to be a day early across daylight-saving changes in Europe/Amsterdam (wrong next-payment dates for subscriptions); amortization no longer depends on the server's zone. `bun run test:tz` runs the date tests under 5 zones
-- [~] Price service: crypto tickers beyond the ~35 pinned ones are resolved via CoinGecko search (SHIB/PEPE and sub-cent prices work, FE shows enough decimals via `fmtPrice`). Rate limits are handled (backoff, Yahoo fallback, stale data, 503 + retry in the chart). Still open: surfacing "no price" in the positions table; GBp (pence) quotes for stocks
+- [~] Price service: crypto tickers beyond the ~35 pinned ones are resolved via CoinGecko search (SHIB/PEPE and sub-cent prices work, FE shows enough decimals via `fmtPrice`). Rate limits are handled (backoff, Yahoo fallback, stale data, 503 + retry in the chart). Positions without a price show a "no price" badge; GBp/GBX/ZAc/ILA minor-unit quotes (London etc.) are converted correctly
 - [x] Manual `POST /subscriptions` for a pair with a candidate now confirms the candidate (200) instead of failing with 409; only a confirmed one conflicts
 
 ## Performance
@@ -78,9 +78,9 @@ Vue 3 (rewritten from React; merged). `api/`, `lib/`, the shared zod schemas and
 - [x] Route-level code splitting
 - [x] The 13 inline icon components are one `components/Icon.vue` keyed by name
 - [-] Typed client from Hono's `AppType`: **decided against** — the shared zod schemas + `src/api/` already give end-to-end types
-- [x] `Card` primitive (`components/ui/Card.vue`, `size` lg|xl, `as`) replaces the white bordered panel in 29 places. Table primitives still open.
+- [x] `Card` primitive (`components/ui/Card.vue`, `size` lg|xl, `as`) replaces the white bordered panel in 29 places. Table primitives: `Th`/`Td`.
 - [x] Balance locale: one `APP_LOCALE` (`nl-NL`) in `lib/format.ts` for every number and date. (was: Balance locale is inconsistent: Accounts tab / Settings pin `nl-NL`, Checking/Savings use the browser locale (kept as-is, now an explicit parameter). Decide one.)
-- [x] Raw checkbox styling is the `Checkbox` primitive; header cells are `Th` (body cells `Td` still hand-written)
+- [x] Raw checkbox styling is the `Checkbox` primitive; header cells are `Th`, body cells `Td` (45 hand-written cells in 11 files converted; cells with other classes are still hand-written)
 - [x] Accessibility: `src/a11y.test.ts` runs axe-core on every page and the main interactive states (contrast excluded: no layout in happy-dom); fixed unlabeled navs, empty table headers, unlabeled file input
 - [ ] Try the app against a real Authentik (the OIDC flow was ported to `oidc-client-ts` directly and is only covered by fake-auth tests)
 
@@ -90,6 +90,22 @@ Vue 3 (rewritten from React; merged). `api/`, `lib/`, the shared zod schemas and
 - [x] **Stock options**: plans per company, time/exit grants, manual share prices, vested value in net worth. Not built: quarterly/yearly or accelerated vesting, tax estimate, exit-scenario calculator, expiry dates
 - [x] **Loans/mortgages**: nominal or effective rate, day-aware payment dates, extra payments shorten the term, term entered in months
 - [x] **Crypto**: any ticker via CoinGecko search, sub-cent prices, rate-limit resilience (backoff, Yahoo fallback, stale data)
+
+## Review pass (2026-11-19) — found and fixed
+- [x] `routes/mortgages.ts` and `routes/loans.ts` were identical but for names: now `routes/debtRoutes.ts` (`debtRoutes(config)`), so a change is made once
+- [x] Remaining float money in routes (account balances, crypto swap cost basis, property debt/equity/gain, equity values, metals totals, mortgage/loan totals) uses `Decimal`/whole cents; `swapCostBasis` moves the exact share of the open cost
+- [x] Two local `fmtPct` helpers moved to `lib/format.ts`; dashboard sums in whole cents
+- [x] Mid-month payouts: `firstPaymentDate` on loan/mortgage parts (partial-month interest added to the loan)
+
+## Review pass — open
+- [ ] Amortization simulates in floats (rounded to cents at every step with the exact `cents()`); convert to `Decimal` if a long schedule ever drifts
+- [ ] Partial-month interest uses days/days-in-month; banks differ (act/365, act/360, 30/360). A check against an external schedule is within about €2 after 8 years; make the convention a per-part option if it matters
+- [ ] Editing a part cannot change start date, principal or first payment date (only name, rate, rate type, term): add them to the edit row (changing them rewrites history, so confirm)
+- [ ] Metals compute per-lot values in floats and round only the totals; move to `Decimal` like crypto/stocks
+- [ ] `PositionsTable` uses a literal `1e-10` as "open position" (the backend has `isOpenQuantity`): share one constant through `@argent/shared`
+- [ ] The restore test prints a large `[error] POST /api/admin/restore` log (expected failure, but noisy): silence the logger in that test
+- [ ] Frontend `overview.ts` aggregation sums floats per symbol; round to cents/decimals when aggregating money (display is rounded, so this is cosmetic)
+- [ ] `Td` leaves cells with extra classes (e.g. colour from a function) hand-written; consider a `class` passthrough convention or a `negative`/`positive` tone
 
 ## Hygiene
 - [x] All migrations from now on come from `db:generate` (0018 does); `db:check` runs in `bun run check` and CI

@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest"
 import {
   APP_LOCALE, capitalize, fmt, fmtAmount, fmtBalance, fmtCur, fmtDate, fmtDayMonth, fmtMaxDecimals, fmtSignedAmount, fmtMonthLabel, fmtMonthYear,
-  fmtPrice, fmtRate, fmtSignificant, fmtSymbolCur, pnlColor, pnlFmt,
+  fmtPct, fmtPrice, fmtRate, fmtSignificant, fmtSymbolCur, pnlColor, pnlFmt,
 } from "./format"
 
 /** Locale-independent comparison: collapse every kind of space (NBSP, narrow NBSP) to a plain one. */
@@ -186,5 +186,14 @@ describe("fmtSignedAmount", () => {
   })
   test("zero is shown with a plus sign", () => {
     expect(norm(fmtSignedAmount("0", "CRDT", "EUR"))).toBe("€ +0,00")
+  })
+})
+
+describe("fmtPct", () => {
+  test("signed, comma decimals, zero counts as positive", () => {
+    expect(fmtPct(12.5)).toBe("+12,50%")
+    expect(fmtPct(-3)).toBe("-3,00%")
+    expect(fmtPct(0)).toBe("+0,00%")
+    expect(fmtPct(12.34, 1)).toBe("+12,3%")
   })
 })

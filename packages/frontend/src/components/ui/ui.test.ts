@@ -1,7 +1,7 @@
 import { describe, expect, test, vi } from "vitest"
 import { ref } from "vue"
 import { renderTemplate, screen, waitFor } from "../../../test/render"
-import { Badge, Button, Card, ConfirmButton, EmptyState, ErrorText, Field, FieldGroup, Input, LoadingText, RoleBadge, SegmentedControl, Select } from "."
+import { Badge, Button, Card, ConfirmButton, EmptyState, ErrorText, Field, FieldGroup, Input, LoadingText, RoleBadge, SegmentedControl, Select, Td } from "."
 
 const components = { Badge, Button, Card, ConfirmButton, EmptyState, ErrorText, Field, FieldGroup, Input, LoadingText, RoleBadge, SegmentedControl, Select }
 
@@ -261,5 +261,17 @@ describe("Card", () => {
     expect(document.querySelector("form")).not.toBeNull()
     await user.click(screen.getByRole("button", { name: "Go" }))
     expect(onSubmit).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe("Td", () => {
+  test("padding, alignment, mono and tone are props, not hand-written classes", async () => {
+    await renderTemplate(`<table><tbody><tr>
+      <Td>plain</Td><Td align="right" mono tone="muted">1,00</Td><Td dense tone="strong">small</Td></tr></tbody></table>`, { components: { Td } })
+    expect(screen.getByText("plain")).toHaveClass("px-4", "py-3")
+    expect(screen.getByText("1,00")).toHaveClass("text-right", "font-mono", "text-gray-600")
+    const dense = screen.getByText("small")
+    expect(dense).toHaveClass("py-2", "text-gray-900")
+    expect(dense).not.toHaveClass("py-3")
   })
 })

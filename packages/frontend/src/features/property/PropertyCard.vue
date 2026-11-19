@@ -2,7 +2,7 @@
 import { computed, ref } from "vue"
 import type { PropertyWithDetails } from "@argent/shared"
 import { Badge, Button, Card } from "../../components/ui"
-import { fmtCur, fmtDate, pnlColor } from "../../lib/format"
+import { fmtCur, fmtDate, fmtPct, pnlColor } from "../../lib/format"
 import { PROPERTY_TYPE_LABELS } from "./config"
 import EditPropertyForm from "./EditPropertyForm.vue"
 import LiabilityLinks from "./LiabilityLinks.vue"
@@ -19,7 +19,6 @@ const gainPct = computed(() => {
   const price = props.property.purchasePrice ? parseFloat(props.property.purchasePrice) : 0
   return price > 0 && props.property.gainSincePurchase !== null ? (props.property.gainSincePurchase / price) * 100 : null
 })
-const fmtPct = (n: number) => `${n >= 0 ? "+" : ""}${n.toFixed(1).replace(".", ",")}%`
 </script>
 
 <template>
@@ -65,7 +64,7 @@ const fmtPct = (n: number) => `${n >= 0 ? "+" : ""}${n.toFixed(1).replace(".", "
           </dd>
           <dd v-else class="text-xl font-bold text-gray-400">—</dd>
           <dd class="text-xs text-gray-400 dark:text-gray-500">
-            <template v-if="property.purchasePrice">bought for {{ money(parseFloat(property.purchasePrice)) }}<template v-if="property.purchaseDate"> in {{ fmtDate(property.purchaseDate) }}</template><template v-if="gainPct !== null"> ({{ fmtPct(gainPct) }})</template></template>
+            <template v-if="property.purchasePrice">bought for {{ money(parseFloat(property.purchasePrice)) }}<template v-if="property.purchaseDate"> in {{ fmtDate(property.purchaseDate) }}</template><template v-if="gainPct !== null"> ({{ fmtPct(gainPct, 1) }})</template></template>
             <template v-else>no purchase price</template>
           </dd>
         </div>

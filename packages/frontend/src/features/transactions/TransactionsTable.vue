@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Card, Checkbox, Th } from "../../components/ui"
+import { Card, Checkbox, Td, Th } from "../../components/ui"
 import { computed } from "vue"
 import type { TransactionWithDetails } from "@argent/shared"
 import { fmtSignedAmount } from "../../lib/format"
@@ -68,7 +68,7 @@ const allSelected = computed(() => props.rows.length > 0 && props.rows.every((r)
           <td class="px-4 py-3 text-right font-mono font-medium whitespace-nowrap" :class="tx.creditDebitIndicator === 'CRDT' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'">
             {{ fmtSignedAmount(tx.amount, tx.creditDebitIndicator, tx.currency) }}
           </td>
-          <td class="px-4 py-3"><CategoryChip :category="tx.category" /></td>
+          <Td><CategoryChip :category="tx.category" /></Td>
         </tr>
         <tr v-if="rows.length === 0">
           <td colspan="7" class="px-4 py-10 text-center text-gray-400 dark:text-gray-500 text-sm">No transactions found.</td>

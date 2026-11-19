@@ -3,7 +3,7 @@ import { computed, reactive, ref } from "vue"
 import { useMutation } from "@tanstack/vue-query"
 import { updateDebtPartSchema } from "@argent/shared"
 import { debtApis, useInvalidate, type Debt, type DebtKind, type DebtPart } from "../../api"
-import { Button, ConfirmButton, ErrorText, Field, FieldGroup, Input, SegmentedControl } from "../../components/ui"
+import { Button, ConfirmButton, ErrorText, Field, FieldGroup, Input, SegmentedControl, Td } from "../../components/ui"
 import { addMonths, monthsBetween } from "../../lib/dates"
 import { fmtCur, fmtMonthYear, fmtRate } from "../../lib/format"
 import { useFormErrors } from "../../lib/validate"
@@ -54,7 +54,7 @@ const progressPct = () => {
 <template>
   <tr class="hover:bg-gray-50 dark:hover:bg-gray-800/50">
     <td class="px-4 py-3 text-sm font-medium text-gray-900 dark:text-gray-100">{{ part.name }}</td>
-    <td class="px-4 py-3"><TypeBadge :type="part.type" /></td>
+    <Td><TypeBadge :type="part.type" /></Td>
     <td class="px-4 py-3 text-sm text-right tabular-nums text-gray-600 dark:text-gray-400">{{ fmtCur(parseFloat(part.principal), debt.currency) }}</td>
     <td class="px-4 py-3 text-sm text-right tabular-nums font-semibold text-gray-900 dark:text-gray-100">{{ fmtCur(part.currentBalance, debt.currency) }}</td>
     <td class="px-4 py-3 text-sm text-right tabular-nums text-gray-600 dark:text-gray-400">{{ fmtRate(part.annualInterestRate) }}<span v-if="part.rateType === 'effective'" class="ml-1 text-xs text-gray-400 dark:text-gray-500" title="Effective annual rate">eff.</span></td>
@@ -73,7 +73,7 @@ const progressPct = () => {
         <span class="text-xs text-gray-400 dark:text-gray-500 whitespace-nowrap">{{ part.monthsRemaining }}mo</span>
       </div>
     </td>
-    <td class="px-4 py-3 text-right">
+    <Td align="right">
       <div class="flex items-center justify-end gap-2">
         <Button variant="link" size="xs" title="Extra payments" @click="showPayments = !showPayments">{{ showPayments ? "Hide" : "Payments" }}</Button>
         <template v-if="canEdit">
@@ -82,11 +82,11 @@ const progressPct = () => {
           <ConfirmButton :key="String(editing)" label="Delete" @start="editing = false" @confirm="remove.mutate()" />
         </template>
       </div>
-    </td>
+    </Td>
   </tr>
 
   <tr v-if="editing && canEdit" class="bg-indigo-50 dark:bg-indigo-950/30">
-    <td :colspan="COLUMNS" class="px-4 py-3">
+    <Td :colspan="COLUMNS">
       <div class="flex gap-3 flex-wrap items-end">
         <Field label="Name" :error="errors.name"><Input v-model="form.name" density="sm" type="text" class="w-40" /></Field>
         <Field label="Rate (%)" :error="errors.annualInterestRate">
@@ -98,7 +98,7 @@ const progressPct = () => {
         <Button variant="secondary" @click="editing = false">Cancel</Button>
       </div>
       <ErrorText :error="update.error.value" />
-    </td>
+    </Td>
   </tr>
 
   <tr v-if="showPayments">

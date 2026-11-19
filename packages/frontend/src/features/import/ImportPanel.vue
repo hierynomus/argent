@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Card, Th } from "../../components/ui"
+import { Card, Td, Th } from "../../components/ui"
 import { computed, ref } from "vue"
 import type { ImportResult } from "@argent/shared"
 import { importCamt053, importCamt053Zip, useInvalidate } from "../../api"
@@ -84,17 +84,17 @@ const errored = computed(() => items.value.filter(failed))
               <td class="px-4 py-3 font-mono text-xs text-gray-500 dark:text-gray-400">{{ done(item) ? item.result.accountIban : "—" }}</td>
               <td class="px-4 py-3 text-right text-green-700 dark:text-green-400 font-medium">{{ done(item) ? item.result.imported : "—" }}</td>
               <td class="px-4 py-3 text-right text-gray-400 dark:text-gray-500">{{ done(item) ? item.result.skipped : "—" }}</td>
-              <td class="px-4 py-3">
+              <Td>
                 <span v-if="item.status === 'pending'" class="text-gray-400 dark:text-gray-500 text-xs">Waiting…</span>
                 <span v-else-if="item.status === 'importing'" class="text-indigo-600 dark:text-indigo-400 text-xs">Importing…</span>
                 <span v-else-if="item.status === 'done'" class="text-green-600 dark:text-green-400 text-xs">Done</span>
                 <span v-else class="text-red-600 dark:text-red-400 text-xs" :title="item.error">Error</span>
-              </td>
+              </Td>
             </tr>
           </tbody>
           <tfoot v-if="isDone && items.length > 1">
             <tr class="border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 text-xs font-medium text-gray-600 dark:text-gray-400">
-              <td class="px-4 py-2" colspan="2">Total</td>
+              <Td dense colspan="2">Total</Td>
               <td class="px-4 py-2 text-right text-green-700 dark:text-green-400">{{ totalImported }}</td>
               <td class="px-4 py-2 text-right text-gray-400 dark:text-gray-500">{{ totalSkipped }}</td>
               <td />

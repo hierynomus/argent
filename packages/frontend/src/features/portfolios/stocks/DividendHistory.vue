@@ -2,7 +2,7 @@
 import { useMutation } from "@tanstack/vue-query"
 import type { StockDividend } from "@argent/shared"
 import { stocksApi, useInvalidate } from "../../../api"
-import { Button, Th } from "../../../components/ui"
+import { Button, Td, Th } from "../../../components/ui"
 import { fmtSymbolCur } from "../../../lib/format"
 import Collapsible from "../Collapsible.vue"
 
@@ -30,13 +30,13 @@ const remove = useMutation({
       </thead>
       <tbody class="divide-y divide-gray-50 dark:divide-gray-800">
         <tr v-for="d in [...dividends].reverse()" :key="d.id" class="hover:bg-gray-50 dark:hover:bg-gray-800/50">
-          <td class="px-4 py-2 text-gray-500 dark:text-gray-400">{{ d.paymentDate }}</td>
+          <Td dense tone="faint">{{ d.paymentDate }}</Td>
           <td class="px-4 py-2 font-mono font-medium text-indigo-700 dark:text-indigo-300">{{ d.symbol }}</td>
           <td class="px-4 py-2 text-right font-mono text-green-600 dark:text-green-400">+{{ fmtSymbolCur(parseFloat(d.amount), currency) }}</td>
           <td class="px-4 py-2 text-gray-500 dark:text-gray-400 text-xs">{{ d.notes ?? "" }}</td>
-          <td v-if="canEdit" class="px-4 py-2 text-right">
+          <Td dense align="right" v-if="canEdit">
             <Button variant="danger-link" size="xs" :disabled="remove.isPending.value" @click="remove.mutate(d)">Delete</Button>
-          </td>
+          </Td>
         </tr>
       </tbody>
     </table>

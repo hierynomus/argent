@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue"
 import type { MetalPortfolioDetail } from "@argent/shared"
-import { Card, Th } from "../../../components/ui"
+import { Card, Td, Th } from "../../../components/ui"
 import { capitalize, fmtSignificant, fmtSymbolCur, pnlColor, pnlFmt } from "../../../lib/format"
 import SummaryTiles from "../SummaryTiles.vue"
 import { aggregateMetals } from "../overview"
@@ -37,15 +37,15 @@ const groups = computed(() => aggregateMetals(props.details))
         <tbody class="divide-y divide-gray-50 dark:divide-gray-800">
           <tr v-for="r in g.rows" :key="r.metal" class="hover:bg-gray-50 dark:hover:bg-gray-800/50">
             <td class="px-4 py-3 font-medium text-gray-900 dark:text-gray-100">{{ capitalize(r.metal) }}</td>
-            <td class="px-4 py-3 text-right font-mono text-gray-600 dark:text-gray-400">{{ r.lots }}</td>
-            <td class="px-4 py-3 text-right font-mono text-gray-900 dark:text-gray-100">{{ r.pieces }}</td>
-            <td class="px-4 py-3 text-right font-mono text-gray-600 dark:text-gray-400">{{ fmtSignificant(r.grams, 8) }} g</td>
-            <td class="px-4 py-3 text-right font-mono text-gray-600 dark:text-gray-400">{{ fmtSymbolCur(r.cost, g.currency) }}</td>
-            <td class="px-4 py-3 text-right font-mono text-gray-900 dark:text-gray-100">
+            <Td align="right" mono tone="muted">{{ r.lots }}</Td>
+            <Td align="right" mono tone="strong">{{ r.pieces }}</Td>
+            <Td align="right" mono tone="muted">{{ fmtSignificant(r.grams, 8) }} g</Td>
+            <Td align="right" mono tone="muted">{{ fmtSymbolCur(r.cost, g.currency) }}</Td>
+            <Td align="right" mono tone="strong">
               <template v-if="r.value !== null">{{ fmtSymbolCur(r.value, g.currency) }}</template><span v-else class="text-gray-300 dark:text-gray-600">—</span>
-            </td>
-            <td class="px-4 py-3 text-right font-mono" :class="r.unrealized !== null ? pnlColor(r.unrealized) : 'text-gray-300 dark:text-gray-600'">{{ r.unrealized !== null ? pnlFmt(r.unrealized, g.currency) : "—" }}</td>
-            <td class="px-4 py-3 text-right font-mono" :class="pnlColor(r.realized)">{{ pnlFmt(r.realized, g.currency) }}</td>
+            </Td>
+            <Td align="right" mono :class="r.unrealized !== null ? pnlColor(r.unrealized) : 'text-gray-300 dark:text-gray-600'">{{ r.unrealized !== null ? pnlFmt(r.unrealized, g.currency) : "—" }}</Td>
+            <Td align="right" mono :class="pnlColor(r.realized)">{{ pnlFmt(r.realized, g.currency) }}</Td>
           </tr>
         </tbody>
       </table>

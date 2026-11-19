@@ -4,7 +4,7 @@ import type { CryptoTrade, HistoryRange, StockTrade } from "@argent/shared"
 import { useAssetHistory } from "../../api"
 import LineChart, { type ChartMarker } from "../../components/charts/LineChart.vue"
 import { Button, Card, ErrorText, LoadingText, SegmentedControl } from "../../components/ui"
-import { fmtDate, fmtPrice, fmtSignificant, pnlColor } from "../../lib/format"
+import { fmtDate, fmtPct, fmtPrice, fmtSignificant, pnlColor } from "../../lib/format"
 
 /**
  * The price of one asset over time, with the portfolio's buys (▲) and sells (▼) of it marked on the line.
@@ -57,7 +57,6 @@ const change = computed(() => {
   const last = points.value[points.value.length - 1].v
   return { abs: last - first, pct: first === 0 ? 0 : ((last - first) / first) * 100 }
 })
-const fmtPct = (n: number) => `${n >= 0 ? "+" : ""}${n.toFixed(2).replace(".", ",")}%`
 
 const price = (v: number) => fmtPrice(v, props.currency)
 const day = (t: number) => fmtDate(new Date(t).toISOString().slice(0, 10))
