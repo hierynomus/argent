@@ -97,6 +97,13 @@ describe("metal prices", () => {
     expect(await p.getMetalPricePerGram("Silver", "USD")).toBeCloseTo(25 / 31.1035, 6)
   })
 
+  test("the metal prices come from Yahoo's futures, not the retired metals.live", async () => {
+    const p = await load()
+    await p.getMetalPricePerGram("gold", "USD")
+    expect(fakeFetch.callsTo("GC%3DF").length).toBeGreaterThan(0)
+    expect(fakeFetch.callsTo("metals.live")).toHaveLength(0)
+  })
+
   test("metals missing from the provider return null", async () => {
     const p = await load()
     expect(await p.getMetalPricePerGram("platinum")).toBeNull()
@@ -104,7 +111,7 @@ describe("metal prices", () => {
   })
 
   test("a failing provider yields null", async () => {
-    fakeFetch.failing.add("metals.live")
+    fakeFetch.failing.add("GC%3DF")
     const p = await load()
     expect(await p.getMetalPricePerGram("gold")).toBeNull()
   })

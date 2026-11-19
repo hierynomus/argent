@@ -3,7 +3,7 @@
  * test run so nothing can reach the real network.
  *
  *  CoinGecko   BTC 50000 EUR / 55000 USD, ETH 2000 EUR / 2200 USD, SHIB and PEPE (tiny, pinned), NEWCOIN (found by search only)
- *  metals.live XAU 2000 USD/oz, XAG 25 USD/oz            (gold & silver only)
+ *  Yahoo futures GC=F 2000 USD/oz (gold), SI=F 25 USD/oz (silver)   (no platinum/palladium)
  *  Frankfurter USD→EUR 0.9, EUR→USD 1.1
  *  History     CoinGecko market_chart (bitcoin, shiba-inu: 5 daily points) and Yahoo chart ranges (AAPL, VWRL)
  *  Yahoo       AAPL 100 USD "Apple Inc.", VWRL 80 EUR "Vanguard FTSE All-World", DOGE-EUR 0.1, ADA-USD 0.5, others → no data
@@ -31,6 +31,9 @@ const json = (body: unknown, status = 200) =>
 const YAHOO: Record<string, { price: number; currency: string; name: string }> = {
   AAPL: { price: 100, currency: "USD", name: "Apple Inc." },
   VWRL: { price: 80, currency: "EUR", name: "Vanguard FTSE All-World" },
+  // precious metals: front-month futures, USD per troy ounce
+  "GC=F": { price: 2000, currency: "USD", name: "Gold" },
+  "SI=F": { price: 25, currency: "USD", name: "Silver" },
   // London quotes in pence ("GBp"), not pounds
   "VOD.L": { price: 70, currency: "GBp", name: "Vodafone Group" },
   // coins Yahoo lists as pairs (the fallback when CoinGecko is rate limited)
@@ -79,7 +82,6 @@ export async function fakeFetchImpl(input: RequestInfo | URL): Promise<Response>
     }
     return json(Object.fromEntries(ids.filter((id) => id in all).map((id) => [id, all[id]])))
   }
-  if (url.includes("metals.live")) return json([{ XAU: 2000, XAG: 25 }])
   if (url.includes("frankfurter.app")) {
     const to = new URL(url).searchParams.get("to") ?? "EUR"
     const from = new URL(url).searchParams.get("from") ?? "USD"

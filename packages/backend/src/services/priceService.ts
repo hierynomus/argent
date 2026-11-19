@@ -311,74 +311,30 @@ export async function getStockHistory(symbol: string, currency: "EUR" | "USD", r
 }
 
 // ──────────────────────────────────────────────
-// Metals — metals.live (USD/troy oz) + Frankfurter (USD→EUR)
+// Metals — Yahoo Finance front-month futures (USD per troy ounce) + Frankfurter (USD→EUR)
+//
+// metals.live, the free spot API this used before, is gone (404). Yahoo's futures follow the spot price
+// closely (a few tenths of a percent apart) and need no key; they go through the same quote path as stocks.
 // ──────────────────────────────────────────────
 
 const TROY_OZ_TO_GRAMS = 31.1035
 
-const METAL_CODES: Record<string, string> = {
-  gold: "XAU",
-  silver: "XAG",
-  platinum: "XPT",
-  palladium: "XPD",
-}
-
-interface MetalCache {
-  pricesUsdPerGram: Record<string, number>  // USD per gram
-  usdToEur: number
-  fetchedAt: number
-}
-
-let metalCache: MetalCache | null = null
-
-async function refreshMetalPrices(): Promise<{ pricesUsdPerGram: Record<string, number>; usdToEur: number }> {
-  const [metalsRes, fxRes] = await Promise.all([
-    fetch("https://metals.live/api/spot", { signal: AbortSignal.timeout(8000) }),
-    fetch("https://api.frankfurter.app/latest?from=USD&to=EUR", { signal: AbortSignal.timeout(8000) }),
-  ])
-  if (!metalsRes.ok) throw new Error(`metals.live HTTP ${metalsRes.status}`)
-  if (!fxRes.ok) throw new Error(`Frankfurter HTTP ${fxRes.status}`)
-
-  const metalsJson = await metalsRes.json() as Array<{ metal?: string; price?: number } | Record<string, number>>
-  const fxJson = await fxRes.json() as { rates: { EUR: number } }
-  const usdToEur = fxJson.rates.EUR
-
-  let spotPricesUsd: Record<string, number> = {}
-  if (Array.isArray(metalsJson)) {
-    for (const item of metalsJson) {
-      if (typeof item === "object" && item !== null) {
-        if ("metal" in item && "price" in item) {
-          spotPricesUsd[(item as { metal: string; price: number }).metal] = (item as { metal: string; price: number }).price
-        } else {
-          Object.assign(spotPricesUsd, item)
-        }
-      }
-    }
-  } else if (typeof metalsJson === "object") {
-    spotPricesUsd = metalsJson as Record<string, number>
-  }
-
-  const pricesUsdPerGram: Record<string, number> = {}
-  for (const [metal, code] of Object.entries(METAL_CODES)) {
-    const priceUsdPerTroyOz = spotPricesUsd[code]
-    if (priceUsdPerTroyOz != null) {
-      pricesUsdPerGram[metal] = priceUsdPerTroyOz / TROY_OZ_TO_GRAMS
-    }
-  }
-  return { pricesUsdPerGram, usdToEur }
+const METAL_FUTURES: Record<string, string> = {
+  gold: "GC=F",
+  silver: "SI=F",
+  platinum: "PL=F",
+  palladium: "PA=F",
 }
 
 /** Returns price per gram in the given currency, or null if unknown/unavailable. */
 export async function getMetalPricePerGram(metal: string, currency: "EUR" | "USD" = "EUR"): Promise<number | null> {
   try {
-    const now = Date.now()
-    if (!metalCache || now - metalCache.fetchedAt > CACHE_TTL_MS) {
-      const { pricesUsdPerGram, usdToEur } = await refreshMetalPrices()
-      metalCache = { pricesUsdPerGram, usdToEur, fetchedAt: now }
-    }
-    const usdPerGram = metalCache.pricesUsdPerGram[metal.toLowerCase()]
-    if (usdPerGram == null) return null
-    return currency === "USD" ? usdPerGram : usdPerGram * metalCache.usdToEur
+    const symbol = METAL_FUTURES[metal.toLowerCase()]
+    if (!symbol) return null
+    const quote = await getStockQuote(symbol) // USD per troy ounce
+    if (!quote) return null
+    const rate = await getFxRate(quote.currency, currency)
+    return rate == null ? null : (quote.price / TROY_OZ_TO_GRAMS) * rate
   } catch {
     return null
   }
