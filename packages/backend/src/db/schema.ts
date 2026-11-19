@@ -222,6 +222,8 @@ export const mortgageParts = pgTable("mortgage_parts", {
   rateType: text("rate_type").notNull().default("nominal"),
   startDate: date("start_date").notNull(),
   endDate: date("end_date").notNull(),
+  // set when the first installment is more than a month after the payout: the interest of that partial period is added to the loan
+  firstPaymentDate: date("first_payment_date"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 }, (t) => ({ mortgage_parts_mortgage_idx: index("mortgage_parts_mortgage_idx").on(t.mortgageId) }))
 
@@ -262,6 +264,7 @@ export const loanParts = pgTable("loan_parts", {
   rateType: text("rate_type").notNull().default("nominal"),
   startDate: date("start_date").notNull(),
   endDate: date("end_date").notNull(),
+  firstPaymentDate: date("first_payment_date"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 }, (t) => ({ loan_parts_loan_idx: index("loan_parts_loan_idx").on(t.loanId) }))
 

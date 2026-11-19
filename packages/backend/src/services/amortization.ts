@@ -12,8 +12,15 @@ export interface PartInput {
   annualInterestRate: string
   /** "nominal" (default): monthly rate = rate/12. "effective": monthly rate = (1+rate)^(1/12) - 1. */
   rateType?: string
+  /** the day the money was paid out (interest starts here) */
   startDate: string  // ISO date
   endDate: string    // ISO date
+  /**
+   * The date of the first installment, when it is more than a month after `startDate` (a loan paid out
+   * mid-month with installments on the 1st). The interest of that partial period is added to the loan.
+   * Default: one month after `startDate`.
+   */
+  firstPaymentDate?: string | null
 }
 
 export interface PartState {
@@ -34,7 +41,6 @@ export interface PartState {
 
 // Dates are `YYYY-MM-DD` strings handled by lib/dates.ts (time-zone independent); "today" is the UTC date.
 // Payment m is due `m` months after the start, on the start's day of the month (clamped to short months).
-const paymentDate = addMonths
 
 /** The monthly interest rate for an annual rate, depending on how it is quoted. */
 export function monthlyRate(annualRate: number, rateType: string = "nominal"): number {
@@ -52,6 +58,9 @@ export function monthlyRate(annualRate: number, rateType: string = "nominal"): n
  *  - Interest of a period is the opening balance times the monthly rate (see `monthlyRate`).
  *  - An extra payment takes effect on its own date. It lowers the balance at once, and lowers that
  *    period's interest in proportion to the days left until the payment date.
+ *  - With a `firstPaymentDate` later than one month after the start, the interest of the partial first period
+ *    (start → one month before the first installment, pro rata) is added to the balance and spread over the
+ *    term, as banks do when the payout is mid-month. Not applied to interest-only parts (they just pay it).
  *  - The scheduled payment stays the same, so extra payments shorten the term (see `monthsRemaining`).
  */
 export function computePartState(
@@ -59,15 +68,25 @@ export function computePartState(
   extraPayments: ExtraPayment[],
   asOf: Date = new Date(),
 ): PartState {
-  const principal = parseFloat(part.principal)
   const r = monthlyRate(parseFloat(part.annualInterestRate), part.rateType)
 
   const start = part.startDate
   const end = part.endDate
   const today = todayIso(asOf)
-  const totalMonths = Math.max(1, monthsBetween(start, end))
+
+  // Installment m is due on the first payment date plus m-1 months (default: m months after the start).
+  const paymentDate = (m: number) => (part.firstPaymentDate ? addMonths(part.firstPaymentDate, m - 1) : addMonths(start, m))
+  // the date the regular months count from, and the interest accrued on the payout before it
+  const anchor = part.firstPaymentDate ? addMonths(part.firstPaymentDate, -1) : start
+  const stubInterest =
+    part.type !== "interest_only" && anchor > start
+      ? cents((parseFloat(part.principal) * r * daysBetween(start, anchor)) / Math.max(1, daysBetween(addMonths(anchor, -1), anchor)))
+      : 0
+  const principal = parseFloat(part.principal) + stubInterest
+
+  const totalMonths = Math.max(1, monthsBetween(anchor, end))
   let monthsElapsed = 0
-  while (monthsElapsed < totalMonths && paymentDate(start, monthsElapsed + 1) <= today) monthsElapsed++
+  while (monthsElapsed < totalMonths && paymentDate(monthsElapsed + 1) <= today) monthsElapsed++
 
   // The original (unaffected) monthly payment, rounded to cents
   let originalMonthlyPayment: number
@@ -91,9 +110,9 @@ export function computePartState(
   while (ei < extras.length && extras[ei].date <= start) balance = Math.max(0, cents(balance - extras[ei++].amount))
 
   // Payment-by-payment simulation — all amounts rounded to cents at each step
-  let previous = start
+  let previous = anchor > start ? anchor : start
   for (let m = 1; m <= monthsElapsed; m++) {
-    const due = paymentDate(start, m)
+    const due = paymentDate(m)
     const periodDays = Math.max(1, daysBetween(previous, due))
     let interest = cents(balance * r)
 
@@ -161,6 +180,6 @@ export function computePartState(
     totalMonths,
     monthsElapsed,
     monthsRemaining,
-    projectedEndDate: paymentDate(start, monthsElapsed + monthsRemaining),
+    projectedEndDate: monthsElapsed + monthsRemaining === 0 ? anchor : paymentDate(monthsElapsed + monthsRemaining),
   }
 }

@@ -57,6 +57,18 @@ for (const kind of ["mortgages", "loans"] as const) {
       expect(listed.totalMonthlyPayment).toBe(listed.parts[0].monthlyPayment)
     })
 
+    test("a first payment date adds the partial month's interest to the loan", async () => {
+      const d = (await post(base, { name: unique("fp") })).body
+      const body = part({ principal: "250000", annualInterestRate: "0.0315", startDate: "2018-10-09", endDate: "2048-11-01", firstPaymentDate: "2018-12-01" })
+      const r = await post(`${base}/${d.id}/parts`, body)
+      expect(r.status).toBe(201)
+      expect(r.body).toMatchObject({ firstPaymentDate: "2018-12-01", originalMonthlyPayment: 1076.43, totalMonths: 360 })
+      expect((await post(`${base}/${d.id}/parts`, part({ ...body, firstPaymentDate: "2018-10-01" }))).status).toBe(400) // before the payout
+      expect((await post(`${base}/${d.id}/parts`, part({ ...body, endDate: "2018-11-01" }))).status).toBe(400) // ends before the first payment
+      const plain = (await post(`${base}/${d.id}/parts`, part({ principal: "1000", startDate: "2024-01-01", endDate: "2025-01-01" }))).body
+      expect(plain.firstPaymentDate).toBeNull()
+    })
+
     test("the rate type defaults to nominal, can be set to effective on creation, and changed on update", async () => {
       const d = (await create()).body
       const nominal = (await post(`${base}/${d.id}/parts`, part())).body

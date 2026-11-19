@@ -81,6 +81,20 @@ for (const k of kinds) {
       })
     })
 
+    test("a first payment date after a mid-month payout: the term is counted from that first payment", async () => {
+      const { api, user } = await setup([debt({ parts: [] })])
+      await user.click(await screen.findByRole("button", { name: "+ Add part" }))
+      await user.type(screen.getByPlaceholderText(k.partPlaceholders.name), "Annuity")
+      await user.type(screen.getByPlaceholderText(k.partPlaceholders.principal), "250000")
+      await user.type(screen.getByPlaceholderText(k.partPlaceholders.rate), "3.15")
+      await user.type(screen.getByLabelText("Start date"), "2018-10-09")
+      await user.type(screen.getByLabelText("First payment"), "2018-12-01")
+      await user.type(screen.getByLabelText("Term (months)"), "360")
+      await user.click(screen.getByRole("button", { name: "Add part" }))
+      await waitFor(() => expect(api.calls("POST", `${k.base}/d1/parts`)).toHaveLength(1))
+      expect(api.calls("POST", `${k.base}/d1/parts`)[0].body).toMatchObject({ startDate: "2018-10-09", firstPaymentDate: "2018-12-01", endDate: "2048-11-01" })
+    })
+
     test("a rate quoted as effective is sent as such", async () => {
       const { api, user } = await setup([debt({ parts: [] })])
       await user.click(await screen.findByRole("button", { name: "+ Add part" }))

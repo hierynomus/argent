@@ -20,9 +20,13 @@ const invalidate = useInvalidate()
 const { errors, check } = useFormErrors()
 const hints = DEBT_KINDS[props.kind].part
 const RATE_TYPES = [{ value: "nominal", label: "Nominal" }, { value: "effective", label: "Effective" }] as const
-const form = reactive({ name: "", type: "annuity" as PartType, principal: "", annualInterestRate: "", rateType: "nominal" as DebtPart["rateType"], startDate: "", termMonths: "" })
-// the contract states a start date and a number of months; the end date follows from them
-const endDate = () => addMonths(form.startDate, parseInt(form.termMonths, 10))
+const form = reactive({ name: "", type: "annuity" as PartType, principal: "", annualInterestRate: "", rateType: "nominal" as DebtPart["rateType"], startDate: "", firstPaymentDate: "", termMonths: "" })
+// the contract states a start date and a number of months; the end date follows from them. With a first
+// payment date (payout mid-month, installments on the 1st) the months are counted from that first payment.
+const endDate = () =>
+  form.firstPaymentDate
+    ? addMonths(form.firstPaymentDate, parseInt(form.termMonths, 10) - 1)
+    : addMonths(form.startDate, parseInt(form.termMonths, 10))
 
 // the rate is entered as a percentage but sent as a fraction
 const body = () => ({
@@ -33,6 +37,7 @@ const body = () => ({
   rateType: form.rateType,
   startDate: form.startDate,
   endDate: endDate(),
+  firstPaymentDate: form.firstPaymentDate || undefined,
 })
 
 const add = useMutation({
@@ -59,6 +64,10 @@ const complete = () => !!(form.name && form.principal && form.annualInterestRate
       </Field>
       <FieldGroup label="Rate is"><SegmentedControl v-model="form.rateType" :options="RATE_TYPES" padding="px-2 py-1.5" /></FieldGroup>
       <Field label="Start date" :error="errors.startDate"><Input v-model="form.startDate" type="date" class="w-36" /></Field>
+      <Field label="First payment" :error="errors.firstPaymentDate">
+        <Input v-model="form.firstPaymentDate" type="date" class="w-36" />
+        <p class="text-xs text-gray-400 dark:text-gray-500 mt-1">Optional: when the payout was mid-month, the interest until then is added to the loan</p>
+      </Field>
       <Field label="Term (months)" :error="errors.endDate ? 'The term must be at least 1 month' : undefined">
         <Input v-model="form.termMonths" type="number" min="1" step="1" placeholder="e.g. 37" class="w-28" />
         <p v-if="endDate()" class="text-xs text-gray-400 dark:text-gray-500 mt-1">Last payment {{ fmtDate(endDate()) }}</p>

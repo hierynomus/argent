@@ -128,6 +128,7 @@ app.post("/:id/parts", validateJson(createDebtPartSchema), async (c) => {
       rateType: body.rateType ?? "nominal",
       startDate: body.startDate,
       endDate: body.endDate,
+      firstPaymentDate: body.firstPaymentDate ?? null,
     })
     .returning()
 

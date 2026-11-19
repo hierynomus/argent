@@ -332,6 +332,8 @@ export interface MortgagePart {
   rateType: "nominal" | "effective"
   startDate: string
   endDate: string
+  /** set when the first installment is more than a month after the payout */
+  firstPaymentDate?: string | null
   createdAt: string
   extraPayments: MortgageExtraPayment[]
   // Computed by backend
@@ -391,6 +393,7 @@ export interface LoanPart {
   rateType: "nominal" | "effective"
   startDate: string
   endDate: string
+  firstPaymentDate?: string | null
   createdAt: string
   extraPayments: LoanExtraPayment[]
   // Computed by backend

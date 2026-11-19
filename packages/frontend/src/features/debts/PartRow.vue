@@ -24,10 +24,10 @@ const form = reactive({
   annualInterestRate: (parseFloat(props.part.annualInterestRate) * 100).toFixed(4),
   rateType: props.part.rateType ?? "nominal",
   // the term is edited in months from the start date; the end date follows
-  termMonths: String(monthsBetween(props.part.startDate, props.part.endDate)),
+  termMonths: String(props.part.firstPaymentDate ? monthsBetween(props.part.firstPaymentDate, props.part.endDate) + 1 : monthsBetween(props.part.startDate, props.part.endDate)),
 })
 const RATE_TYPES = [{ value: "nominal", label: "Nominal" }, { value: "effective", label: "Effective" }] as const
-const body = () => ({ name: form.name, annualInterestRate: (parseFloat(form.annualInterestRate) / 100).toFixed(6), rateType: form.rateType, endDate: addMonths(props.part.startDate, parseInt(form.termMonths, 10)) })
+const body = () => ({ name: form.name, annualInterestRate: (parseFloat(form.annualInterestRate) / 100).toFixed(6), rateType: form.rateType, endDate: props.part.firstPaymentDate ? addMonths(props.part.firstPaymentDate, parseInt(form.termMonths, 10) - 1) : addMonths(props.part.startDate, parseInt(form.termMonths, 10)) })
 
 const update = useMutation({
   mutationFn: () => debtApis[props.kind].updatePart(props.debt.id, props.part.id, body()),

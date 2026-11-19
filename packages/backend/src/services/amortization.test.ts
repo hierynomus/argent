@@ -225,3 +225,39 @@ describe("extra payments: timing and a shorter term", () => {
     expect(s.monthlyInterest).toBe(900)
   })
 })
+
+describe("a payout before the first installment (interest of the partial month is added to the loan)", () => {
+  // 250,000 at 3.15%, paid out 9 Oct 2018, installments on the 1st from 1 Dec 2018, 360 of them (the last on 1 Nov 2048)
+  const mortgage = { type: "annuity", principal: "250000", annualInterestRate: "0.0315", startDate: "2018-10-09", endDate: "2048-11-01", firstPaymentDate: "2018-12-01" }
+  const today = utc(2026, 10, 19)
+
+  test("matches a mortgage: payment 1076.43 and a balance within a few euros of the reference 204,819.22", () => {
+    const s = computePartState(mortgage, [], today)
+    expect(s.originalMonthlyPayment).toBe(1076.43) // without the partial month it would be 1074.34
+    expect(s.totalMonths).toBe(360)
+    expect(s.monthsElapsed).toBe(96)
+    expect(Math.abs(s.currentBalance - 204819.22)).toBeLessThan(3)
+    expect(s.projectedEndDate).toBe("2048-11-01")
+  })
+
+  test("without a first payment date nothing changes", () => {
+    const plain = computePartState({ ...mortgage, startDate: "2018-11-01", firstPaymentDate: null }, [], today)
+    expect(plain.originalMonthlyPayment).toBe(1074.34)
+    expect(plain.monthsElapsed).toBe(96)
+  })
+
+  test("a first payment exactly one month after the start has no partial month", () => {
+    const same = computePartState({ ...mortgage, startDate: "2018-11-01" }, [], today)
+    expect(same.originalMonthlyPayment).toBe(1074.34)
+  })
+
+  test("the first installment counts once its date has passed, not before", () => {
+    expect(computePartState(mortgage, [], utc(2018, 10, 30)).monthsElapsed).toBe(0)
+    expect(computePartState(mortgage, [], utc(2018, 11, 1)).monthsElapsed).toBe(1)
+  })
+
+  test("interest-only parts ignore the partial month (they pay the interest, nothing is added)", () => {
+    const s = computePartState({ ...mortgage, type: "interest_only" }, [], today)
+    expect(s.currentBalance).toBe(250000)
+  })
+})
