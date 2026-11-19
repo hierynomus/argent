@@ -375,6 +375,43 @@ for (const k of kinds) {
       })
     })
 
+    test("an extra payment can lower the payment instead of shortening the term", async () => {
+      const { api, user } = await setup([debt({ parts: [part({ type: "annuity" })] })])
+      await screen.findByText("Part A")
+      await user.click(screen.getByRole("button", { name: "Payments" }))
+      expect(screen.getByRole("button", { name: "Shorten the term" })).toHaveAttribute("aria-pressed", "true") // the default
+      await user.type(screen.getByLabelText("Date"), "2024-02-01")
+      await user.type(screen.getByLabelText(/^Amount/), "5000")
+      await user.click(screen.getByRole("button", { name: "Lower the payment" }))
+      await user.click(screen.getByRole("button", { name: "Add" }))
+      await waitFor(() => expect(api.calls("POST", `${k.base}/d1/parts/part-1/payments`)).toHaveLength(1))
+      expect(api.calls("POST", `${k.base}/d1/parts/part-1/payments`)[0].body).toEqual({ paymentDate: "2024-02-01", amount: "5000", effect: "lower_payment" })
+    })
+
+    test("an interest-only part has nothing to lower: no choice, and none is sent", async () => {
+      const { api, user } = await setup([debt({ parts: [part({ type: "interest_only" })] })])
+      await screen.findByText("Part A")
+      await user.click(screen.getByRole("button", { name: "Payments" }))
+      expect(screen.queryByRole("button", { name: "Lower the payment" })).toBeNull()
+      await user.type(screen.getByLabelText("Date"), "2024-02-01")
+      await user.type(screen.getByLabelText(/^Amount/), "5000")
+      await user.click(screen.getByRole("button", { name: "Add" }))
+      await waitFor(() => expect(api.calls("POST", `${k.base}/d1/parts/part-1/payments`)).toHaveLength(1))
+      expect(api.calls("POST", `${k.base}/d1/parts/part-1/payments`)[0].body).toEqual({ paymentDate: "2024-02-01", amount: "5000" })
+    })
+
+    test("the extra payments list says what each one did", async () => {
+      const withBoth = debt({ parts: [part({ extraPayments: [
+        { id: "e1", partId: "part-1", paymentDate: "2023-05-01", amount: "1000.00", effect: "lower_payment", notes: null, createdAt: "" },
+        { id: "e2", partId: "part-1", paymentDate: "2023-06-01", amount: "2000.00", notes: null, createdAt: "" },
+      ] })] })
+      const { user } = await setup([withBoth])
+      await screen.findByText("Part A")
+      await user.click(screen.getByRole("button", { name: "Payments" }))
+      expect(screen.getByText("Lowers the payment")).toBeInTheDocument()
+      expect(screen.getByText("Shortens the term")).toBeInTheDocument() // no effect stored: the default
+    })
+
     test("records and removes extra payments", async () => {
       const withPayment = debt({ parts: [part({ extraPayments: [{ id: "ep1", partId: "part-1", paymentDate: "2023-05-01", amount: "5000.00", notes: "bonus", createdAt: "" }] })] })
       const { api, user } = await setup([withPayment])
@@ -387,7 +424,7 @@ for (const k of kinds) {
       await user.type(screen.getByLabelText(/^Amount/), "1234.5")
       await user.click(screen.getByRole("button", { name: "Add" }))
       await waitFor(() => expect(api.calls("POST", `${k.base}/d1/parts/part-1/payments`)).toHaveLength(1))
-      expect(api.calls("POST", `${k.base}/d1/parts/part-1/payments`)[0].body).toEqual({ paymentDate: "2024-02-01", amount: "1234.5" })
+      expect(api.calls("POST", `${k.base}/d1/parts/part-1/payments`)[0].body).toEqual({ paymentDate: "2024-02-01", amount: "1234.5", effect: "shorten_term" })
 
       await user.click(screen.getByRole("button", { name: "Remove" }))
       await waitFor(() => expect(api.calls("DELETE", `${k.base}/d1/parts/part-1/payments/ep1`)).toHaveLength(1))

@@ -40,7 +40,7 @@ function enrichPart(
 ) {
   return {
     ...part,
-    extraPayments: payments.map((p) => ({ id: p.id, partId: p.partId, paymentDate: p.paymentDate, amount: p.amount, notes: p.notes, createdAt: p.createdAt })),
+    extraPayments: payments.map((p) => ({ id: p.id, partId: p.partId, paymentDate: p.paymentDate, amount: p.amount, effect: p.effect, notes: p.notes, createdAt: p.createdAt })),
     rates: [...rates].sort((a, b) => a.effectiveDate.localeCompare(b.effectiveDate)).map((r) => ({ id: r.id, partId: r.partId, effectiveDate: r.effectiveDate, annualInterestRate: r.annualInterestRate, rateType: r.rateType, createdAt: r.createdAt })),
     ...computePartState(part, payments, new Date(), rates), // balance, payment components, term, projected end date and current rate
   }
@@ -300,7 +300,7 @@ export function debtRoutes(cfg: DebtKindConfig) {
     const body = c.req.valid("json")
     const [payment] = await db
       .insert(extraPayments)
-      .values({ partId: pid, paymentDate: body.paymentDate, amount: body.amount, notes: body.notes ?? null })
+      .values({ partId: pid, paymentDate: body.paymentDate, amount: body.amount, effect: body.effect ?? "shorten_term", notes: body.notes ?? null })
       .returning()
     return c.json(payment, 201)
   })

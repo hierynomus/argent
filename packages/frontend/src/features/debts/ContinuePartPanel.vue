@@ -3,7 +3,7 @@ import { computed, reactive, ref, watch } from "vue"
 import { useMutation } from "@tanstack/vue-query"
 import { closeDebtPartSchema } from "@argent/shared"
 import { debtApis, useInvalidate, usePartCarryOver, type Debt, type DebtKind, type DebtPart } from "../../api"
-import { Button, ErrorText, Field, Input, Select } from "../../components/ui"
+import { Button, ErrorText, Field, FieldGroup, Input, SegmentedControl } from "../../components/ui"
 import { addMonths } from "../../lib/dates"
 import { fmtCur, fmtDate } from "../../lib/format"
 import { sumCents } from "../../lib/money"
@@ -20,7 +20,8 @@ const emit = defineEmits<{ done: [] }>()
 
 const invalidate = useInvalidate()
 const { errors, check } = useFormErrors()
-const TYPES = Object.entries(PART_TYPE_LABELS) as Array<[DebtPart["type"], string]>
+const TYPE_OPTIONS = (Object.keys(PART_TYPE_LABELS) as Array<DebtPart["type"]>).map((value) => ({ value, label: PART_TYPE_LABELS[value] }))
+const RATE_TYPES = [{ value: "nominal", label: "Nominal" }, { value: "effective", label: "Effective" }] as const
 const blank = (name = "") => ({ name, type: "annuity" as DebtPart["type"], principal: "", rate: "", rateType: "nominal" as DebtPart["rateType"], termMonths: "" })
 
 const form = reactive({ closedOn: props.part.nextRateChange?.effectiveDate ?? "", rows: [blank(`${props.part.name} (continued)`)] })
@@ -79,14 +80,10 @@ const submit = () => check(closeDebtPartSchema, body()) && save.mutate()
 
     <div v-for="(row, i) in form.rows" :key="i" class="flex flex-wrap items-end gap-2 mb-2" role="group" :aria-label="`New part ${i + 1}`">
       <Field label="Name"><Input v-model="row.name" density="sm" type="text" class="w-40" /></Field>
-      <Field label="Type">
-        <Select v-model="row.type" density="sm" class="w-32"><option v-for="[value, label] in TYPES" :key="value" :value="value">{{ label }}</option></Select>
-      </Field>
+      <FieldGroup label="Type"><SegmentedControl v-model="row.type" :options="TYPE_OPTIONS" padding="px-2 py-1" /></FieldGroup>
       <Field :label="`Amount (${debt.currency})`"><Input v-model="row.principal" density="sm" type="number" min="0" step="0.01" class="w-32" @input="touched = true" /></Field>
       <Field label="Rate (%/yr)"><Input v-model="row.rate" density="sm" type="number" min="0" step="0.001" placeholder="e.g. 4.10" class="w-24" /></Field>
-      <Field label="Rate is">
-        <Select v-model="row.rateType" density="sm" class="w-28"><option value="nominal">Nominal</option><option value="effective">Effective</option></Select>
-      </Field>
+      <FieldGroup label="Rate is"><SegmentedControl v-model="row.rateType" :options="RATE_TYPES" padding="px-2 py-1" /></FieldGroup>
       <Field label="Term (months)"><Input v-model="row.termMonths" density="sm" type="number" min="1" step="1" placeholder="e.g. 120" class="w-28" /></Field>
       <Button v-if="form.rows.length > 1" variant="danger-link" size="xs" @click="removeRow(i)">Remove</Button>
     </div>

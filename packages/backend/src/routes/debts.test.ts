@@ -222,6 +222,23 @@ for (const kind of ["mortgages", "loans"] as const) {
       expect((await post(`${base}/preview-part`, {})).status).toBe(400)
     })
 
+    test("an extra payment can shorten the term (default) or lower the payment", async () => {
+      const d = (await create()).body
+      const make = async () => (await post(`${base}/${d.id}/parts`, part({ principal: "100000", annualInterestRate: "0.024", startDate: "2020-01-01", endDate: "2030-01-01" }))).body
+      const [a, b, c] = [await make(), await make(), await make()]
+      const pay = (id: string, body: object) => post(`${base}/${d.id}/parts/${id}/payments`, { paymentDate: "2022-06-10", amount: "20000", ...body })
+      expect((await pay(a.id, {})).body.effect).toBe("shorten_term")
+      expect((await pay(b.id, { effect: "lower_payment" })).body.effect).toBe("lower_payment")
+      expect((await pay(c.id, { effect: "sometimes" })).status).toBe(400)
+
+      const parts = (await detail(d.id)).parts
+      const [shorter, lower] = [a, b].map((x) => parts.find((p: any) => p.id === x.id))
+      expect(lower.extraPayments[0].effect).toBe("lower_payment")
+      expect(lower.monthlyPayment).toBeLessThan(shorter.monthlyPayment - 100) // the installment went down...
+      expect(lower.projectedEndDate).toBe("2030-01-01") // ...and the end date stayed
+      expect(shorter.projectedEndDate < "2030-01-01").toBe(true) // whereas the other ends earlier
+    })
+
     test("a first payment date adds the partial month's interest to the loan", async () => {
       const d = (await post(base, { name: unique("fp") })).body
       const body = part({ principal: "250000", annualInterestRate: "0.0315", startDate: "2018-10-09", endDate: "2048-11-01", firstPaymentDate: "2018-12-01" })

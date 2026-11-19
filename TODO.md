@@ -121,6 +121,11 @@ Vue 3 (rewritten from React; merged). `api/`, `lib/`, the shared zod schemas and
 - [ ] Reopening a part leaves the parts that continued it in place (remove them by hand)
 - [ ] Closing is the same day for the whole part; a mortgage where only a share of a part resets is modelled as two parts today
 
+## Extra payments
+- [x] Each extra payment either shortens the term (default, installment stays) or lowers the payment (end date stays); chosen when entering it, shown in the list
+- [ ] Banks may offer the lowered installment only from a fixed day (next month's collection); here it applies to the next installment after the payment date
+- [ ] An extra payment cannot be edited, only removed and re-entered (so changing its effect means re-entering it)
+
 ## Hygiene
 - [x] All migrations from now on come from `db:generate` (0018 does); `db:check` runs in `bun run check` and CI
 - [x] `tsconfig.tsbuildinfo` is no longer tracked (the Vue build does not emit it)

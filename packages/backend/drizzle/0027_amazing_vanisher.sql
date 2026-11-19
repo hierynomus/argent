@@ -1,0 +1,2 @@
+ALTER TABLE "loan_extra_payments" ADD COLUMN "effect" text DEFAULT 'shorten_term' NOT NULL;--> statement-breakpoint
+ALTER TABLE "mortgage_extra_payments" ADD COLUMN "effect" text DEFAULT 'shorten_term' NOT NULL;

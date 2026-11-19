@@ -3,7 +3,7 @@ import { reactive } from "vue"
 import { useMutation } from "@tanstack/vue-query"
 import { createDebtExtraPaymentSchema } from "@argent/shared"
 import { debtApis, useInvalidate, type Debt, type DebtKind, type DebtPart } from "../../api"
-import { Button, ErrorText, Field, Input } from "../../components/ui"
+import { Button, ErrorText, Field, FieldGroup, Input, SegmentedControl } from "../../components/ui"
 import { fmtCur } from "../../lib/format"
 import { useFormErrors } from "../../lib/validate"
 import { DEBT_KINDS } from "./config"
@@ -13,8 +13,12 @@ const props = defineProps<{ kind: DebtKind; debt: Debt; part: DebtPart; canEdit:
 
 const invalidate = useInvalidate()
 const { errors, check } = useFormErrors()
-const form = reactive({ paymentDate: "", amount: "", notes: "" })
-const body = () => ({ paymentDate: form.paymentDate, amount: form.amount, notes: form.notes || undefined })
+const EFFECTS = [{ value: "shorten_term", label: "Shorten the term" }, { value: "lower_payment", label: "Lower the payment" }] as const
+const EFFECT_LABELS = { shorten_term: "Shortens the term", lower_payment: "Lowers the payment" } as const
+const form = reactive({ paymentDate: "", amount: "", notes: "", effect: "shorten_term" as "shorten_term" | "lower_payment" })
+// an interest-only part has no installment to lower: the choice only exists for the others
+const choosesEffect = () => props.part.type !== "interest_only"
+const body = () => ({ paymentDate: form.paymentDate, amount: form.amount, effect: choosesEffect() ? form.effect : undefined, notes: form.notes || undefined })
 
 const add = useMutation({
   mutationFn: () => debtApis[props.kind].addExtraPayment(props.debt.id, props.part.id, body()),
@@ -39,7 +43,9 @@ const remove = useMutation({
         <tr v-for="ep in part.extraPayments" :key="ep.id">
           <td class="py-1.5 pr-4 text-gray-500 dark:text-gray-400 w-28 whitespace-nowrap">{{ ep.paymentDate }}</td>
           <td class="py-1.5 pr-4 font-medium text-gray-800 dark:text-gray-200 tabular-nums">{{ fmtCur(parseFloat(ep.amount), debt.currency) }}</td>
-          <td class="py-1.5 pr-4 text-gray-500 dark:text-gray-400 text-xs">{{ ep.notes ?? "" }}</td>
+          <td class="py-1.5 pr-4 text-gray-500 dark:text-gray-400 text-xs">
+            <span v-if="choosesEffect()" class="mr-2 text-gray-400 dark:text-gray-500">{{ EFFECT_LABELS[ep.effect ?? "shorten_term"] }}</span>{{ ep.notes ?? "" }}
+          </td>
           <td v-if="canEdit" class="py-1.5 text-right">
             <Button variant="danger-link" size="xs" @click="remove.mutate(ep.id)">Remove</Button>
           </td>
@@ -54,6 +60,9 @@ const remove = useMutation({
       <Field :label="`Amount (${debt.currency})`" :error="errors.amount">
         <Input v-model="form.amount" density="sm" type="number" min="0" step="0.01" placeholder="0.00" class="w-32" />
       </Field>
+      <FieldGroup v-if="choosesEffect()" label="The extra payment">
+        <SegmentedControl v-model="form.effect" :options="EFFECTS" padding="px-2 py-1" />
+      </FieldGroup>
       <Field label="Notes (optional)">
         <Input v-model="form.notes" density="sm" type="text" :placeholder="DEBT_KINDS[kind].paymentNotesPlaceholder" class="w-44" />
       </Field>

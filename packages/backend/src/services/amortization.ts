@@ -4,6 +4,8 @@ import { cents } from "./money"
 export interface ExtraPayment {
   paymentDate: string  // ISO date "YYYY-MM-DD"
   amount: string
+  /** "shorten_term" (default): the installment stays and the part ends earlier; "lower_payment": the installment goes down and the end date stays */
+  effect?: string | null
 }
 
 export interface PartInput {
@@ -103,7 +105,9 @@ function monthsToRepay(balance: number, r: number, installment: number, cap: num
  *  - With a `firstPaymentDate` later than one month after the start, the interest of the partial first period
  *    (start → one month before the first installment, pro rata) is added to the balance and spread over the
  *    term, as banks do when the payout is mid-month. Not applied to interest-only parts (they just pay it).
- *  - The scheduled payment stays the same, so extra payments shorten the term (see `monthsRemaining`).
+ *  - By default the scheduled payment stays the same, so extra payments shorten the term (see `monthsRemaining`).
+ *    An extra payment with effect `lower_payment` instead spreads what is left over the contract months that
+ *    remain (an annuity's installment, or a linear part's principal portion goes down) from the next installment on.
  */
 function simulatePart(
   part: PartInput,
@@ -158,6 +162,15 @@ function simulatePart(
   // the monthly rate and the annuity installment in force; they change when a new rate period begins
   let r = r0
   let installment = originalMonthlyPayment
+  // a linear part repays the same principal every month, until an extra payment lowers it
+  let linearPortion = originalMonthlyPayment
+  // after an extra payment that lowers the payment: spread what is left over the months left in the contract
+  const lowerPayment = (balance: number, paymentsMade: number) => {
+    const monthsLeft = totalMonths - paymentsMade
+    if (balance <= 0 || monthsLeft <= 0) return
+    if (part.type === "annuity") installment = annuityPayment(balance, r, monthsLeft)
+    else if (part.type === "linear") linearPortion = cents(balance / monthsLeft)
+  }
   const reprice = (m: number, balance: number) => {
     const next = monthlyAt(periodStart(m))
     if (next === r) return
@@ -171,13 +184,18 @@ function simulatePart(
   }
 
   const extras = extraPayments
-    .map((e) => ({ date: e.paymentDate, amount: parseFloat(e.amount) }))
+    .map((e) => ({ date: e.paymentDate, amount: parseFloat(e.amount), lowers: e.effect === "lower_payment" }))
     .sort((a, b) => a.date.localeCompare(b.date))
   let ei = 0
 
   let balance = principal
   // extra payments on/before the start date reduce the principal before any interest accrues
-  while (ei < extras.length && extras[ei].date <= start) balance = Math.max(0, cents(balance - extras[ei++].amount))
+  let loweredAtStart = false
+  while (ei < extras.length && extras[ei].date <= start) {
+    loweredAtStart ||= extras[ei].lowers
+    balance = Math.max(0, cents(balance - extras[ei++].amount))
+  }
+  if (loweredAtStart) lowerPayment(balance, 0)
 
   // Payment-by-payment simulation — all amounts rounded to cents at each step
   let previous = anchor > start ? anchor : start
@@ -186,18 +204,22 @@ function simulatePart(
     const periodDays = Math.max(1, daysBetween(previous, due))
     reprice(m, balance)
     let interest = cents(balance * r)
+    let lowered = false
 
     // extra payments made during this period (after the previous payment, up to and including this one)
     while (ei < extras.length && extras[ei].date <= due) {
+      lowered ||= extras[ei].lowers
       const amount = Math.min(balance, extras[ei].amount)
       interest = Math.max(0, cents(interest - (amount * r * daysBetween(extras[ei].date, due)) / periodDays))
       balance = cents(balance - amount)
       ei++
     }
     if (balance === 0) break
+    // the installment that follows an extra payment is the lowered one (also the one due in this very period)
+    if (lowered) lowerPayment(balance, m - 1)
 
     if (part.type === "linear") {
-      balance = Math.max(0, cents(balance - Math.min(balance, originalMonthlyPayment)))
+      balance = Math.max(0, cents(balance - Math.min(balance, linearPortion)))
     } else if (part.type === "annuity") {
       balance = Math.max(0, cents(balance - Math.min(balance, Math.max(0, installment - interest))))
     }
@@ -208,13 +230,18 @@ function simulatePart(
   // the period that is under way now: its rate (and an annuity's installment) apply to the next payment
   reprice(monthsElapsed + 1, balance)
   // extra payments made since the last payment (the current, not yet completed period)
-  while (ei < extras.length && extras[ei].date <= today) balance = Math.max(0, cents(balance - extras[ei++].amount))
+  let loweredNow = false
+  while (ei < extras.length && extras[ei].date <= today) {
+    loweredNow ||= extras[ei].lowers
+    balance = Math.max(0, cents(balance - extras[ei++].amount))
+  }
+  if (loweredNow) lowerPayment(balance, monthsElapsed)
 
   // Components of the next payment, from the remaining balance
   const currentMonthlyInterest = cents(balance * r)
   let currentMonthlyPrincipal: number
   if (part.type === "linear") {
-    currentMonthlyPrincipal = balance > 0 ? Math.min(balance, originalMonthlyPayment) : 0
+    currentMonthlyPrincipal = balance > 0 ? Math.min(balance, linearPortion) : 0
   } else if (part.type === "annuity") {
     currentMonthlyPrincipal = balance > 0 ? Math.min(balance, Math.max(0, installment - currentMonthlyInterest)) : 0
   } else {
@@ -229,7 +256,7 @@ function simulatePart(
   if (balance <= 0) {
     monthsRemaining = 0
   } else if (part.type === "linear") {
-    monthsRemaining = Math.min(scheduledRemaining, Math.ceil(balance / originalMonthlyPayment - 1e-9))
+    monthsRemaining = Math.min(scheduledRemaining, Math.ceil(balance / linearPortion - 1e-9))
   } else if (part.type === "annuity") {
     // walk the rest of the schedule, through any later rate changes
     let b = balance

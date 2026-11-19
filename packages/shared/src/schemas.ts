@@ -290,9 +290,13 @@ export const closeDebtPartSchema = z.object({
 /** GET …/carry-over?date=: what is left of a part on a day. */
 export const carryOverQuerySchema = z.object({ date: isoDate("date") })
 
+export const EXTRA_PAYMENT_EFFECTS = ["shorten_term", "lower_payment"] as const
+
 export const createDebtExtraPaymentSchema = z.object({
   paymentDate: isoDate("paymentDate"),
   amount: positiveDecimalString("amount"),
+  /** what the extra payment does: keep the installment and end earlier (default), or lower the installment and keep the end date */
+  effect: z.enum(EXTRA_PAYMENT_EFFECTS, { error: `effect must be one of ${EXTRA_PAYMENT_EFFECTS.join(", ")}` }).optional(),
   notes: optionalText(),
 })
 

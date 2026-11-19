@@ -427,3 +427,82 @@ describe("closing a part (its remainder is continued elsewhere or repaid)", () =
     expect(annuity.carriedOver).toBe(open.currentBalance)
   })
 })
+
+describe("an extra payment either shortens the term or lowers the payment", () => {
+  describe("linear", () => {
+    const linear = { type: "linear", principal: "12000", annualInterestRate: "0.12", startDate: "2024-01-01", endDate: "2025-01-01" } satisfies PartInput
+    const asOf = utc(2024, 3, 15) // 15 April: 3 payments made; the extra payment of 10 March is in period 3
+    const shorten = [{ paymentDate: "2024-03-10", amount: "3000" }]
+    const lower = [{ paymentDate: "2024-03-10", amount: "3000", effect: "lower_payment" }]
+
+    test("shorten the term (the default): the principal portion stays 1,000 and the part ends three months early", () => {
+      for (const extras of [shorten, [{ ...shorten[0], effect: "shorten_term" }], [{ ...shorten[0], effect: null }]]) {
+        const s = computePartState(linear, extras, asOf)
+        expect(s.currentBalance).toBe(6000)
+        expect(s.monthlyPrincipal).toBe(1000)
+        expect(s.monthsRemaining).toBe(6)
+        expect(s.projectedEndDate).toBe("2024-10-01")
+      }
+    })
+
+    test("lower the payment: what is left is spread over the months to the original end date, from the next installment (the one due 1 April)", () => {
+      // after the extra payment 7,000 is left with 10 installments to go: 700 each, the 3rd one already included
+      const s = computePartState(linear, lower, asOf)
+      expect(s.currentBalance).toBe(6300) // 7000 − the 3rd installment's 700
+      expect(s.monthlyPrincipal).toBe(700)
+      expect(s.monthlyPayment).toBe(763) // + 6300 × 1% interest
+      expect(s.monthsRemaining).toBe(9)
+      expect(s.projectedEndDate).toBe("2025-01-01")
+    })
+
+    test("seen before the installment is due, it is already the lowered one", () => {
+      const s = computePartState(linear, lower, utc(2024, 2, 15)) // 15 March: 2 payments made, the extra payment of 10 March is paid
+      expect(s.currentBalance).toBe(7000)
+      expect(s.monthlyPrincipal).toBe(700) // 7000 over the 10 months left
+      expect(s.monthsRemaining).toBe(10)
+      expect(computePartState(linear, shorten, utc(2024, 2, 15)).monthlyPrincipal).toBe(1000)
+    })
+  })
+
+  describe("annuity", () => {
+    const annuity = { type: "annuity", principal: "100000", annualInterestRate: "0.024", startDate: "2020-01-01", endDate: "2030-01-01" } satisfies PartInput
+    const pmt = (balance: number, r: number, months: number) => (balance * r) / (1 - Math.pow(1 + r, -months))
+    const extra = (effect?: string) => [{ paymentDate: "2022-06-10", amount: "20000", effect }]
+
+    test("shorten the term (the default): the payment stays, the part ends earlier", () => {
+      const plain = computePartState(annuity, [], utc(2023, 0, 15))
+      const s = computePartState(annuity, extra(), utc(2023, 0, 15))
+      expect(s.monthlyPayment).toBeCloseTo(plain.monthlyPayment, 1)
+      expect(s.projectedEndDate < "2030-01-01").toBe(true)
+    })
+
+    test("lower the payment: the end date stays and the installment drops to what the remaining balance needs", () => {
+      const plain = computePartState(annuity, [], utc(2023, 0, 15))
+      const shorter = computePartState(annuity, extra(), utc(2023, 0, 15))
+      const s = computePartState(annuity, extra("lower_payment"), utc(2023, 0, 15))
+      expect(s.projectedEndDate).toBe("2030-01-01")
+      expect(s.monthsRemaining).toBe(plain.monthsRemaining)
+      expect(s.monthlyPayment).toBeLessThan(plain.monthlyPayment - 100)
+      // the balance right after the extra payment (10 June, before the 30th installment of 1 July) is what the new
+      // installment is calculated from, over the 91 installments left from the 30th on
+      const afterExtra = computePartState(annuity, extra(), utc(2022, 5, 15)).currentBalance
+      const atThen = computePartState(annuity, extra("lower_payment"), utc(2022, 5, 15))
+      expect(atThen.monthlyPayment).toBeCloseTo(pmt(afterExtra, 0.002, 91), 1)
+      expect(s.currentBalance).toBeGreaterThan(shorter.currentBalance) // paying less each month leaves more owed than paying the full installment
+    })
+
+    test("an interest-only part has no installment to lower: the effect makes no difference", () => {
+      const only = { ...annuity, type: "interest_only" }
+      const a = computePartState(only, extra(), utc(2023, 0, 15))
+      const b = computePartState(only, extra("lower_payment"), utc(2023, 0, 15))
+      expect(b).toEqual(a)
+    })
+
+    test("works together with a rate change after it", () => {
+      const reset = [{ effectiveDate: "2025-01-01", annualInterestRate: "0.06" }]
+      const s = computePartState(annuity, extra("lower_payment"), utc(2025, 0, 15), reset)
+      expect(s.monthsRemaining).toBe(60)
+      expect(s.monthlyPayment).toBeCloseTo(pmt(s.currentBalance, 0.005, 60), 1)
+    })
+  })
+})

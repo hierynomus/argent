@@ -253,6 +253,8 @@ export const mortgageExtraPayments = pgTable("mortgage_extra_payments", {
   partId: uuid("part_id").notNull().references(() => mortgageParts.id, { onDelete: "cascade" }),
   paymentDate: date("payment_date").notNull(),
   amount: numeric("amount", { precision: 15, scale: 2 }).notNull(),
+  // "shorten_term": the installment stays and the part ends earlier; "lower_payment": the installment goes down, the end date stays
+  effect: text("effect").notNull().default("shorten_term"),
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 }, (t) => ({ mortgage_extra_payments_part_idx: index("mortgage_extra_payments_part_idx").on(t.partId) }))
@@ -310,6 +312,8 @@ export const loanExtraPayments = pgTable("loan_extra_payments", {
   partId: uuid("part_id").notNull().references(() => loanParts.id, { onDelete: "cascade" }),
   paymentDate: date("payment_date").notNull(),
   amount: numeric("amount", { precision: 15, scale: 2 }).notNull(),
+  // "shorten_term": the installment stays and the part ends earlier; "lower_payment": the installment goes down, the end date stays
+  effect: text("effect").notNull().default("shorten_term"),
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 }, (t) => ({ loan_extra_payments_part_idx: index("loan_extra_payments_part_idx").on(t.partId) }))

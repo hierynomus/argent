@@ -3,7 +3,7 @@ import { computed, reactive } from "vue"
 import { useMutation } from "@tanstack/vue-query"
 import { createDebtPartSchema, previewDebtPartSchema, type PreviewDebtPartBody } from "@argent/shared"
 import { debtApis, useInvalidate, type Debt, type DebtKind, type DebtPart } from "../../api"
-import { Button, ErrorText, Field, FieldGroup, Input, Select, SegmentedControl } from "../../components/ui"
+import { Button, ErrorText, Field, FieldGroup, Input, SegmentedControl } from "../../components/ui"
 import { addMonths } from "../../lib/dates"
 import { fmtDate } from "../../lib/format"
 import { useFormErrors } from "../../lib/validate"
@@ -98,7 +98,7 @@ const complete = () => !!(form.name && form.principal && form.annualInterestRate
     <div v-for="(r, i) in rateChanges" :key="i" class="flex flex-wrap items-end gap-3 mt-3" role="group" :aria-label="`Rate change ${i + 1}`">
       <Field label="New rate from"><Input v-model="r.effectiveDate" type="date" class="w-36" /></Field>
       <Field label="Rate (%/yr)"><Input v-model="r.rate" type="number" min="0" step="0.001" placeholder="e.g. 4.10" class="w-24" /></Field>
-      <Field label="Rate is"><Select v-model="r.rateType" class="w-28"><option value="nominal">Nominal</option><option value="effective">Effective</option></Select></Field>
+      <FieldGroup label="Rate is"><SegmentedControl v-model="r.rateType" :options="RATE_TYPES" padding="px-2 py-1.5" /></FieldGroup>
       <Button variant="danger-link" size="xs" class="pb-2" @click="rateChanges.splice(i, 1)">Remove</Button>
     </div>
     <p v-if="errors.rates" class="text-xs text-red-600 dark:text-red-400 mt-1" role="alert">{{ errors.rates }}</p>

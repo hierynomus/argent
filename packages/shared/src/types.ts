@@ -368,6 +368,8 @@ export interface MortgageExtraPayment {
   partId: string
   paymentDate: string
   amount: string
+  /** what the extra payment does: keep the installment and end earlier, or lower the installment and keep the end date */
+  effect?: "shorten_term" | "lower_payment"
   notes: string | null
   createdAt: string
 }
@@ -452,6 +454,8 @@ export interface LoanExtraPayment {
   partId: string
   paymentDate: string
   amount: string
+  /** what the extra payment does: keep the installment and end earlier, or lower the installment and keep the end date */
+  effect?: "shorten_term" | "lower_payment"
   notes: string | null
   createdAt: string
 }
