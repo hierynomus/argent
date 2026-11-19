@@ -1,6 +1,6 @@
 import type {
-  AddMortgageMemberBody, CreateMortgageBody, CreateMortgageExtraPaymentBody, CreateMortgagePartBody, LoanExtraPayment, LoanMember,
-  LoanPart, LoanWithParts, MortgageExtraPayment, MortgageMember, MortgagePart, MortgageWithParts, PartPreview, PreviewDebtPartBody, UpdateMortgagePartBody,
+  AddMortgageMemberBody, CreateDebtRateBody, CreateMortgageBody, CreateMortgageExtraPaymentBody, CreateMortgagePartBody, LoanExtraPayment, LoanMember,
+  LoanPart, LoanWithParts, MortgageExtraPayment, MortgageMember, MortgagePart, MortgageWithParts, PartPreview, PartRate, PreviewDebtPartBody, UpdateMortgagePartBody,
 } from "@argent/shared"
 import { http } from "./client"
 import type { DebtKind } from "./keys"
@@ -18,6 +18,7 @@ export type CreateDebtBody = CreateMortgageBody
 export type CreateDebtPartBody = CreateMortgagePartBody
 export type UpdateDebtPartBody = UpdateMortgagePartBody
 export type CreateDebtExtraPaymentBody = CreateMortgageExtraPaymentBody
+export type CreateDebtRatePeriodBody = CreateDebtRateBody
 export type AddDebtMemberBody = AddMortgageMemberBody
 
 function debtApi(kind: DebtKind) {
@@ -30,6 +31,8 @@ function debtApi(kind: DebtKind) {
     addPart: (id: string, body: CreateDebtPartBody) => http.post<DebtPart>(`${base}/${id}/parts`, body),
     updatePart: (id: string, partId: string, body: UpdateDebtPartBody) => http.patch<DebtPart>(`${base}/${id}/parts/${partId}`, body),
     removePart: (id: string, partId: string) => http.delete(`${base}/${id}/parts/${partId}`),
+    addRate: (id: string, partId: string, body: CreateDebtRatePeriodBody) => http.post<PartRate>(`${base}/${id}/parts/${partId}/rates`, body),
+    removeRate: (id: string, partId: string, rateId: string) => http.delete(`${base}/${id}/parts/${partId}/rates/${rateId}`),
     addExtraPayment: (id: string, partId: string, body: CreateDebtExtraPaymentBody) =>
       http.post<DebtExtraPayment>(`${base}/${id}/parts/${partId}/payments`, body),
     removeExtraPayment: (id: string, partId: string, paymentId: string) =>

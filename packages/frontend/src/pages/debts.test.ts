@@ -25,6 +25,8 @@ for (const k of kinds) {
         [`POST ${k.base}/:id/parts`]: ({ body }: any) => ({ id: "np", ...body }),
         [`PATCH ${k.base}/:id/parts/:pid`]: ({ body }: any) => ({ id: "part-1", ...body }),
         [`DELETE ${k.base}/:id/parts/:pid`]: respond(204),
+        [`POST ${k.base}/:id/parts/:pid/rates`]: ({ body }: any) => ({ id: "nr", ...body }),
+        [`DELETE ${k.base}/:id/parts/:pid/rates/:rid`]: respond(204),
         [`POST ${k.base}/:id/parts/:pid/payments`]: ({ body }: any) => ({ id: "ep", ...body }),
         [`DELETE ${k.base}/:id/parts/:pid/payments/:payId`]: respond(204),
         [`POST ${k.base}/:id/members`]: ({ body }: any) => body,
@@ -212,6 +214,47 @@ for (const k of kinds) {
       await user.click(screen.getByRole("button", { name: "Delete" }))
       await user.click(screen.getByRole("button", { name: "Sure?" }))
       await waitFor(() => expect(api.calls("DELETE", `${k.base}/d1/parts/part-1`)).toHaveLength(1))
+    })
+
+    test("the rate column announces the end of the fixed-rate period", async () => {
+      await setup([debt({ parts: [part({ currentRate: { annualInterestRate: "0.0315", rateType: "nominal" }, nextRateChange: { effectiveDate: "2038-11-01", annualInterestRate: "0.0410", rateType: "nominal" } })] })])
+      await screen.findByText("Part A")
+      expect(screen.getByText(/→ 4\.10% from .*2038/)).toBeInTheDocument()
+    })
+
+    test("the rate column shows the current rate once a change is in effect", async () => {
+      await setup([debt({ parts: [part({ annualInterestRate: "0.0315", currentRate: { annualInterestRate: "0.0410", rateType: "nominal" }, nextRateChange: null })] })])
+      await screen.findByText("Part A")
+      expect(screen.getByText(/4\.10%/)).toBeInTheDocument()
+      expect(screen.queryByText(/→ \d.* from/)).toBeNull()
+    })
+
+    test("records and removes rate changes (the rate is entered in % and sent as a fraction)", async () => {
+      const withRate = debt({ parts: [part({ annualInterestRate: "0.0315", rates: [{ id: "r1", partId: "part-1", effectiveDate: "2038-11-01", annualInterestRate: "0.050000", rateType: "nominal", createdAt: "" }] })] })
+      const { api, user } = await setup([withRate])
+      await screen.findByText("Part A")
+      await user.click(screen.getByRole("button", { name: "Rates" }))
+      expect(screen.getByText("Start (the rate of the part)")).toBeInTheDocument()
+      expect(screen.getByText(/Expected: the payment below assumes this rate/)).toBeInTheDocument() // dated in the future
+
+      await user.type(screen.getByLabelText("New rate from"), "2043-11-01")
+      await user.type(screen.getByLabelText("Rate (%/yr)"), "4.1")
+      await user.click(screen.getByRole("button", { name: "Effective" }))
+      await user.click(screen.getByRole("button", { name: "Add" }))
+      await waitFor(() => expect(api.calls("POST", `${k.base}/d1/parts/part-1/rates`)).toHaveLength(1))
+      expect(api.calls("POST", `${k.base}/d1/parts/part-1/rates`)[0].body).toEqual({ effectiveDate: "2043-11-01", annualInterestRate: "0.041000", rateType: "effective" })
+
+      await user.click(screen.getByRole("button", { name: "Remove" }))
+      await waitFor(() => expect(api.calls("DELETE", `${k.base}/d1/parts/part-1/rates/r1`)).toHaveLength(1))
+    })
+
+    test("a viewer sees the rate history but cannot change it", async () => {
+      await setup([debt({ canEdit: false, parts: [part({ rates: [{ id: "r1", partId: "part-1", effectiveDate: "2030-01-01", annualInterestRate: "0.050000", rateType: "nominal", createdAt: "" }] })] })])
+      await screen.findByText("Part A")
+      const { default: userEvent } = await import("@testing-library/user-event")
+      await userEvent.setup().click(screen.getByRole("button", { name: "Rates" }))
+      expect(screen.queryByLabelText("New rate from")).toBeNull()
+      expect(screen.queryByRole("button", { name: "Remove" })).toBeNull()
     })
 
     test("records and removes extra payments", async () => {

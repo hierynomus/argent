@@ -39,6 +39,17 @@ export interface PartState {
   projectedEndDate: string
   /** interest of a partial first month that was added to the loan (see `firstPaymentDate`) */
   capitalizedInterest: number
+  /** the rate the next installment is calculated with */
+  currentRate: { annualInterestRate: string; rateType: string }
+  /** the first rate change after the current period (the end of the fixed-rate period), if one is known */
+  nextRateChange: RateChange | null
+}
+
+/** From `effectiveDate` on, the part runs at this rate (the end of a fixed-rate period). The part's own rate is the first one. */
+export interface RateChange {
+  effectiveDate: string // ISO date
+  annualInterestRate: string
+  rateType?: string
 }
 
 // Dates are `YYYY-MM-DD` strings handled by lib/dates.ts (time-zone independent); "today" is the UTC date.
@@ -50,6 +61,10 @@ export function monthlyRate(annualRate: number, rateType: string = "nominal"): n
 }
 
 
+/** The level installment of an annuity of `balance` over `months` months at monthly rate `r`, in cents. */
+const annuityPayment = (balance: number, r: number, months: number): number =>
+  cents(r === 0 ? balance / months : (balance * r) / (1 - Math.pow(1 + r, -months)))
+
 /**
  * Compute the current amortization state for a mortgage/loan part.
  *
@@ -58,6 +73,10 @@ export function monthlyRate(annualRate: number, rateType: string = "nominal"): n
  * payments whose date has passed. The simulation walks the payments one by one:
  *
  *  - Interest of a period is the opening balance times the monthly rate (see `monthlyRate`).
+ *  - The rate of a period is the latest rate whose `effectiveDate` is on or before the day the period starts
+ *    (`rateChanges` are the ends of fixed-rate periods; the part's own rate is the first). At a change an
+ *    annuity's installment is recalculated from the balance, the new rate and the months left in the contract,
+ *    as the banks do; a linear part keeps its fixed principal portion, an interest-only part just pays the new interest.
  *  - An extra payment takes effect on its own date. It lowers the balance at once, and lowers that
  *    period's interest in proportion to the days left until the payment date.
  *  - With a `firstPaymentDate` later than one month after the start, the interest of the partial first period
@@ -69,20 +88,33 @@ export function computePartState(
   part: PartInput,
   extraPayments: ExtraPayment[],
   asOf: Date = new Date(),
+  rateChanges: RateChange[] = [],
 ): PartState {
-  const r = monthlyRate(parseFloat(part.annualInterestRate), part.rateType)
-
   const start = part.startDate
   const end = part.endDate
   const today = todayIso(asOf)
+
+  // the part's own rate, then the later ones in date order
+  const rates = [
+    { effectiveDate: start, annualInterestRate: part.annualInterestRate, rateType: part.rateType ?? "nominal" },
+    ...[...rateChanges].sort((a, b) => a.effectiveDate.localeCompare(b.effectiveDate)).map((c) => ({ ...c, rateType: c.rateType ?? "nominal" })),
+  ]
+  const rateAt = (date: string) => rates.reduce((current, candidate) => (candidate.effectiveDate <= date ? candidate : current), rates[0])
+  const monthlyAt = (date: string) => {
+    const rate = rateAt(date)
+    return monthlyRate(parseFloat(rate.annualInterestRate), rate.rateType)
+  }
 
   // Installment m is due on the first payment date plus m-1 months (default: m months after the start).
   const paymentDate = (m: number) => (part.firstPaymentDate ? addMonths(part.firstPaymentDate, m - 1) : addMonths(start, m))
   // the date the regular months count from, and the interest accrued on the payout before it
   const anchor = part.firstPaymentDate ? addMonths(part.firstPaymentDate, -1) : start
+  // period m runs from this date to its installment
+  const periodStart = (m: number) => (m === 1 ? anchor : paymentDate(m - 1))
+  const r0 = monthlyAt(start)
   const stubInterest =
     part.type !== "interest_only" && anchor > start
-      ? cents((parseFloat(part.principal) * r * daysBetween(start, anchor)) / Math.max(1, daysBetween(addMonths(anchor, -1), anchor)))
+      ? cents((parseFloat(part.principal) * r0 * daysBetween(start, anchor)) / Math.max(1, daysBetween(addMonths(anchor, -1), anchor)))
       : 0
   const principal = parseFloat(part.principal) + stubInterest
 
@@ -93,13 +125,24 @@ export function computePartState(
   // The original (unaffected) monthly payment, rounded to cents
   let originalMonthlyPayment: number
   if (part.type === "annuity") {
-    originalMonthlyPayment = cents(r === 0 ? principal / totalMonths : (principal * r) / (1 - Math.pow(1 + r, -totalMonths)))
+    originalMonthlyPayment = annuityPayment(principal, r0, totalMonths)
   } else if (part.type === "linear") {
     // For linear, the "original payment" is just the fixed principal portion
     originalMonthlyPayment = cents(principal / totalMonths)
   } else {
     // interest_only
-    originalMonthlyPayment = cents(principal * r)
+    originalMonthlyPayment = cents(principal * r0)
+  }
+
+  // the monthly rate and the annuity installment in force; they change when a new rate period begins
+  let r = r0
+  let installment = originalMonthlyPayment
+  const reprice = (m: number, balance: number) => {
+    const next = monthlyAt(periodStart(m))
+    if (next === r) return
+    r = next
+    const monthsLeft = totalMonths - (m - 1)
+    if (part.type === "annuity" && balance > 0 && monthsLeft > 0) installment = annuityPayment(balance, r, monthsLeft)
   }
 
   const extras = extraPayments
@@ -116,6 +159,7 @@ export function computePartState(
   for (let m = 1; m <= monthsElapsed; m++) {
     const due = paymentDate(m)
     const periodDays = Math.max(1, daysBetween(previous, due))
+    reprice(m, balance)
     let interest = cents(balance * r)
 
     // extra payments made during this period (after the previous payment, up to and including this one)
@@ -130,12 +174,14 @@ export function computePartState(
     if (part.type === "linear") {
       balance = Math.max(0, cents(balance - Math.min(balance, originalMonthlyPayment)))
     } else if (part.type === "annuity") {
-      balance = Math.max(0, cents(balance - Math.min(balance, Math.max(0, originalMonthlyPayment - interest))))
+      balance = Math.max(0, cents(balance - Math.min(balance, Math.max(0, installment - interest))))
     }
     // interest_only: no principal reduction
     previous = due
   }
 
+  // the period that is under way now: its rate (and an annuity's installment) apply to the next payment
+  reprice(monthsElapsed + 1, balance)
   // extra payments made since the last payment (the current, not yet completed period)
   while (ei < extras.length && extras[ei].date <= today) balance = Math.max(0, cents(balance - extras[ei++].amount))
 
@@ -145,7 +191,7 @@ export function computePartState(
   if (part.type === "linear") {
     currentMonthlyPrincipal = balance > 0 ? Math.min(balance, originalMonthlyPayment) : 0
   } else if (part.type === "annuity") {
-    currentMonthlyPrincipal = balance > 0 ? Math.min(balance, Math.max(0, originalMonthlyPayment - currentMonthlyInterest)) : 0
+    currentMonthlyPrincipal = balance > 0 ? Math.min(balance, Math.max(0, installment - currentMonthlyInterest)) : 0
   } else {
     currentMonthlyPrincipal = 0
   }
@@ -160,11 +206,19 @@ export function computePartState(
   } else if (part.type === "linear") {
     monthsRemaining = Math.min(scheduledRemaining, Math.ceil(balance / originalMonthlyPayment - 1e-9))
   } else if (part.type === "annuity") {
+    // walk the rest of the schedule, through any later rate changes
     let b = balance
     let n = 0
-    while (b > 0 && n < scheduledRemaining) {
-      const interest = cents(b * r)
-      const principalPaid = originalMonthlyPayment - interest
+    let rate = r
+    let pay = installment
+    for (let m = monthsElapsed + 1; b > 0 && m <= totalMonths; m++) {
+      const next = monthlyAt(periodStart(m))
+      if (next !== rate) {
+        rate = next
+        pay = annuityPayment(b, rate, totalMonths - (m - 1))
+      }
+      const interest = cents(b * rate)
+      const principalPaid = pay - interest
       if (principalPaid <= 0) break
       b = cents(b - Math.min(b, principalPaid))
       n++
@@ -172,6 +226,9 @@ export function computePartState(
     // still not repaid at the end of the schedule (rounding leftovers, or a payment that doesn't cover the interest)
     monthsRemaining = b > 0 ? scheduledRemaining : n
   }
+
+  const current = rateAt(periodStart(monthsElapsed + 1))
+  const upcoming = rates.find((x) => x.effectiveDate > periodStart(monthsElapsed + 1))
 
   return {
     currentBalance: Math.max(0, balance),
@@ -184,5 +241,7 @@ export function computePartState(
     monthsRemaining,
     capitalizedInterest: stubInterest,
     projectedEndDate: monthsElapsed + monthsRemaining === 0 ? anchor : paymentDate(monthsElapsed + monthsRemaining),
+    currentRate: { annualInterestRate: current.annualInterestRate, rateType: current.rateType },
+    nextRateChange: upcoming ? { effectiveDate: upcoming.effectiveDate, annualInterestRate: upcoming.annualInterestRate, rateType: upcoming.rateType } : null,
   }
 }

@@ -2,7 +2,7 @@ import { Hono } from "hono"
 import { and, eq, inArray } from "drizzle-orm"
 import type { PgColumn } from "drizzle-orm/pg-core"
 import { db } from "../db"
-import { mortgages, mortgageParts, mortgageExtraPayments, mortgageMembers } from "../db/schema"
+import { mortgages, mortgageParts, mortgageExtraPayments, mortgagePartRates, mortgageMembers } from "../db/schema"
 import { computePartState } from "../services/amortization"
 import { toAccessContext, type AccessContext } from "../services/accessControl"
 import { Decimal, cents } from "../services/money"
@@ -12,7 +12,7 @@ import { isOwnerOrAdmin } from "../middleware/guards"
 import { mountOwnerRoutes } from "./ownerRoutes"
 import { groupBy } from "../lib/groupBy"
 import { validateJson } from "../middleware/validate"
-import { createDebtSchema, updateDebtSchema, createDebtPartSchema, updateDebtPartSchema, createDebtExtraPaymentSchema, previewDebtPartSchema } from "@argent/shared"
+import { createDebtSchema, updateDebtSchema, createDebtPartSchema, updateDebtPartSchema, createDebtExtraPaymentSchema, createDebtRateSchema, previewDebtPartSchema } from "@argent/shared"
 
 /**
  * Everything that differs between mortgages and loans: their tables (which have the same columns apart from
@@ -21,7 +21,7 @@ import { createDebtSchema, updateDebtSchema, createDebtPartSchema, updateDebtPar
  */
 export interface DebtKindConfig {
   /** the tables, typed as the mortgage ones: the loan tables have exactly the same columns */
-  tables: { debts: typeof mortgages; parts: typeof mortgageParts; payments: typeof mortgageExtraPayments; members: typeof mortgageMembers }
+  tables: { debts: typeof mortgages; parts: typeof mortgageParts; payments: typeof mortgageExtraPayments; rates: typeof mortgagePartRates; members: typeof mortgageMembers }
   /** the foreign key columns pointing at the debt, and their property name in an insert */
   partDebtColumn: PgColumn
   memberDebtColumn: PgColumn
@@ -33,11 +33,16 @@ export interface DebtKindConfig {
   canEdit: (ctx: AccessContext, id: string) => Promise<boolean>
 }
 
-function enrichPart(part: typeof mortgageParts.$inferSelect, payments: (typeof mortgageExtraPayments.$inferSelect)[]) {
+function enrichPart(
+  part: typeof mortgageParts.$inferSelect,
+  payments: (typeof mortgageExtraPayments.$inferSelect)[],
+  rates: (typeof mortgagePartRates.$inferSelect)[] = [],
+) {
   return {
     ...part,
     extraPayments: payments.map((p) => ({ id: p.id, partId: p.partId, paymentDate: p.paymentDate, amount: p.amount, notes: p.notes, createdAt: p.createdAt })),
-    ...computePartState(part, payments), // balance, payment components, term and projected end date
+    rates: [...rates].sort((a, b) => a.effectiveDate.localeCompare(b.effectiveDate)).map((r) => ({ id: r.id, partId: r.partId, effectiveDate: r.effectiveDate, annualInterestRate: r.annualInterestRate, rateType: r.rateType, createdAt: r.createdAt })),
+    ...computePartState(part, payments, new Date(), rates), // balance, payment components, term, projected end date and current rate
   }
 }
 
@@ -45,7 +50,7 @@ const sumOf = (values: number[]) => cents(values.reduce((s, v) => s.plus(v), new
 
 /** The router of a debt kind: list with computed amortization, create/update/delete, parts, extra payments, sharing. */
 export function debtRoutes(cfg: DebtKindConfig) {
-  const { debts, parts, payments: extraPayments, members } = cfg.tables
+  const { debts, parts, payments: extraPayments, rates: partRates, members } = cfg.tables
   // the property name of the foreign key; typed as the mortgage one, at runtime it is `loanId` for loans
   const fk = cfg.foreignKey as "mortgageId"
   const app = new Hono<{ Variables: { user: AuthUser } }>()
@@ -70,16 +75,18 @@ export function debtRoutes(cfg: DebtKindConfig) {
       .select().from(extraPayments)
       .where(inArray(extraPayments.partId, allParts.map((p) => p.id)))
       .orderBy(extraPayments.paymentDate)
+    const allRates = allParts.length === 0 ? [] : await db.select().from(partRates).where(inArray(partRates.partId, allParts.map((p) => p.id)))
     const allMembers = await db
       .select({ debtId: members[fk], groupName: members.groupName, role: members.role })
       .from(members)
       .where(inArray(cfg.memberDebtColumn, rowIds))
     const partsOf = groupBy(allParts, (p) => p[fk])
     const paymentsOf = groupBy(allPayments, (p) => p.partId)
+    const ratesOf = groupBy(allRates, (r) => r.partId)
     const membersOf = groupBy(allMembers, (m) => m.debtId)
 
     return c.json(rows.map((d) => {
-      const enrichedParts = (partsOf.get(d.id) ?? []).map((part) => enrichPart(part, paymentsOf.get(part.id) ?? []))
+      const enrichedParts = (partsOf.get(d.id) ?? []).map((part) => enrichPart(part, paymentsOf.get(part.id) ?? [], ratesOf.get(part.id) ?? []))
       return {
         ...d,
         parts: enrichedParts,
@@ -157,7 +164,8 @@ export function debtRoutes(cfg: DebtKindConfig) {
 
     const [updated] = await db.update(parts).set(updates).where(eq(parts.id, pid)).returning()
     const payments = await db.select().from(extraPayments).where(eq(extraPayments.partId, pid)).orderBy(extraPayments.paymentDate)
-    return c.json(enrichPart(updated, payments))
+    const rates = await db.select().from(partRates).where(eq(partRates.partId, pid))
+    return c.json(enrichPart(updated, payments, rates))
   })
 
   // Delete part
@@ -165,6 +173,35 @@ export function debtRoutes(cfg: DebtKindConfig) {
     const { id: debtId, pid } = c.req.param()
     if (!(await cfg.canEdit(toAccessContext(c.get("user")), debtId))) return c.json({ error: "Not found" }, 404)
     const deleted = await db.delete(parts).where(and(eq(parts.id, pid), eq(cfg.partDebtColumn, debtId))).returning()
+    if (deleted.length === 0) return c.json({ error: "Not found" }, 404)
+    return c.body(null, 204)
+  })
+
+  // Add a rate change to a part: from this date on (the end of a fixed-rate period) it runs at the new rate
+  app.post("/:id/parts/:pid/rates", validateJson(createDebtRateSchema), async (c) => {
+    const { id: debtId, pid } = c.req.param()
+    if (!(await cfg.canEdit(toAccessContext(c.get("user")), debtId))) return c.json({ error: "Not found" }, 404)
+    const part = await findPart(debtId, pid)
+    if (!part) return c.json({ error: "Not found" }, 404)
+    const body = c.req.valid("json")
+    if (body.effectiveDate <= part.startDate || body.effectiveDate > part.endDate) {
+      return c.json({ error: "The new rate must start after the part's start date and no later than its end date", issues: [{ path: "effectiveDate", message: "must be within the part's term" }] }, 400)
+    }
+    const taken = await db.select({ id: partRates.id }).from(partRates).where(and(eq(partRates.partId, pid), eq(partRates.effectiveDate, body.effectiveDate))).limit(1)
+    if (taken.length > 0) return c.json({ error: "There is already a rate change on that date" }, 409)
+    const [rate] = await db
+      .insert(partRates)
+      .values({ partId: pid, effectiveDate: body.effectiveDate, annualInterestRate: body.annualInterestRate, rateType: body.rateType ?? "nominal" })
+      .returning()
+    return c.json(rate, 201)
+  })
+
+  // Remove a rate change
+  app.delete("/:id/parts/:pid/rates/:rateId", async (c) => {
+    const { id: debtId, pid, rateId } = c.req.param()
+    if (!(await cfg.canEdit(toAccessContext(c.get("user")), debtId))) return c.json({ error: "Not found" }, 404)
+    if (!(await findPart(debtId, pid))) return c.json({ error: "Not found" }, 404)
+    const deleted = await db.delete(partRates).where(and(eq(partRates.id, rateId), eq(partRates.partId, pid))).returning()
     if (deleted.length === 0) return c.json({ error: "Not found" }, 404)
     return c.body(null, 204)
   })

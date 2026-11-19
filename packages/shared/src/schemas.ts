@@ -240,6 +240,13 @@ export const updateDebtPartSchema = z.object({
   endDate: isoDate("endDate").optional(),
 })
 
+/** From `effectiveDate` on (the end of a fixed-rate period) the part runs at this rate. */
+export const createDebtRateSchema = z.object({
+  effectiveDate: isoDate("effectiveDate"),
+  annualInterestRate: nonNegativeDecimalString("annualInterestRate"),
+  rateType: rateTypeSchema.optional(),
+})
+
 export const createDebtExtraPaymentSchema = z.object({
   paymentDate: isoDate("paymentDate"),
   amount: positiveDecimalString("amount"),

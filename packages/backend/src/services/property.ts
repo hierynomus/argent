@@ -1,7 +1,7 @@
 import { inArray } from "drizzle-orm"
 import type { PropertyLiability } from "@argent/shared"
 import { db } from "../db"
-import { loanExtraPayments, loanParts, loans, mortgageExtraPayments, mortgageParts, mortgages } from "../db/schema"
+import { loanExtraPayments, loanPartRates, loanParts, loans, mortgageExtraPayments, mortgagePartRates, mortgageParts, mortgages } from "../db/schema"
 import { groupBy } from "../lib/groupBy"
 import { computePartState } from "./amortization"
 
@@ -52,10 +52,14 @@ export async function getLiabilities(kind: "mortgage" | "loan", ids: string[], a
     ? await db.select().from(mortgageExtraPayments).where(inArray(mortgageExtraPayments.partId, partIds))
     : await db.select().from(loanExtraPayments).where(inArray(loanExtraPayments.partId, partIds))
 
+  const rates = partIds.length === 0 ? [] : kind === "mortgage"
+    ? await db.select().from(mortgagePartRates).where(inArray(mortgagePartRates.partId, partIds))
+    : await db.select().from(loanPartRates).where(inArray(loanPartRates.partId, partIds))
+  const ratesOf = groupBy(rates, (r) => r.partId)
   const partsOf = groupBy(parts, (p) => p.debtId)
   const paymentsOf = groupBy(payments, (p) => p.partId)
   for (const row of rows) {
-    const states = (partsOf.get(row.id) ?? []).map((p) => computePartState(p, paymentsOf.get(p.id) ?? [], asOf))
+    const states = (partsOf.get(row.id) ?? []).map((p) => computePartState(p, paymentsOf.get(p.id) ?? [], asOf, ratesOf.get(p.id) ?? []))
     result.set(row.id, {
       kind,
       id: row.id,

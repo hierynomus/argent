@@ -261,3 +261,108 @@ describe("a payout before the first installment (interest of the partial month i
     expect(s.currentBalance).toBe(250000)
   })
 })
+
+describe("rate changes (the end of a fixed-rate period)", () => {
+  const linear = { type: "linear", principal: "12000", annualInterestRate: "0.12", startDate: "2024-01-01", endDate: "2025-01-01" } satisfies PartInput
+  const toSixPercent = [{ effectiveDate: "2024-07-01", annualInterestRate: "0.06" }]
+
+  test("before the change nothing differs, and the next change is announced", () => {
+    const s = computePartState(linear, [], utc(2024, 5, 15), toSixPercent) // 15 June: 5 payments made
+    expect(s.monthsElapsed).toBe(5)
+    expect(s.currentBalance).toBe(7000)
+    expect(s.monthlyInterest).toBe(70) // 7000 × 1%
+    expect(s.monthlyPayment).toBe(1070)
+    expect(s.currentRate).toEqual({ annualInterestRate: "0.12", rateType: "nominal" })
+    expect(s.nextRateChange).toMatchObject({ effectiveDate: "2024-07-01", annualInterestRate: "0.06" })
+  })
+
+  test("from the change on, interest is charged at the new rate; a linear part keeps its principal portion", () => {
+    const s = computePartState(linear, [], utc(2024, 6, 15), toSixPercent) // 15 July: 6 payments made, the 7th period starts 1 July
+    expect(s.monthsElapsed).toBe(6)
+    expect(s.currentBalance).toBe(6000)
+    expect(s.monthlyInterest).toBe(30) // 6000 × 0.5%
+    expect(s.monthlyPrincipal).toBe(1000)
+    expect(s.monthlyPayment).toBe(1030)
+    expect(s.currentRate.annualInterestRate).toBe("0.06")
+    expect(s.nextRateChange).toBeNull()
+  })
+
+  test("a change whose date falls inside a period applies from the next period", () => {
+    const midPeriod = [{ effectiveDate: "2024-06-20", annualInterestRate: "0.06" }]
+    expect(computePartState(linear, [], utc(2024, 5, 15), midPeriod).monthlyInterest).toBe(70) // the period starting 1 June: 7000 × 1%
+    expect(computePartState(linear, [], utc(2024, 6, 15), midPeriod).monthlyInterest).toBe(30) // the one starting 1 July: 6000 × 0.5%
+  })
+
+  test("an interest-only part just pays the new interest", () => {
+    const only = { ...linear, type: "interest_only" }
+    expect(computePartState(only, [], utc(2024, 5, 15), toSixPercent).monthlyPayment).toBe(120) // 12000 × 1%
+    expect(computePartState(only, [], utc(2024, 6, 15), toSixPercent).monthlyPayment).toBe(60) // 12000 × 0.5%
+  })
+
+  describe("annuity", () => {
+    const annuity = { type: "annuity", principal: "100000", annualInterestRate: "0.024", startDate: "2020-01-01", endDate: "2030-01-01" } satisfies PartInput
+    const sixPercent = [{ effectiveDate: "2025-01-01", annualInterestRate: "0.06" }]
+    // the installment of `balance` over `months` months at a monthly rate
+    const pmt = (balance: number, r: number, months: number) => (balance * r) / (1 - Math.pow(1 + r, -months))
+
+    test("the installment is recalculated at the change: from the balance, the new rate and the months left in the contract", () => {
+      const without = computePartState(annuity, [], utc(2025, 0, 15))
+      const s = computePartState(annuity, [], utc(2025, 0, 15), sixPercent) // 60 of 120 payments made
+      expect(s.monthsElapsed).toBe(60)
+      expect(s.currentBalance).toBe(without.currentBalance) // the new rate has not charged anything yet
+      expect(s.originalMonthlyPayment).toBe(without.originalMonthlyPayment) // what was scheduled at the start
+      expect(s.monthlyPayment).toBeCloseTo(pmt(s.currentBalance, 0.005, 60), 1)
+      expect(s.monthlyPayment).toBeGreaterThan(without.monthlyPayment + 50) // a clearly higher payment
+      expect(s.monthlyInterest).toBeCloseTo(s.currentBalance * 0.005, 1)
+      expect(s.monthsRemaining).toBe(60) // still ends with the contract
+      expect(s.projectedEndDate).toBe("2030-01-01")
+    })
+
+    test("the balance afterwards follows the new rate (checked against an independent month-by-month run)", () => {
+      const s = computePartState(annuity, [], utc(2026, 0, 15), sixPercent) // 72 payments made: 12 after the change
+      let b = computePartState(annuity, [], utc(2025, 0, 15)).currentBalance
+      const installment = Math.round(pmt(b, 0.005, 60) * 100) / 100
+      for (let i = 0; i < 12; i++) b = Math.round((b - (installment - Math.round(b * 0.005 * 100) / 100)) * 100) / 100
+      expect(s.monthsElapsed).toBe(72)
+      expect(s.currentBalance).toBeCloseTo(b, 1)
+    })
+
+    test("a rate that is the same as before changes nothing, and a lower one lowers the payment", () => {
+      const same = computePartState(annuity, [], utc(2025, 0, 15), [{ effectiveDate: "2025-01-01", annualInterestRate: "0.024" }])
+      const plain = computePartState(annuity, [], utc(2025, 0, 15))
+      expect(same.monthlyPayment).toBeCloseTo(plain.monthlyPayment, 1)
+      const lower = computePartState(annuity, [], utc(2025, 0, 15), [{ effectiveDate: "2025-01-01", annualInterestRate: "0.01" }])
+      expect(lower.monthlyPayment).toBeLessThan(plain.monthlyPayment)
+    })
+
+    test("a future change shows in the projection but not in today's numbers", () => {
+      const plain = computePartState(annuity, [], utc(2022, 5, 15))
+      const s = computePartState(annuity, [], utc(2022, 5, 15), sixPercent)
+      expect(s.currentBalance).toBe(plain.currentBalance)
+      expect(s.monthlyPayment).toBe(plain.monthlyPayment)
+      expect(s.nextRateChange?.effectiveDate).toBe("2025-01-01")
+    })
+
+    test("the rate type is per period (a bank quotes the new rate as effective)", () => {
+      const eff = computePartState(annuity, [], utc(2025, 0, 15), [{ effectiveDate: "2025-01-01", annualInterestRate: "0.06", rateType: "effective" }])
+      const nom = computePartState(annuity, [], utc(2025, 0, 15), sixPercent)
+      expect(eff.currentRate.rateType).toBe("effective")
+      expect(eff.monthlyInterest).toBeLessThan(nom.monthlyInterest) // 6% effective is 0.487%/month, nominal is 0.5%
+    })
+
+    test("changes are applied in date order, whatever the order they are given in", () => {
+      const a = computePartState(annuity, [], utc(2027, 0, 15), [{ effectiveDate: "2026-01-01", annualInterestRate: "0.03" }, ...sixPercent])
+      const b = computePartState(annuity, [], utc(2027, 0, 15), [...sixPercent, { effectiveDate: "2026-01-01", annualInterestRate: "0.03" }])
+      expect(a).toEqual(b)
+      expect(a.currentRate.annualInterestRate).toBe("0.03")
+    })
+
+    test("together with extra payments: the payment is recalculated over the contract months left", () => {
+      const s = computePartState(annuity, [{ paymentDate: "2024-06-10", amount: "10000" }], utc(2025, 0, 15), sixPercent)
+      const plain = computePartState(annuity, [], utc(2025, 0, 15), sixPercent)
+      expect(s.currentBalance).toBeLessThan(plain.currentBalance - 10000) // the extra payment also saved interest
+      expect(s.monthlyPayment).toBeCloseTo(pmt(s.currentBalance, 0.005, 60), 1)
+      expect(s.monthlyPayment).toBeLessThan(plain.monthlyPayment)
+    })
+  })
+})

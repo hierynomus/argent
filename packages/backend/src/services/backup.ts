@@ -16,8 +16,8 @@ export const BACKUP_ORDER = [
   "accounts", "categories", "userProfiles", "subscriptions", "accountMembers",
   "portfolios", "portfolioMembers", "portfolioCashMovements", "cryptoTrades", "cryptoAssets", "metalLots", "metalSales",
   "stockTrades", "stockAssets", "stockDividends",
-  "mortgages", "mortgageParts", "mortgageExtraPayments", "mortgageMembers",
-  "loans", "loanParts", "loanExtraPayments", "loanMembers",
+  "mortgages", "mortgageParts", "mortgageExtraPayments", "mortgagePartRates", "mortgageMembers",
+  "loans", "loanParts", "loanExtraPayments", "loanPartRates", "loanMembers",
   "properties", "propertyValuations", "propertyMembers", "propertyMortgages", "propertyLoans",
   "equityPlans", "equityGrants", "equityPrices", "equityPlanMembers",
   "transactions", // last: it references accounts, categories and subscriptions (and itself)

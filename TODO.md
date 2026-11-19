@@ -113,6 +113,13 @@ Vue 3 (rewritten from React; merged). `api/`, `lib/`, the shared zod schemas and
 - [ ] Warn when a buy exceeds the cash balance (shown negative today, never refused)
 - [ ] Cash movements are not editable (delete and re-enter); add an edit row if that becomes annoying
 
+## Fixed-rate periods (mortgages/loans)
+- [x] Rate changes per part (end of a fixed-rate period): annuity repriced over the contract months left, linear/interest-only follow the rate; future changes project the payment; shown in the part row and a Rates panel
+- [ ] Step 2: continue the remainder as new parts at the reset date: close the old part (`closedOn`), open new part(s) from its balance on that date (pre-filled), link them as a chain, treat what is not carried over as repaid
+- [ ] Banks may recalculate an annuity at a reset over the *remaining term at that time* even after extra payments shortened it; this follows the contract term (confirm with your bank, make it an option if needed)
+- [ ] A reminder shortly before a fixed-rate period ends (banks send the new offer ~6 months before)
+- [ ] The add-part form and the preview cannot take rate changes yet (add them on the part afterwards)
+
 ## Hygiene
 - [x] All migrations from now on come from `db:generate` (0018 does); `db:check` runs in `bun run check` and CI
 - [x] `tsconfig.tsbuildinfo` is no longer tracked (the Vue build does not emit it)

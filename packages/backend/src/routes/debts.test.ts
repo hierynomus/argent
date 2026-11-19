@@ -57,6 +57,56 @@ for (const kind of ["mortgages", "loans"] as const) {
       expect(listed.totalMonthlyPayment).toBe(listed.parts[0].monthlyPayment)
     })
 
+    test("rate changes: add, list, validate, remove; the part reprices from the change", async () => {
+      const d = (await create()).body
+      const p = (await post(`${base}/${d.id}/parts`, part({ principal: "100000", annualInterestRate: "0.024", startDate: "2020-01-01", endDate: "2030-01-01" }))).body
+      expect(p).toMatchObject({ rates: [], currentRate: { annualInterestRate: "0.024000" }, nextRateChange: null })
+
+      const url = `${base}/${d.id}/parts/${p.id}/rates`
+      const added = await post(url, { effectiveDate: "2040-01-01", annualInterestRate: "0.05" })
+      expect(added.status).toBe(400) // after the end of the part
+      expect((await post(url, { effectiveDate: "2020-01-01", annualInterestRate: "0.05" })).status).toBe(400) // not after the start
+      expect((await post(url, { effectiveDate: "2025-01-01", annualInterestRate: "abc" })).status).toBe(400)
+      expect((await post(url, { effectiveDate: "2025-01-01", annualInterestRate: "0.06", rateType: "weekly" })).status).toBe(400)
+
+      const before = (await detail(d.id)).parts[0]
+      const ok = await post(url, { effectiveDate: "2027-01-01", annualInterestRate: "0.06" })
+      expect(ok.status).toBe(201)
+      expect(ok.body).toMatchObject({ effectiveDate: "2027-01-01", annualInterestRate: "0.060000", rateType: "nominal" })
+      expect((await post(url, { effectiveDate: "2027-01-01", annualInterestRate: "0.07" })).status).toBe(409) // one change per date
+
+      const after = (await detail(d.id)).parts[0]
+      expect(after.rates.map((r: any) => r.effectiveDate)).toEqual(["2027-01-01"])
+      expect(after.nextRateChange).toMatchObject({ effectiveDate: "2027-01-01", annualInterestRate: "0.060000" })
+      expect(after.currentBalance).toBe(before.currentBalance) // today is before the change: nothing is charged differently yet
+
+      expect((await del(`${url}/${ok.body.id}`)).status).toBe(204)
+      expect((await del(`${url}/${ok.body.id}`)).status).toBe(404)
+      expect((await detail(d.id)).parts[0].rates).toEqual([])
+    })
+
+    test("a past rate change moves the balance and the payment", async () => {
+      const d = (await create()).body
+      const plain = (await post(`${base}/${d.id}/parts`, part({ principal: "100000", annualInterestRate: "0.024", startDate: "2020-01-01", endDate: "2040-01-01" }))).body
+      const changed = (await post(`${base}/${d.id}/parts`, part({ principal: "100000", annualInterestRate: "0.024", startDate: "2020-01-01", endDate: "2040-01-01" }))).body
+      await post(`${base}/${d.id}/parts/${changed.id}/rates`, { effectiveDate: "2022-01-01", annualInterestRate: "0.08" })
+      const parts = (await detail(d.id)).parts
+      const [a, b] = [parts.find((x: any) => x.id === plain.id), parts.find((x: any) => x.id === changed.id)]
+      expect(b.currentBalance).toBeGreaterThan(a.currentBalance) // paying 8% instead of 2.4% for years
+      expect(b.monthlyInterest).toBeGreaterThan(a.monthlyInterest * 2)
+      expect(b.currentRate.annualInterestRate).toBe("0.080000")
+    })
+
+    test("rate changes need edit access, and belong to the part of that debt", async () => {
+      const d = (await create()).body
+      const other = (await create()).body
+      const p = (await post(`${base}/${d.id}/parts`, part())).body
+      const rate = { effectiveDate: "2025-01-01", annualInterestRate: "0.05" }
+      expect((await post(`${base}/${NIL}/parts/${p.id}/rates`, rate)).status).toBe(404)
+      expect((await post(`${base}/${other.id}/parts/${p.id}/rates`, rate)).status).toBe(404) // not that debt's part
+      expect((await del(`${base}/${d.id}/parts/${NIL}/rates/${NIL}`)).status).toBe(404)
+    })
+
     test("preview-part computes a part without saving it (and needs no name)", async () => {
       const before = (await get(base)).body.length
       const r = await post(`${base}/preview-part`, { type: "annuity", principal: "250000", annualInterestRate: "0.0315", startDate: "2018-10-09", endDate: "2048-11-01", firstPaymentDate: "2018-12-01" })

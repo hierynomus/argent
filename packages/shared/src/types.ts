@@ -381,6 +381,8 @@ export interface MortgagePart {
   firstPaymentDate?: string | null
   createdAt: string
   extraPayments: MortgageExtraPayment[]
+  /** rate changes after the part's own rate (ends of fixed-rate periods), by date */
+  rates: PartRate[]
   // Computed by backend
   currentBalance: number
   monthlyPayment: number
@@ -392,6 +394,19 @@ export interface MortgagePart {
   monthsRemaining: number
   /** date of the last payment at the current balance and payment size (earlier than endDate after extra payments) */
   projectedEndDate: string
+  /** the rate the next installment is calculated with, and the next change after it (if one is entered) */
+  currentRate?: { annualInterestRate: string; rateType: "nominal" | "effective" }
+  nextRateChange?: { effectiveDate: string; annualInterestRate: string; rateType: "nominal" | "effective" } | null
+}
+
+/** A rate change of a part: from `effectiveDate` on (the end of a fixed-rate period) it runs at this rate. */
+export interface PartRate {
+  id: string
+  partId: string
+  effectiveDate: string
+  annualInterestRate: string
+  rateType: "nominal" | "effective"
+  createdAt: string
 }
 
 export interface MortgageMember {
@@ -441,6 +456,7 @@ export interface LoanPart {
   firstPaymentDate?: string | null
   createdAt: string
   extraPayments: LoanExtraPayment[]
+  rates: PartRate[]
   // Computed by backend
   currentBalance: number
   monthlyPayment: number
@@ -452,6 +468,9 @@ export interface LoanPart {
   monthsRemaining: number
   /** date of the last payment at the current balance and payment size (earlier than endDate after extra payments) */
   projectedEndDate: string
+  /** the rate the next installment is calculated with, and the next change after it (if one is entered) */
+  currentRate?: { annualInterestRate: string; rateType: "nominal" | "effective" }
+  nextRateChange?: { effectiveDate: string; annualInterestRate: string; rateType: "nominal" | "effective" } | null
 }
 
 export interface LoanMember {
@@ -634,6 +653,7 @@ export type AddPortfolioMemberBody = Body<typeof S.addMemberSchema>
 export type CreatePortfolioBody = Body<typeof S.createPortfolioSchema>
 export type UpdatePortfolioBody = Body<typeof S.updatePortfolioSchema>
 export type PreviewDebtPartBody = Body<typeof S.previewDebtPartSchema>
+export type CreateDebtRateBody = Body<typeof S.createDebtRateSchema>
 export type CreateCashMovementBody = Body<typeof S.createCashMovementSchema>
 export type CreateCryptoTradeBody = Body<typeof S.createCryptoTradeSchema>
 export type CreateMetalLotBody = Body<typeof S.createMetalLotSchema>

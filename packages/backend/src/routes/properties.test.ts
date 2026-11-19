@@ -115,6 +115,15 @@ describe("properties: linked mortgages and loans, debt and equity", () => {
     expect(r.body).toMatchObject({ debt: 320000, equity: 180000 })
   })
 
+  test("a linked mortgage's rate changes count: its payment follows the new rate", async () => {
+    const p = (await create({ currentValue: "400000" })).body
+    const m = (await post("/mortgages", { name: unique("rc") })).body
+    const part = (await post(`/mortgages/${m.id}/parts`, { name: "p", type: "interest_only", principal: "300000", annualInterestRate: "0.04", startDate: "2020-01-01", endDate: "2060-01-01" })).body
+    await post(`/mortgages/${m.id}/parts/${part.id}/rates`, { effectiveDate: "2021-01-01", annualInterestRate: "0.06" })
+    const r = await put(`/properties/${p.id}/links`, { mortgageIds: [m.id] })
+    expect(r.body.liabilities[0]).toMatchObject({ balance: 300000, monthlyPayment: 1500 }) // 6% instead of 4%
+  })
+
   test("equity follows the mortgage: extra payments lower the debt", async () => {
     const p = (await create({ currentValue: "500000" })).body
     const m = await mortgageOwing("300000")

@@ -5,9 +5,10 @@ import { updateDebtPartSchema } from "@argent/shared"
 import { debtApis, useInvalidate, type Debt, type DebtKind, type DebtPart } from "../../api"
 import { Button, ConfirmButton, ErrorText, Field, FieldGroup, Input, SegmentedControl, Td } from "../../components/ui"
 import { addMonths, monthsBetween } from "../../lib/dates"
-import { fmtCur, fmtMonthYear, fmtRate } from "../../lib/format"
+import { fmtCur, fmtDate, fmtMonthYear, fmtRate } from "../../lib/format"
 import { useFormErrors } from "../../lib/validate"
 import ExtraPaymentsPanel from "./ExtraPaymentsPanel.vue"
+import RatesPanel from "./RatesPanel.vue"
 import TypeBadge from "./TypeBadge.vue"
 
 /** One part of a mortgage/loan as a table row, plus its optional edit row and extra-payments panel. */
@@ -17,6 +18,7 @@ const COLUMNS = 9
 const invalidate = useInvalidate()
 const { errors, check } = useFormErrors()
 const showPayments = ref(false)
+const showRates = ref(false)
 const editing = ref(false)
 // rates are stored as a fraction (0.035) but edited as a percentage (3.5)
 const form = reactive({
@@ -57,7 +59,9 @@ const progressPct = () => {
     <Td><TypeBadge :type="part.type" /></Td>
     <td class="px-4 py-3 text-sm text-right tabular-nums text-gray-600 dark:text-gray-400">{{ fmtCur(parseFloat(part.principal), debt.currency) }}</td>
     <td class="px-4 py-3 text-sm text-right tabular-nums font-semibold text-gray-900 dark:text-gray-100">{{ fmtCur(part.currentBalance, debt.currency) }}</td>
-    <td class="px-4 py-3 text-sm text-right tabular-nums text-gray-600 dark:text-gray-400">{{ fmtRate(part.annualInterestRate) }}<span v-if="part.rateType === 'effective'" class="ml-1 text-xs text-gray-400 dark:text-gray-500" title="Effective annual rate">eff.</span></td>
+    <td class="px-4 py-3 text-sm text-right tabular-nums text-gray-600 dark:text-gray-400">{{ fmtRate(part.currentRate?.annualInterestRate ?? part.annualInterestRate) }}<span v-if="(part.currentRate?.rateType ?? part.rateType) === 'effective'" class="ml-1 text-xs text-gray-400 dark:text-gray-500" title="Effective annual rate">eff.</span>
+      <div v-if="part.nextRateChange" class="text-xs text-amber-600 dark:text-amber-400 whitespace-nowrap" :title="`The rate changes on ${fmtDate(part.nextRateChange.effectiveDate)}; the payment shown is for the current rate`">→ {{ fmtRate(part.nextRateChange.annualInterestRate) }} from {{ fmtMonthYear(part.nextRateChange.effectiveDate) }}</div>
+    </td>
     <td class="px-4 py-3 text-sm text-right tabular-nums text-gray-900 dark:text-gray-100">
       <span class="font-medium">{{ fmtCur(part.monthlyPayment, debt.currency) }}</span>
       <span class="text-xs text-gray-400 dark:text-gray-500 ml-1">/mo</span>
@@ -76,6 +80,7 @@ const progressPct = () => {
     <Td align="right">
       <div class="flex items-center justify-end gap-2">
         <Button variant="link" size="xs" title="Extra payments" @click="showPayments = !showPayments">{{ showPayments ? "Hide" : "Payments" }}</Button>
+        <Button variant="link" size="xs" title="Interest rate over time" @click="showRates = !showRates">{{ showRates ? "Hide rates" : "Rates" }}</Button>
         <template v-if="canEdit">
           <Button variant="muted-link" size="xs" @click="editing = !editing">Edit</Button>
           <!-- keyed on `editing` so opening the edit form also dismisses a pending delete confirmation -->
@@ -99,6 +104,12 @@ const progressPct = () => {
       </div>
       <ErrorText :error="update.error.value" />
     </Td>
+  </tr>
+
+  <tr v-if="showRates">
+    <td :colspan="COLUMNS" class="p-0">
+      <RatesPanel :kind="kind" :debt="debt" :part="part" :can-edit="canEdit" />
+    </td>
   </tr>
 
   <tr v-if="showPayments">

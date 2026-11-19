@@ -1,4 +1,4 @@
-import { type AnyPgColumn, index, pgTable, uuid, text, numeric, date, timestamp, integer, boolean, primaryKey } from "drizzle-orm/pg-core"
+import { type AnyPgColumn, index, uniqueIndex, pgTable, uuid, text, numeric, date, timestamp, integer, boolean, primaryKey } from "drizzle-orm/pg-core"
 import { relations } from "drizzle-orm"
 
 export const accounts = pgTable("accounts", {
@@ -251,6 +251,16 @@ export const mortgageExtraPayments = pgTable("mortgage_extra_payments", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 }, (t) => ({ mortgage_extra_payments_part_idx: index("mortgage_extra_payments_part_idx").on(t.partId) }))
 
+// The end of a fixed-rate period: from `effectiveDate` on the part runs at this rate (the part's own rate is the first)
+export const mortgagePartRates = pgTable("mortgage_part_rates", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  partId: uuid("part_id").notNull().references(() => mortgageParts.id, { onDelete: "cascade" }),
+  effectiveDate: date("effective_date").notNull(),
+  annualInterestRate: numeric("annual_interest_rate", { precision: 8, scale: 6 }).notNull(),
+  rateType: text("rate_type").notNull().default("nominal"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (t) => ({ mortgage_part_rates_part_date_idx: uniqueIndex("mortgage_part_rates_part_date_idx").on(t.partId, t.effectiveDate) }))
+
 export const mortgageMembers = pgTable("mortgage_members", {
   mortgageId: uuid("mortgage_id").notNull().references(() => mortgages.id, { onDelete: "cascade" }),
   groupName: text("group_name").notNull(),
@@ -291,6 +301,15 @@ export const loanExtraPayments = pgTable("loan_extra_payments", {
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 }, (t) => ({ loan_extra_payments_part_idx: index("loan_extra_payments_part_idx").on(t.partId) }))
+
+export const loanPartRates = pgTable("loan_part_rates", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  partId: uuid("part_id").notNull().references(() => loanParts.id, { onDelete: "cascade" }),
+  effectiveDate: date("effective_date").notNull(),
+  annualInterestRate: numeric("annual_interest_rate", { precision: 8, scale: 6 }).notNull(),
+  rateType: text("rate_type").notNull().default("nominal"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (t) => ({ loan_part_rates_part_date_idx: uniqueIndex("loan_part_rates_part_date_idx").on(t.partId, t.effectiveDate) }))
 
 export const loanMembers = pgTable("loan_members", {
   loanId: uuid("loan_id").notNull().references(() => loans.id, { onDelete: "cascade" }),
