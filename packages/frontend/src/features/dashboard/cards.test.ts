@@ -56,6 +56,12 @@ describe("SummaryTile", () => {
     expect(screen.getByText("—")).toBeInTheDocument()
   })
 
+  test("the sub-text takes the colour it is given (green for a gain, red for a loss)", async () => {
+    await renderApp(SummaryTile, { props: { label: "Crypto", value: "€1", sub: "↓ €5.00 unrealized", subColor: "text-red-600" } })
+    expect(screen.getByText("↓ €5.00 unrealized")).toHaveClass("text-red-600")
+    expect(screen.getByText("↓ €5.00 unrealized")).not.toHaveClass("text-gray-400")
+  })
+
   test("while loading, value and sub-text are hidden behind a placeholder", async () => {
     await renderApp(SummaryTile, { props: { label: "Stocks", value: "€5.00", sub: "sub", loading: true } })
     expect(screen.queryByText("€5.00")).not.toBeInTheDocument()

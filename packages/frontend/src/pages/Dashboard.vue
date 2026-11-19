@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue"
 import { useAccounts, useDebts, usePortfolioDetails, usePortfolios, useEquityPlans, useProperties, useRecentTransactions, useTransactionsBetween } from "../api"
-import { fmtCur, fmtMonthLabel } from "../lib/format"
+import { fmtCur, fmtMonthLabel, pnlColor } from "../lib/format"
 import CashFlowCard from "../features/dashboard/CashFlowCard.vue"
 import LiabilitiesCard from "../features/dashboard/LiabilitiesCard.vue"
 import NetWorthCard from "../features/dashboard/NetWorthCard.vue"
@@ -65,9 +65,9 @@ const tile = (list: unknown[], s: { total: number }) => (list.length === 0 ? "â€
 
     <div class="grid grid-cols-2 lg:grid-cols-4 xl:grid-cols-7 gap-4">
       <SummaryTile label="Banking" :value="fmtCur(summary.accountsTotal)" :sub="bankingLabel(accounts)" />
-      <SummaryTile label="Crypto" :value="tile(cryptoList, summary.crypto)" :sub="unrealizedLabel(summary.crypto, fmtCur)" :loading="summary.crypto.loading && cryptoList.length > 0" />
-      <SummaryTile label="Metals" :value="tile(metalList, summary.metals)" :sub="unrealizedLabel(summary.metals, fmtCur)" :loading="summary.metals.loading && metalList.length > 0" />
-      <SummaryTile label="Stocks" :value="tile(stockList, summary.stocks)" :sub="unrealizedLabel(summary.stocks, fmtCur)" :loading="summary.stocks.loading && stockList.length > 0" />
+      <SummaryTile label="Crypto" :value="tile(cryptoList, summary.crypto)" :sub="unrealizedLabel(summary.crypto, fmtCur)" :sub-color="pnlColor(summary.crypto.unrealizedPnL)" :loading="summary.crypto.loading && cryptoList.length > 0" />
+      <SummaryTile label="Metals" :value="tile(metalList, summary.metals)" :sub="unrealizedLabel(summary.metals, fmtCur)" :sub-color="pnlColor(summary.metals.unrealizedPnL)" :loading="summary.metals.loading && metalList.length > 0" />
+      <SummaryTile label="Stocks" :value="tile(stockList, summary.stocks)" :sub="unrealizedLabel(summary.stocks, fmtCur)" :sub-color="pnlColor(summary.stocks.unrealizedPnL)" :loading="summary.stocks.loading && stockList.length > 0" />
       <SummaryTile
         label="Property"
         :value="summary.properties.count === 0 ? 'â€”' : fmtCur(summary.properties.value)"
