@@ -37,6 +37,8 @@ export interface PartState {
   monthsRemaining: number
   /** date of the last payment given the current balance (earlier than `endDate` after extra payments), ISO */
   projectedEndDate: string
+  /** interest of a partial first month that was added to the loan (see `firstPaymentDate`) */
+  capitalizedInterest: number
 }
 
 // Dates are `YYYY-MM-DD` strings handled by lib/dates.ts (time-zone independent); "today" is the UTC date.
@@ -180,6 +182,7 @@ export function computePartState(
     totalMonths,
     monthsElapsed,
     monthsRemaining,
+    capitalizedInterest: stubInterest,
     projectedEndDate: monthsElapsed + monthsRemaining === 0 ? anchor : paymentDate(monthsElapsed + monthsRemaining),
   }
 }

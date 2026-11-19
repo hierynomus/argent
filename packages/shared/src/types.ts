@@ -139,6 +139,24 @@ export interface PortfolioWithAccess extends Portfolio {
   canEdit: boolean
 }
 
+/** What a part comes to today, as computed by the server (the amortization simulation). */
+export interface PartPreview {
+  currentBalance: number
+  /** what the next installment is: interest + principal */
+  monthlyPayment: number
+  monthlyInterest: number
+  monthlyPrincipal: number
+  /** the installment as scheduled, before extra payments */
+  originalMonthlyPayment: number
+  /** scheduled number of installments, how many are due by today, how many are left */
+  totalMonths: number
+  monthsElapsed: number
+  monthsRemaining: number
+  projectedEndDate: string
+  /** interest of a partial first month that was added to the loan (0 without a first payment date) */
+  capitalizedInterest: number
+}
+
 // ─── Cash account of a crypto/stocks portfolio ─────────────────────────────
 
 export type CashMovementType = "deposit" | "withdrawal" | "fee" | "interest"
@@ -615,6 +633,7 @@ export type CreateSubscriptionBody = Body<typeof S.createSubscriptionSchema>
 export type AddPortfolioMemberBody = Body<typeof S.addMemberSchema>
 export type CreatePortfolioBody = Body<typeof S.createPortfolioSchema>
 export type UpdatePortfolioBody = Body<typeof S.updatePortfolioSchema>
+export type PreviewDebtPartBody = Body<typeof S.previewDebtPartSchema>
 export type CreateCashMovementBody = Body<typeof S.createCashMovementSchema>
 export type CreateCryptoTradeBody = Body<typeof S.createCryptoTradeSchema>
 export type CreateMetalLotBody = Body<typeof S.createMetalLotSchema>

@@ -12,7 +12,7 @@ import { isOwnerOrAdmin } from "../middleware/guards"
 import { mountOwnerRoutes } from "./ownerRoutes"
 import { groupBy } from "../lib/groupBy"
 import { validateJson } from "../middleware/validate"
-import { createDebtSchema, updateDebtSchema, createDebtPartSchema, updateDebtPartSchema, createDebtExtraPaymentSchema } from "@argent/shared"
+import { createDebtSchema, updateDebtSchema, createDebtPartSchema, updateDebtPartSchema, createDebtExtraPaymentSchema, previewDebtPartSchema } from "@argent/shared"
 
 /**
  * Everything that differs between mortgages and loans: their tables (which have the same columns apart from
@@ -90,6 +90,13 @@ export function debtRoutes(cfg: DebtKindConfig) {
         canEdit: editableSet.has(d.id),
       }
     }))
+  })
+
+  // What a part comes to (balance today, installment, term), computed like a saved one but saving nothing:
+  // the add-part form shows it while it is being filled in, so a typo is seen before the part is created.
+  app.post("/preview-part", validateJson(previewDebtPartSchema), (c) => {
+    const { name: _name, ...part } = c.req.valid("json")
+    return c.json(computePartState(part, []))
   })
 
   // Create

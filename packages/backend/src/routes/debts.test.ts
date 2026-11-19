@@ -57,6 +57,25 @@ for (const kind of ["mortgages", "loans"] as const) {
       expect(listed.totalMonthlyPayment).toBe(listed.parts[0].monthlyPayment)
     })
 
+    test("preview-part computes a part without saving it (and needs no name)", async () => {
+      const before = (await get(base)).body.length
+      const r = await post(`${base}/preview-part`, { type: "annuity", principal: "250000", annualInterestRate: "0.0315", startDate: "2018-10-09", endDate: "2048-11-01", firstPaymentDate: "2018-12-01" })
+      expect(r.status).toBe(200)
+      expect(r.body).toMatchObject({ originalMonthlyPayment: 1076.43, totalMonths: 360, capitalizedInterest: 486.9 })
+      expect(r.body.currentBalance).toBeGreaterThan(100000)
+      expect((await get(base)).body).toHaveLength(before) // nothing was created
+      const plain = await post(`${base}/preview-part`, { type: "linear", principal: "12000", annualInterestRate: "0.05", startDate: "2024-01-01", endDate: "2025-01-01" })
+      expect(plain.body).toMatchObject({ originalMonthlyPayment: 1000, capitalizedInterest: 0 })
+    })
+
+    test("preview-part validates like creating a part", async () => {
+      const part = { type: "annuity", principal: "1000", annualInterestRate: "0.05", startDate: "2024-01-01", endDate: "2025-01-01" }
+      expect((await post(`${base}/preview-part`, { ...part, endDate: "2023-01-01" })).status).toBe(400)
+      expect((await post(`${base}/preview-part`, { ...part, principal: "0" })).status).toBe(400)
+      expect((await post(`${base}/preview-part`, { ...part, firstPaymentDate: "2023-12-01" })).status).toBe(400)
+      expect((await post(`${base}/preview-part`, {})).status).toBe(400)
+    })
+
     test("a first payment date adds the partial month's interest to the loan", async () => {
       const d = (await post(base, { name: unique("fp") })).body
       const body = part({ principal: "250000", annualInterestRate: "0.0315", startDate: "2018-10-09", endDate: "2048-11-01", firstPaymentDate: "2018-12-01" })

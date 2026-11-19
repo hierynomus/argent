@@ -1,4 +1,5 @@
 import { computed, toValue, type MaybeRefOrGetter } from "vue"
+import type { PreviewDebtPartBody } from "@argent/shared"
 import { useQueries, useQuery, useQueryClient } from "@tanstack/vue-query"
 import { getAccounts } from "./accounts"
 import { getAdminAccounts, getAdminSharing } from "./admin"
@@ -109,6 +110,21 @@ export const useEquityPlans = () => useQuery({ queryKey: queryKeys.equity, query
 export const useProperties = () => useQuery({ queryKey: queryKeys.properties, queryFn: propertiesApi.list })
 
 export const useDebts = (kind: DebtKind) => useQuery<Debt[]>({ queryKey: queryKeys.debts(kind), queryFn: debtApis[kind].list })
+
+/**
+ * What a part comes to (balance, installment, term), computed by the server for a part that is still being
+ * entered. `body` is null until the form is complete and valid: then nothing is requested.
+ */
+export const useDebtPartPreview = (kind: DebtKind, body: MaybeRefOrGetter<PreviewDebtPartBody | null>) =>
+  useQuery({
+    queryKey: computed(() => queryKeys.debtPartPreview(kind, toValue(body) ?? {})),
+    // parameters come from the key (see the note at the top of this file)
+    queryFn: ({ queryKey }) => debtApis[kind].previewPart(queryKey[2] as PreviewDebtPartBody),
+    enabled: () => toValue(body) !== null,
+    placeholderData: (previous) => previous, // keep showing the last numbers while the next ones load
+    retry: false,
+    staleTime: 60 * 1000,
+  })
 
 /** Cache refreshers, named for what changed. Prefix keys mean one call refreshes every dependent view. */
 export function useInvalidate() {

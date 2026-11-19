@@ -1,13 +1,14 @@
 <script setup lang="ts">
-import { reactive } from "vue"
+import { computed, reactive } from "vue"
 import { useMutation } from "@tanstack/vue-query"
-import { createDebtPartSchema } from "@argent/shared"
+import { createDebtPartSchema, previewDebtPartSchema, type PreviewDebtPartBody } from "@argent/shared"
 import { debtApis, useInvalidate, type Debt, type DebtKind, type DebtPart } from "../../api"
 import { Button, ErrorText, Field, FieldGroup, Input, SegmentedControl } from "../../components/ui"
 import { addMonths } from "../../lib/dates"
 import { fmtDate } from "../../lib/format"
 import { useFormErrors } from "../../lib/validate"
 import { DEBT_KINDS, PART_TYPE_LABELS } from "./config"
+import PartPreview from "./PartPreview.vue"
 
 type PartType = DebtPart["type"]
 
@@ -38,6 +39,14 @@ const body = () => ({
   startDate: form.startDate,
   endDate: endDate(),
   firstPaymentDate: form.firstPaymentDate || undefined,
+})
+
+// the part as far as it is entered; only a valid one is previewed (the name does not matter for the numbers)
+const previewBody = computed<PreviewDebtPartBody | null>(() => {
+  const parsed = previewDebtPartSchema.safeParse(body())
+  if (!parsed.success) return null
+  const { name: _name, ...numbers } = parsed.data // the name has no effect on them: typing it must not refetch
+  return numbers
 })
 
 const add = useMutation({
@@ -77,6 +86,7 @@ const complete = () => !!(form.name && form.principal && form.annualInterestRate
       </Button>
       <Button variant="secondary" @click="emit('done')">Cancel</Button>
     </div>
+    <PartPreview :kind="kind" :currency="debt.currency" :body="previewBody" />
     <ErrorText :error="add.error.value" />
   </div>
 </template>

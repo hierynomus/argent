@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest"
 import { mockApi, respond } from "../../test/fakeApi"
 import { debt, part } from "../../test/fixtures"
-import { renderApp, screen, waitFor } from "../../test/render"
+import { renderApp, screen, waitFor, within } from "../../test/render"
 import MortgagesPage from "./Mortgages.vue"
 import LoansPage from "./Loans.vue"
 
@@ -18,6 +18,10 @@ for (const k of kinds) {
         [`GET ${k.base}`]: list,
         [`POST ${k.base}`]: ({ body }: any) => ({ id: "new", ...body }),
         [`DELETE ${k.base}/:id`]: respond(204),
+        [`POST ${k.base}/preview-part`]: ({ body }: any) => ({
+          currentBalance: 204819.22, monthlyPayment: 1076.43, monthlyInterest: 537.65, monthlyPrincipal: 538.78, originalMonthlyPayment: 1076.43,
+          totalMonths: 360, monthsElapsed: 96, monthsRemaining: 264, projectedEndDate: body.endDate, capitalizedInterest: body.firstPaymentDate ? 486.9 : 0,
+        }),
         [`POST ${k.base}/:id/parts`]: ({ body }: any) => ({ id: "np", ...body }),
         [`PATCH ${k.base}/:id/parts/:pid`]: ({ body }: any) => ({ id: "part-1", ...body }),
         [`DELETE ${k.base}/:id/parts/:pid`]: respond(204),
@@ -79,6 +83,26 @@ for (const k of kinds) {
       expect(api.calls("POST", `${k.base}/d1/parts`)[0].body).toEqual({
         name: "Fixed", type: "linear", principal: "150000", annualInterestRate: "0.035000", rateType: "nominal", startDate: "2024-01-01", endDate: "2044-01-01",
       })
+    })
+
+    test("a preview of what the part comes to appears once the form is valid, so the numbers can be checked", async () => {
+      const { api, user } = await setup([debt({ parts: [] })])
+      await user.click(await screen.findByRole("button", { name: "+ Add part" }))
+      const preview = screen.getByRole("group", { name: "Preview of this part" })
+      expect(within(preview).getByText(/Fill in the principal, rate, start date and term/)).toBeInTheDocument()
+      await user.type(screen.getByPlaceholderText(k.partPlaceholders.principal), "250000")
+      await user.type(screen.getByPlaceholderText(k.partPlaceholders.rate), "3.15")
+      await user.type(screen.getByLabelText("Start date"), "2018-10-09")
+      expect(api.calls("POST", `${k.base}/preview-part`)).toHaveLength(0) // incomplete: nothing is asked
+      await user.type(screen.getByLabelText("First payment"), "2018-12-01")
+      await user.type(screen.getByLabelText("Term (months)"), "360")
+      expect(await within(preview).findByText(/204\.819,22/, undefined, { timeout: 3000 })).toBeInTheDocument()
+      expect(within(preview).getByText(/1\.076,43/)).toBeInTheDocument()
+      expect(within(preview).getByText(/264 to go/)).toBeInTheDocument()
+      expect(within(preview).getByText(/486,90 interest for the partial first month/)).toBeInTheDocument()
+      const sent = api.calls("POST", `${k.base}/preview-part`).at(-1)!.body
+      expect(sent).toMatchObject({ type: "annuity", principal: "250000", annualInterestRate: "0.031500", startDate: "2018-10-09", firstPaymentDate: "2018-12-01", endDate: "2048-11-01" })
+      expect(sent).not.toHaveProperty("name") // the name changes nothing about the numbers
     })
 
     test("a first payment date after a mid-month payout: the term is counted from that first payment", async () => {

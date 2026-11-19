@@ -208,18 +208,27 @@ export const updateDebtSchema = z.object({
 
 export const rateTypeSchema = z.enum(["nominal", "effective"], { error: "rateType must be nominal or effective" })
 
+const debtPartFields = {
+  name: requiredString("name"),
+  type: amortizationTypeSchema,
+  principal: positiveDecimalString("principal"),
+  annualInterestRate: nonNegativeDecimalString("annualInterestRate"),
+  rateType: rateTypeSchema.optional(),
+  startDate: isoDate("startDate"),
+  endDate: isoDate("endDate"),
+  /** the first installment, when it is more than a month after the payout (the partial month's interest is added to the loan) */
+  firstPaymentDate: isoDate("firstPaymentDate").optional(),
+}
+
 export const createDebtPartSchema = z
-  .object({
-    name: requiredString("name"),
-    type: amortizationTypeSchema,
-    principal: positiveDecimalString("principal"),
-    annualInterestRate: nonNegativeDecimalString("annualInterestRate"),
-    rateType: rateTypeSchema.optional(),
-    startDate: isoDate("startDate"),
-    endDate: isoDate("endDate"),
-    /** the first installment, when it is more than a month after the payout (the partial month's interest is added to the loan) */
-    firstPaymentDate: isoDate("firstPaymentDate").optional(),
-  })
+  .object(debtPartFields)
+  .refine((p) => p.endDate > p.startDate, { message: "endDate must be after startDate", path: ["endDate"] })
+  .refine((p) => !p.firstPaymentDate || p.firstPaymentDate > p.startDate, { message: "firstPaymentDate must be after startDate", path: ["firstPaymentDate"] })
+  .refine((p) => !p.firstPaymentDate || p.endDate >= p.firstPaymentDate, { message: "endDate must not be before the first payment", path: ["endDate"] })
+
+/** What the "preview a part" endpoint takes: a part as it is being entered, without a name (nothing is saved). */
+export const previewDebtPartSchema = z
+  .object({ ...debtPartFields, name: z.string().optional() })
   .refine((p) => p.endDate > p.startDate, { message: "endDate must be after startDate", path: ["endDate"] })
   .refine((p) => !p.firstPaymentDate || p.firstPaymentDate > p.startDate, { message: "firstPaymentDate must be after startDate", path: ["firstPaymentDate"] })
   .refine((p) => !p.firstPaymentDate || p.endDate >= p.firstPaymentDate, { message: "endDate must not be before the first payment", path: ["endDate"] })

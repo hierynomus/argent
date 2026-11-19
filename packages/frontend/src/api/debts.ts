@@ -1,6 +1,6 @@
 import type {
   AddMortgageMemberBody, CreateMortgageBody, CreateMortgageExtraPaymentBody, CreateMortgagePartBody, LoanExtraPayment, LoanMember,
-  LoanPart, LoanWithParts, MortgageExtraPayment, MortgageMember, MortgagePart, MortgageWithParts, UpdateMortgagePartBody,
+  LoanPart, LoanWithParts, MortgageExtraPayment, MortgageMember, MortgagePart, MortgageWithParts, PartPreview, PreviewDebtPartBody, UpdateMortgagePartBody,
 } from "@argent/shared"
 import { http } from "./client"
 import type { DebtKind } from "./keys"
@@ -26,6 +26,7 @@ function debtApi(kind: DebtKind) {
     list: () => http.get<Debt[]>(base),
     create: (body: CreateDebtBody) => http.post<Debt>(base, body),
     remove: (id: string) => http.delete(`${base}/${id}`),
+    previewPart: (body: PreviewDebtPartBody) => http.post<PartPreview>(`${base}/preview-part`, body),
     addPart: (id: string, body: CreateDebtPartBody) => http.post<DebtPart>(`${base}/${id}/parts`, body),
     updatePart: (id: string, partId: string, body: UpdateDebtPartBody) => http.patch<DebtPart>(`${base}/${id}/parts/${partId}`, body),
     removePart: (id: string, partId: string) => http.delete(`${base}/${id}/parts/${partId}`),
