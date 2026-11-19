@@ -239,6 +239,12 @@ export const mortgageParts = pgTable("mortgage_parts", {
   endDate: date("end_date").notNull(),
   // set when the first installment is more than a month after the payout: the interest of that partial period is added to the loan
   firstPaymentDate: date("first_payment_date"),
+  // at a rate change an annuity is recalculated over the months left in the "contract" (default) or over the "remaining" term (as shortened by extra payments)
+  resetRecalculation: text("reset_recalculation").notNull().default("contract"),
+  // the day the part stops being a liability: its remaining balance was continued in other parts and/or repaid
+  closedOn: date("closed_on"),
+  // set on a part that continues the remainder of another one (no foreign key: a restore inserts in any order)
+  continuesPartId: uuid("continues_part_id"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 }, (t) => ({ mortgage_parts_mortgage_idx: index("mortgage_parts_mortgage_idx").on(t.mortgageId) }))
 
@@ -290,6 +296,12 @@ export const loanParts = pgTable("loan_parts", {
   startDate: date("start_date").notNull(),
   endDate: date("end_date").notNull(),
   firstPaymentDate: date("first_payment_date"),
+  // at a rate change an annuity is recalculated over the months left in the "contract" (default) or over the "remaining" term (as shortened by extra payments)
+  resetRecalculation: text("reset_recalculation").notNull().default("contract"),
+  // the day the part stops being a liability: its remaining balance was continued in other parts and/or repaid
+  closedOn: date("closed_on"),
+  // set on a part that continues the remainder of another one (no foreign key: a restore inserts in any order)
+  continuesPartId: uuid("continues_part_id"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 }, (t) => ({ loan_parts_loan_idx: index("loan_parts_loan_idx").on(t.loanId) }))
 

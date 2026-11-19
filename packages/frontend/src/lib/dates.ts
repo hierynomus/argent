@@ -24,3 +24,6 @@ export function monthsBetween(from: string, to: string): number {
   const b = parse(to)
   return Math.max(0, (b.y - a.y) * 12 + (b.m - a.m))
 }
+
+/** Today's calendar date (UTC, like the server's "today"). */
+export const todayIso = (): string => new Date().toISOString().slice(0, 10)

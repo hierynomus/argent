@@ -8,7 +8,9 @@ import { addMonths, monthsBetween } from "../../lib/dates"
 import { fmtCur, fmtDate, fmtMonthYear, fmtRate } from "../../lib/format"
 import { useFormErrors } from "../../lib/validate"
 import ExtraPaymentsPanel from "./ExtraPaymentsPanel.vue"
+import ContinuePartPanel from "./ContinuePartPanel.vue"
 import RatesPanel from "./RatesPanel.vue"
+import { rateChangeSoon } from "./ratePeriod"
 import TypeBadge from "./TypeBadge.vue"
 
 /** One part of a mortgage/loan as a table row, plus its optional edit row and extra-payments panel. */
@@ -19,6 +21,18 @@ const invalidate = useInvalidate()
 const { errors, check } = useFormErrors()
 const showPayments = ref(false)
 const showRates = ref(false)
+const showContinue = ref(false)
+
+// highlight the row when its fixed-rate period ends within three months: time to get the bank's new offer
+const soon = computed(() => rateChangeSoon(props.part))
+const closed = computed(() => !!props.part.closedOn)
+// the parts that continue this one, and the part this one continues
+const continuedBy = computed(() => props.debt.parts.filter((p) => p.continuesPartId === props.part.id))
+const continues = computed(() => props.debt.parts.find((p) => p.id === props.part.continuesPartId))
+const reopen = useMutation({
+  mutationFn: () => debtApis[props.kind].reopenPart(props.debt.id, props.part.id),
+  onSuccess: () => invalidate.debts(props.kind),
+})
 const editing = ref(false)
 // rates are stored as a fraction (0.035) but edited as a percentage (3.5)
 const form = reactive({
@@ -54,8 +68,19 @@ const progressPct = () => {
 </script>
 
 <template>
-  <tr class="hover:bg-gray-50 dark:hover:bg-gray-800/50">
-    <td class="px-4 py-3 text-sm font-medium text-gray-900 dark:text-gray-100">{{ part.name }}</td>
+  <tr
+    :class="[soon ? 'bg-yellow-50 dark:bg-yellow-900/20 hover:bg-yellow-100/70 dark:hover:bg-yellow-900/30' : 'hover:bg-gray-50 dark:hover:bg-gray-800/50', closed && 'opacity-60']"
+    :data-rate-soon="soon || undefined"
+  >
+    <td class="px-4 py-3 text-sm font-medium text-gray-900 dark:text-gray-100">
+      {{ part.name }}
+      <div v-if="soon && part.nextRateChange" class="text-xs font-normal text-yellow-800 dark:text-yellow-300">Rate period ends {{ fmtDate(part.nextRateChange.effectiveDate) }}</div>
+      <div v-if="closed" class="text-xs font-normal text-gray-500 dark:text-gray-400">
+        Closed {{ fmtDate(part.closedOn!) }}<template v-if="part.carriedOver != null">, {{ fmtCur(part.carriedOver, debt.currency) }} left</template>
+        <template v-if="continuedBy.length > 0"> → continued in {{ continuedBy.map((p) => p.name).join(", ") }}</template>
+      </div>
+      <div v-if="continues" class="text-xs font-normal text-gray-500 dark:text-gray-400">Continues {{ continues.name }}</div>
+    </td>
     <Td><TypeBadge :type="part.type" /></Td>
     <td class="px-4 py-3 text-sm text-right tabular-nums text-gray-600 dark:text-gray-400">{{ fmtCur(parseFloat(part.principal), debt.currency) }}</td>
     <td class="px-4 py-3 text-sm text-right tabular-nums font-semibold text-gray-900 dark:text-gray-100">{{ fmtCur(part.currentBalance, debt.currency) }}</td>
@@ -79,8 +104,10 @@ const progressPct = () => {
     </td>
     <Td align="right">
       <div class="flex items-center justify-end gap-2">
-        <Button variant="link" size="xs" title="Extra payments" @click="showPayments = !showPayments">{{ showPayments ? "Hide" : "Payments" }}</Button>
-        <Button variant="link" size="xs" title="Interest rate over time" @click="showRates = !showRates">{{ showRates ? "Hide rates" : "Rates" }}</Button>
+        <Button v-if="!closed" variant="link" size="xs" title="Extra payments" @click="showPayments = !showPayments">{{ showPayments ? "Hide" : "Payments" }}</Button>
+        <Button v-if="!closed" variant="link" size="xs" title="Interest rate over time" @click="showRates = !showRates">{{ showRates ? "Hide rates" : "Rates" }}</Button>
+        <Button v-if="canEdit && !closed" variant="link" size="xs" title="Close this part and continue what is left in new parts" @click="showContinue = !showContinue">{{ showContinue ? "Hide" : "Continue…" }}</Button>
+        <ConfirmButton v-if="canEdit && closed" label="Reopen" @confirm="reopen.mutate()" />
         <template v-if="canEdit">
           <Button variant="muted-link" size="xs" @click="editing = !editing">Edit</Button>
           <!-- keyed on `editing` so opening the edit form also dismisses a pending delete confirmation -->
@@ -104,6 +131,12 @@ const progressPct = () => {
       </div>
       <ErrorText :error="update.error.value" />
     </Td>
+  </tr>
+
+  <tr v-if="showContinue && canEdit && !closed">
+    <td :colspan="COLUMNS" class="p-0">
+      <ContinuePartPanel :kind="kind" :debt="debt" :part="part" @done="showContinue = false" />
+    </td>
   </tr>
 
   <tr v-if="showRates">

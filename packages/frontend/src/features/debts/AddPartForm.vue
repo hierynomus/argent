@@ -3,7 +3,7 @@ import { computed, reactive } from "vue"
 import { useMutation } from "@tanstack/vue-query"
 import { createDebtPartSchema, previewDebtPartSchema, type PreviewDebtPartBody } from "@argent/shared"
 import { debtApis, useInvalidate, type Debt, type DebtKind, type DebtPart } from "../../api"
-import { Button, ErrorText, Field, FieldGroup, Input, SegmentedControl } from "../../components/ui"
+import { Button, ErrorText, Field, FieldGroup, Input, Select, SegmentedControl } from "../../components/ui"
 import { addMonths } from "../../lib/dates"
 import { fmtDate } from "../../lib/format"
 import { useFormErrors } from "../../lib/validate"
@@ -21,6 +21,7 @@ const invalidate = useInvalidate()
 const { errors, check } = useFormErrors()
 const hints = DEBT_KINDS[props.kind].part
 const RATE_TYPES = [{ value: "nominal", label: "Nominal" }, { value: "effective", label: "Effective" }] as const
+const rateChanges = reactive<Array<{ effectiveDate: string; rate: string; rateType: DebtPart["rateType"] }>>([])
 const form = reactive({ name: "", type: "annuity" as PartType, principal: "", annualInterestRate: "", rateType: "nominal" as DebtPart["rateType"], startDate: "", firstPaymentDate: "", termMonths: "" })
 // the contract states a start date and a number of months; the end date follows from them. With a first
 // payment date (payout mid-month, installments on the 1st) the months are counted from that first payment.
@@ -28,6 +29,11 @@ const endDate = () =>
   form.firstPaymentDate
     ? addMonths(form.firstPaymentDate, parseInt(form.termMonths, 10) - 1)
     : addMonths(form.startDate, parseInt(form.termMonths, 10))
+
+const filledRates = () =>
+  rateChanges
+    .filter((r) => r.effectiveDate && r.rate !== "")
+    .map((r) => ({ effectiveDate: r.effectiveDate, annualInterestRate: (parseFloat(r.rate) / 100).toFixed(6), rateType: r.rateType }))
 
 // the rate is entered as a percentage but sent as a fraction
 const body = () => ({
@@ -39,6 +45,8 @@ const body = () => ({
   startDate: form.startDate,
   endDate: endDate(),
   firstPaymentDate: form.firstPaymentDate || undefined,
+  // the ends of fixed-rate periods; a row that is not filled in yet is left out
+  rates: filledRates().length > 0 ? filledRates() : undefined,
 })
 
 // the part as far as it is entered; only a valid one is previewed (the name does not matter for the numbers)
@@ -81,11 +89,19 @@ const complete = () => !!(form.name && form.principal && form.annualInterestRate
         <Input v-model="form.termMonths" type="number" min="1" step="1" placeholder="e.g. 37" class="w-28" />
         <p v-if="endDate()" class="text-xs text-gray-400 dark:text-gray-500 mt-1">Last payment {{ fmtDate(endDate()) }}</p>
       </Field>
+      <Button variant="link" size="xs" class="pb-2" title="The rate changes when the fixed-rate period ends" @click="rateChanges.push({ effectiveDate: '', rate: '', rateType: 'nominal' })">+ Rate change</Button>
       <Button :disabled="!complete() || add.isPending.value" @click="check(createDebtPartSchema, body()) && add.mutate()">
         {{ add.isPending.value ? "Adding…" : "Add part" }}
       </Button>
       <Button variant="secondary" @click="emit('done')">Cancel</Button>
     </div>
+    <div v-for="(r, i) in rateChanges" :key="i" class="flex flex-wrap items-end gap-3 mt-3" role="group" :aria-label="`Rate change ${i + 1}`">
+      <Field label="New rate from"><Input v-model="r.effectiveDate" type="date" class="w-36" /></Field>
+      <Field label="Rate (%/yr)"><Input v-model="r.rate" type="number" min="0" step="0.001" placeholder="e.g. 4.10" class="w-24" /></Field>
+      <Field label="Rate is"><Select v-model="r.rateType" class="w-28"><option value="nominal">Nominal</option><option value="effective">Effective</option></Select></Field>
+      <Button variant="danger-link" size="xs" class="pb-2" @click="rateChanges.splice(i, 1)">Remove</Button>
+    </div>
+    <p v-if="errors.rates" class="text-xs text-red-600 dark:text-red-400 mt-1" role="alert">{{ errors.rates }}</p>
     <PartPreview :kind="kind" :currency="debt.currency" :body="previewBody" />
     <ErrorText :error="add.error.value" />
   </div>

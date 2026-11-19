@@ -3,7 +3,7 @@ import { and, eq, inArray } from "drizzle-orm"
 import type { PgColumn } from "drizzle-orm/pg-core"
 import { db } from "../db"
 import { mortgages, mortgageParts, mortgageExtraPayments, mortgagePartRates, mortgageMembers } from "../db/schema"
-import { computePartState } from "../services/amortization"
+import { computePartState, instantOf } from "../services/amortization"
 import { toAccessContext, type AccessContext } from "../services/accessControl"
 import { Decimal, cents } from "../services/money"
 import type { SharedResource } from "../services/sharedResources"
@@ -11,8 +11,8 @@ import type { AuthUser } from "../middleware/auth"
 import { isOwnerOrAdmin } from "../middleware/guards"
 import { mountOwnerRoutes } from "./ownerRoutes"
 import { groupBy } from "../lib/groupBy"
-import { validateJson } from "../middleware/validate"
-import { createDebtSchema, updateDebtSchema, createDebtPartSchema, updateDebtPartSchema, createDebtExtraPaymentSchema, createDebtRateSchema, previewDebtPartSchema } from "@argent/shared"
+import { validateJson, validateQuery } from "../middleware/validate"
+import { createDebtSchema, updateDebtSchema, createDebtPartSchema, updateDebtPartSchema, carryOverQuerySchema, closeDebtPartSchema, createDebtExtraPaymentSchema, createDebtPartSchema as createPartSchemaForCheck, createDebtRateSchema, previewDebtPartSchema } from "@argent/shared"
 
 /**
  * Everything that differs between mortgages and loans: their tables (which have the same columns apart from
@@ -58,6 +58,35 @@ export function debtRoutes(cfg: DebtKindConfig) {
   const findPart = async (debtId: string, partId: string) =>
     (await db.select().from(parts).where(and(eq(parts.id, partId), eq(cfg.partDebtColumn, debtId))).limit(1))[0]
 
+  /** Insert a part (and its rate changes) of a debt; `continues` links it to the part whose remainder it continues. */
+  async function insertPart(
+    tx: Pick<typeof db, "insert">,
+    debtId: string,
+    body: { name: string; type: string; principal: string; annualInterestRate: string; rateType?: string; startDate: string; endDate: string; firstPaymentDate?: string; resetRecalculation?: string; rates?: Array<{ effectiveDate: string; annualInterestRate: string; rateType?: string }> },
+    continues: string | null,
+  ) {
+    const [part] = await tx
+      .insert(parts)
+      .values({
+        [fk]: debtId,
+        name: body.name,
+        type: body.type,
+        principal: body.principal,
+        annualInterestRate: body.annualInterestRate,
+        rateType: body.rateType ?? "nominal",
+        startDate: body.startDate,
+        endDate: body.endDate,
+        firstPaymentDate: body.firstPaymentDate ?? null,
+        resetRecalculation: body.resetRecalculation ?? "contract",
+        continuesPartId: continues,
+      } as unknown as typeof parts.$inferInsert)
+      .returning()
+    const rates = (body.rates ?? []).length === 0
+      ? []
+      : await tx.insert(partRates).values((body.rates ?? []).map((r) => ({ partId: part.id, effectiveDate: r.effectiveDate, annualInterestRate: r.annualInterestRate, rateType: r.rateType ?? "nominal" }))).returning()
+    return { part, rates }
+  }
+
   // List all with parts
   app.get("/", async (c) => {
     const user = c.get("user")
@@ -102,8 +131,8 @@ export function debtRoutes(cfg: DebtKindConfig) {
   // What a part comes to (balance today, installment, term), computed like a saved one but saving nothing:
   // the add-part form shows it while it is being filled in, so a typo is seen before the part is created.
   app.post("/preview-part", validateJson(previewDebtPartSchema), (c) => {
-    const { name: _name, ...part } = c.req.valid("json")
-    return c.json(computePartState(part, []))
+    const { name: _name, rates = [], ...part } = c.req.valid("json")
+    return c.json(computePartState(part, [], new Date(), rates))
   })
 
   // Create
@@ -131,21 +160,8 @@ export function debtRoutes(cfg: DebtKindConfig) {
     const debtId = c.req.param("id")
     if (!(await cfg.canEdit(toAccessContext(c.get("user")), debtId))) return c.json({ error: "Not found" }, 404)
     const body = c.req.valid("json")
-    const [part] = await db
-      .insert(parts)
-      .values({
-        [fk]: debtId,
-        name: body.name,
-        type: body.type,
-        principal: body.principal,
-        annualInterestRate: body.annualInterestRate,
-        rateType: body.rateType ?? "nominal",
-        startDate: body.startDate,
-        endDate: body.endDate,
-        firstPaymentDate: body.firstPaymentDate ?? null,
-      } as unknown as typeof parts.$inferInsert)
-      .returning()
-    return c.json(enrichPart(part, []), 201)
+    const { part, rates } = await db.transaction((tx) => insertPart(tx, debtId, body, null))
+    return c.json(enrichPart(part, [], rates), 201)
   })
 
   // Update part
@@ -160,6 +176,7 @@ export function debtRoutes(cfg: DebtKindConfig) {
     if (body.annualInterestRate !== undefined) updates.annualInterestRate = body.annualInterestRate
     if (body.rateType !== undefined) updates.rateType = body.rateType
     if (body.endDate) updates.endDate = body.endDate
+    if (body.resetRecalculation !== undefined) updates.resetRecalculation = body.resetRecalculation
     if (Object.keys(updates).length === 0) return c.json({ error: "Nothing to update" }, 400)
 
     const [updated] = await db.update(parts).set(updates).where(eq(parts.id, pid)).returning()
@@ -174,6 +191,75 @@ export function debtRoutes(cfg: DebtKindConfig) {
     if (!(await cfg.canEdit(toAccessContext(c.get("user")), debtId))) return c.json({ error: "Not found" }, 404)
     const deleted = await db.delete(parts).where(and(eq(parts.id, pid), eq(cfg.partDebtColumn, debtId))).returning()
     if (deleted.length === 0) return c.json({ error: "Not found" }, 404)
+    return c.body(null, 204)
+  })
+
+  // What is left of a part on a day (the balance a continuation starts from)
+  app.get("/:id/parts/:pid/carry-over", validateQuery(carryOverQuerySchema), async (c) => {
+    const { id: debtId, pid } = c.req.param()
+    if (!(await cfg.canView(toAccessContext(c.get("user")), debtId))) return c.json({ error: "Not found" }, 404)
+    const part = await findPart(debtId, pid)
+    if (!part) return c.json({ error: "Not found" }, 404)
+    const { date } = c.req.valid("query")
+    const [payments, rates] = await Promise.all([
+      db.select().from(extraPayments).where(eq(extraPayments.partId, pid)),
+      db.select().from(partRates).where(eq(partRates.partId, pid)),
+    ])
+    const state = computePartState({ ...part, closedOn: null }, payments, instantOf(date), rates)
+    return c.json({ date, balance: state.currentBalance })
+  })
+
+  // Close a part on the day its fixed-rate period ends: continue what is left in new parts, the rest is repaid
+  app.post("/:id/parts/:pid/close", validateJson(closeDebtPartSchema), async (c) => {
+    const { id: debtId, pid } = c.req.param()
+    if (!(await cfg.canEdit(toAccessContext(c.get("user")), debtId))) return c.json({ error: "Not found" }, 404)
+    const part = await findPart(debtId, pid)
+    if (!part) return c.json({ error: "Not found" }, 404)
+    if (part.closedOn) return c.json({ error: "This part is already closed" }, 409)
+    const body = c.req.valid("json")
+    if (body.closedOn <= part.startDate || body.closedOn > part.endDate) {
+      return c.json({ error: "A part can be closed after its start date and no later than its end date", issues: [{ path: "closedOn", message: "must be within the part's term" }] }, 400)
+    }
+
+    // each new part must be a valid part that starts the day the old one is closed
+    for (const [i, next] of body.continuation.entries()) {
+      const checked = createPartSchemaForCheck.safeParse({ ...next, startDate: body.closedOn })
+      if (!checked.success) return c.json({ error: `Part ${i + 1}: ${checked.error.issues[0]?.message ?? "invalid"}`, issues: checked.error.issues }, 400)
+    }
+
+    const [payments, rates] = await Promise.all([
+      db.select().from(extraPayments).where(eq(extraPayments.partId, pid)),
+      db.select().from(partRates).where(eq(partRates.partId, pid)),
+    ])
+    const carriedOver = computePartState({ ...part, closedOn: null }, payments, instantOf(body.closedOn), rates).currentBalance
+    const continued = body.continuation.reduce((s, n) => s.plus(n.principal), new Decimal(0))
+    if (continued.greaterThan(new Decimal(carriedOver).toDecimalPlaces(2))) {
+      return c.json({ error: `The new parts add up to more than what is left of this part on that day (${carriedOver.toFixed(2)})`, issues: [{ path: "continuation", message: "exceeds the balance" }] }, 400)
+    }
+
+    const created = await db.transaction(async (tx) => {
+      await tx.update(parts).set({ closedOn: body.closedOn }).where(eq(parts.id, pid))
+      const made = []
+      for (const next of body.continuation) made.push(await insertPart(tx, debtId, { ...next, startDate: body.closedOn }, pid))
+      return made
+    })
+    const [closed] = await db.select().from(parts).where(eq(parts.id, pid))
+    return c.json({
+      closed: enrichPart(closed, payments, rates),
+      created: created.map((x) => enrichPart(x.part, [], x.rates)),
+      carriedOver,
+      repaid: cents(new Decimal(carriedOver).minus(continued)),
+    }, 201)
+  })
+
+  // Reopen a closed part (the parts that continued it stay: remove them separately)
+  app.delete("/:id/parts/:pid/close", async (c) => {
+    const { id: debtId, pid } = c.req.param()
+    if (!(await cfg.canEdit(toAccessContext(c.get("user")), debtId))) return c.json({ error: "Not found" }, 404)
+    const part = await findPart(debtId, pid)
+    if (!part) return c.json({ error: "Not found" }, 404)
+    if (!part.closedOn) return c.json({ error: "This part is not closed" }, 409)
+    await db.update(parts).set({ closedOn: null }).where(eq(parts.id, pid))
     return c.body(null, 204)
   })
 

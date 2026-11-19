@@ -4,6 +4,7 @@ import { useMutation } from "@tanstack/vue-query"
 import { createDebtRateSchema } from "@argent/shared"
 import { debtApis, useInvalidate, type Debt, type DebtKind, type DebtPart } from "../../api"
 import { Button, ErrorText, Field, FieldGroup, Input, SegmentedControl } from "../../components/ui"
+import { todayIso } from "../../lib/dates"
 import { fmtDate, fmtRate } from "../../lib/format"
 import { useFormErrors } from "../../lib/validate"
 
@@ -20,7 +21,7 @@ const RATE_TYPES = [{ value: "nominal", label: "Nominal" }, { value: "effective"
 const form = reactive({ effectiveDate: "", rate: "", rateType: "nominal" as DebtPart["rateType"] })
 // the rate is entered as a percentage but sent as a fraction
 const body = () => ({ effectiveDate: form.effectiveDate, annualInterestRate: (parseFloat(form.rate) / 100).toFixed(6), rateType: form.rateType })
-const today = new Date().toISOString().slice(0, 10)
+const today = todayIso()
 
 const add = useMutation({
   mutationFn: () => debtApis[props.kind].addRate(props.debt.id, props.part.id, body()),
@@ -28,6 +29,11 @@ const add = useMutation({
     invalidate.debts(props.kind)
     Object.assign(form, { effectiveDate: "", rate: "" })
   },
+})
+const RESET_OPTIONS = [{ value: "contract", label: "Contract term" }, { value: "remaining", label: "Remaining term" }] as const
+const setReset = useMutation({
+  mutationFn: (resetRecalculation: "contract" | "remaining") => debtApis[props.kind].updatePart(props.debt.id, props.part.id, { resetRecalculation }),
+  onSuccess: () => invalidate.debts(props.kind),
 })
 const remove = useMutation({
   mutationFn: (rateId: string) => debtApis[props.kind].removeRate(props.debt.id, props.part.id, rateId),
@@ -64,6 +70,15 @@ const remove = useMutation({
     <p v-if="canEdit" class="text-xs text-gray-400 dark:text-gray-500 mt-2">
       Enter the date the fixed-rate period ends. An annuity's payment is recalculated then, over the months left. A future rate is an assumption until the bank confirms it.
     </p>
-    <ErrorText :error="add.error.value ?? remove.error.value" />
+    <div v-if="part.type === 'annuity'" class="mt-3 flex flex-wrap items-center gap-3">
+      <p v-if="!canEdit" class="text-xs text-gray-500 dark:text-gray-400">At a change the payment is recalculated over the {{ part.resetRecalculation === "remaining" ? "remaining" : "contract" }} term.</p>
+      <FieldGroup v-else label="At a change, recalculate the payment over the">
+        <SegmentedControl :model-value="part.resetRecalculation ?? 'contract'" :options="RESET_OPTIONS" padding="px-2 py-1" @update:model-value="(v) => setReset.mutate(v as 'contract' | 'remaining')" />
+      </FieldGroup>
+      <p class="text-xs text-gray-400 dark:text-gray-500 max-w-md">
+        Contract term: the months left until the original end date. Remaining term: the months left at the current payment, which extra payments have shortened. Banks differ.
+      </p>
+    </div>
+    <ErrorText :error="add.error.value ?? remove.error.value ?? setReset.error.value" />
   </div>
 </template>

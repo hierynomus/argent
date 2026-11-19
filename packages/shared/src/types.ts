@@ -139,6 +139,12 @@ export interface PortfolioWithAccess extends Portfolio {
   canEdit: boolean
 }
 
+/** What is left of a part on a day (`GET …/carry-over`). */
+export interface PartCarryOver {
+  date: string
+  balance: number
+}
+
 /** What a part comes to today, as computed by the server (the amortization simulation). */
 export interface PartPreview {
   currentBalance: number
@@ -379,6 +385,12 @@ export interface MortgagePart {
   endDate: string
   /** set when the first installment is more than a month after the payout */
   firstPaymentDate?: string | null
+  /** at a rate change an annuity is recalculated over the months left in the contract, or over the term that remains after extra payments */
+  resetRecalculation?: "contract" | "remaining"
+  /** the day the part stopped being a liability (its remainder was continued in other parts and/or repaid) */
+  closedOn?: string | null
+  /** set on a part that continues the remainder of another part */
+  continuesPartId?: string | null
   createdAt: string
   extraPayments: MortgageExtraPayment[]
   /** rate changes after the part's own rate (ends of fixed-rate periods), by date */
@@ -397,6 +409,8 @@ export interface MortgagePart {
   /** the rate the next installment is calculated with, and the next change after it (if one is entered) */
   currentRate?: { annualInterestRate: string; rateType: "nominal" | "effective" }
   nextRateChange?: { effectiveDate: string; annualInterestRate: string; rateType: "nominal" | "effective" } | null
+  /** what was (or will be) left of a closed part on the day it was closed */
+  carriedOver?: number | null
 }
 
 /** A rate change of a part: from `effectiveDate` on (the end of a fixed-rate period) it runs at this rate. */
@@ -454,6 +468,12 @@ export interface LoanPart {
   startDate: string
   endDate: string
   firstPaymentDate?: string | null
+  /** at a rate change an annuity is recalculated over the months left in the contract, or over the term that remains after extra payments */
+  resetRecalculation?: "contract" | "remaining"
+  /** the day the part stopped being a liability (its remainder was continued in other parts and/or repaid) */
+  closedOn?: string | null
+  /** set on a part that continues the remainder of another part */
+  continuesPartId?: string | null
   createdAt: string
   extraPayments: LoanExtraPayment[]
   rates: PartRate[]
@@ -471,6 +491,8 @@ export interface LoanPart {
   /** the rate the next installment is calculated with, and the next change after it (if one is entered) */
   currentRate?: { annualInterestRate: string; rateType: "nominal" | "effective" }
   nextRateChange?: { effectiveDate: string; annualInterestRate: string; rateType: "nominal" | "effective" } | null
+  /** what was (or will be) left of a closed part on the day it was closed */
+  carriedOver?: number | null
 }
 
 export interface LoanMember {
@@ -654,6 +676,7 @@ export type CreatePortfolioBody = Body<typeof S.createPortfolioSchema>
 export type UpdatePortfolioBody = Body<typeof S.updatePortfolioSchema>
 export type PreviewDebtPartBody = Body<typeof S.previewDebtPartSchema>
 export type CreateDebtRateBody = Body<typeof S.createDebtRateSchema>
+export type CloseDebtPartBody = Body<typeof S.closeDebtPartSchema>
 export type CreateCashMovementBody = Body<typeof S.createCashMovementSchema>
 export type CreateCryptoTradeBody = Body<typeof S.createCryptoTradeSchema>
 export type CreateMetalLotBody = Body<typeof S.createMetalLotSchema>

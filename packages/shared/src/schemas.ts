@@ -208,6 +208,15 @@ export const updateDebtSchema = z.object({
 
 export const rateTypeSchema = z.enum(["nominal", "effective"], { error: "rateType must be nominal or effective" })
 
+/** From `effectiveDate` on (the end of a fixed-rate period) the part runs at this rate. */
+export const createDebtRateSchema = z.object({
+  effectiveDate: isoDate("effectiveDate"),
+  annualInterestRate: nonNegativeDecimalString("annualInterestRate"),
+  rateType: rateTypeSchema.optional(),
+})
+
+export const resetRecalculationSchema = z.enum(["contract", "remaining"], { error: "resetRecalculation must be contract or remaining" })
+
 const debtPartFields = {
   name: requiredString("name"),
   type: amortizationTypeSchema,
@@ -218,13 +227,25 @@ const debtPartFields = {
   endDate: isoDate("endDate"),
   /** the first installment, when it is more than a month after the payout (the partial month's interest is added to the loan) */
   firstPaymentDate: isoDate("firstPaymentDate").optional(),
+  /** rate changes after the part's own rate: the ends of its fixed-rate periods */
+  rates: z.array(createDebtRateSchema).max(50).optional(),
+  /** at a rate change an annuity is recalculated over the months left in the contract (default) or over the term that remains after extra payments */
+  resetRecalculation: resetRecalculationSchema.optional(),
 }
+
+type PartDates = { startDate: string; endDate: string; firstPaymentDate?: string; rates?: Array<{ effectiveDate: string }> }
+const ratesFit = (p: PartDates) => {
+  const dates = (p.rates ?? []).map((r) => r.effectiveDate)
+  return dates.every((d) => d > p.startDate && d <= p.endDate) && new Set(dates).size === dates.length
+}
+const RATES_MESSAGE = { message: "rate changes must fall within the term, one per date", path: ["rates"] }
 
 export const createDebtPartSchema = z
   .object(debtPartFields)
   .refine((p) => p.endDate > p.startDate, { message: "endDate must be after startDate", path: ["endDate"] })
   .refine((p) => !p.firstPaymentDate || p.firstPaymentDate > p.startDate, { message: "firstPaymentDate must be after startDate", path: ["firstPaymentDate"] })
   .refine((p) => !p.firstPaymentDate || p.endDate >= p.firstPaymentDate, { message: "endDate must not be before the first payment", path: ["endDate"] })
+  .refine(ratesFit, RATES_MESSAGE)
 
 /** What the "preview a part" endpoint takes: a part as it is being entered, without a name (nothing is saved). */
 export const previewDebtPartSchema = z
@@ -232,20 +253,42 @@ export const previewDebtPartSchema = z
   .refine((p) => p.endDate > p.startDate, { message: "endDate must be after startDate", path: ["endDate"] })
   .refine((p) => !p.firstPaymentDate || p.firstPaymentDate > p.startDate, { message: "firstPaymentDate must be after startDate", path: ["firstPaymentDate"] })
   .refine((p) => !p.firstPaymentDate || p.endDate >= p.firstPaymentDate, { message: "endDate must not be before the first payment", path: ["endDate"] })
+  .refine(ratesFit, RATES_MESSAGE)
 
 export const updateDebtPartSchema = z.object({
   name: z.string().trim().min(1, "name must not be empty").max(200).optional(),
   annualInterestRate: nonNegativeDecimalString("annualInterestRate").optional(),
   rateType: rateTypeSchema.optional(),
   endDate: isoDate("endDate").optional(),
+  resetRecalculation: resetRecalculationSchema.optional(),
 })
 
-/** From `effectiveDate` on (the end of a fixed-rate period) the part runs at this rate. */
-export const createDebtRateSchema = z.object({
-  effectiveDate: isoDate("effectiveDate"),
-  annualInterestRate: nonNegativeDecimalString("annualInterestRate"),
-  rateType: rateTypeSchema.optional(),
+/**
+ * Closing a part on the day its fixed-rate period ends: what is left of it is continued in new parts (which
+ * start that day) and whatever is not continued counts as repaid.
+ */
+export const closeDebtPartSchema = z.object({
+  closedOn: isoDate("closedOn"),
+  continuation: z
+    .array(
+      z.object({
+        name: requiredString("name"),
+        type: amortizationTypeSchema,
+        principal: positiveDecimalString("principal"),
+        annualInterestRate: nonNegativeDecimalString("annualInterestRate"),
+        rateType: rateTypeSchema.optional(),
+        endDate: isoDate("endDate"),
+        firstPaymentDate: isoDate("firstPaymentDate").optional(),
+        rates: z.array(createDebtRateSchema).max(50).optional(),
+        resetRecalculation: resetRecalculationSchema.optional(),
+      }),
+    )
+    .max(10)
+    .default([]),
 })
+
+/** GET …/carry-over?date=: what is left of a part on a day. */
+export const carryOverQuerySchema = z.object({ date: isoDate("date") })
 
 export const createDebtExtraPaymentSchema = z.object({
   paymentDate: isoDate("paymentDate"),

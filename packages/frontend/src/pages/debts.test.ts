@@ -25,6 +25,9 @@ for (const k of kinds) {
         [`POST ${k.base}/:id/parts`]: ({ body }: any) => ({ id: "np", ...body }),
         [`PATCH ${k.base}/:id/parts/:pid`]: ({ body }: any) => ({ id: "part-1", ...body }),
         [`DELETE ${k.base}/:id/parts/:pid`]: respond(204),
+        [`GET ${k.base}/:id/parts/:pid/carry-over`]: ({ query }: any) => ({ date: query?.date ?? "", balance: 60000 }),
+        [`POST ${k.base}/:id/parts/:pid/close`]: ({ body }: any) => ({ closed: {}, created: [], carriedOver: 60000, repaid: 0, ...body }),
+        [`DELETE ${k.base}/:id/parts/:pid/close`]: respond(204),
         [`POST ${k.base}/:id/parts/:pid/rates`]: ({ body }: any) => ({ id: "nr", ...body }),
         [`DELETE ${k.base}/:id/parts/:pid/rates/:rid`]: respond(204),
         [`POST ${k.base}/:id/parts/:pid/payments`]: ({ body }: any) => ({ id: "ep", ...body }),
@@ -255,6 +258,121 @@ for (const k of kinds) {
       await userEvent.setup().click(screen.getByRole("button", { name: "Rates" }))
       expect(screen.queryByLabelText("New rate from")).toBeNull()
       expect(screen.queryByRole("button", { name: "Remove" })).toBeNull()
+    })
+
+    describe("fixed-rate period reminders and continuing a part", () => {
+      const inMonths = (n: number) => {
+        const d = new Date()
+        d.setUTCMonth(d.getUTCMonth() + n)
+        return d.toISOString().slice(0, 10)
+      }
+      const upcoming = (effectiveDate: string, over: object = {}) =>
+        part({ nextRateChange: { effectiveDate, annualInterestRate: "0.0410", rateType: "nominal" }, ...over })
+
+      test("a part whose rate period ends within three months is highlighted yellowish, with the date", async () => {
+        await setup([debt({ parts: [upcoming(inMonths(2), { name: "Soon" }), upcoming(inMonths(8), { id: "part-2", name: "Later" }), part({ id: "part-3", name: "Plain" })] })])
+        const soon = (await screen.findByText("Soon")).closest("tr")!
+        expect(soon).toHaveAttribute("data-rate-soon")
+        expect(soon.className).toContain("bg-yellow-50")
+        expect(within(soon).getByText(/Rate period ends/)).toBeInTheDocument()
+        expect(screen.getByText("Later").closest("tr")).not.toHaveAttribute("data-rate-soon")
+        expect(screen.getByText("Plain").closest("tr")).not.toHaveAttribute("data-rate-soon")
+      })
+
+      test("closing a part: pick the day, see what is left, split the remainder, send the new parts", async () => {
+        const { api, user } = await setup([debt({ parts: [upcoming("2030-11-01", { name: "Old" })] })])
+        await screen.findByText("Old")
+        await user.click(screen.getByRole("button", { name: "Continue…" }))
+        expect(screen.getByLabelText("Closes on")).toHaveValue("2030-11-01") // the end of the rate period
+        expect(await screen.findByText(/60\.000,00/)).toBeInTheDocument() // what the server says is left that day
+
+        const first = screen.getByRole("group", { name: "New part 1" })
+        expect(within(first).getByLabelText(/^Amount/)).toHaveValue(60000) // starts out as the whole remainder
+        await user.clear(within(first).getByLabelText(/^Amount/))
+        await user.type(within(first).getByLabelText(/^Amount/), "50000")
+        await user.type(within(first).getByLabelText("Rate (%/yr)"), "4.1")
+        await user.type(within(first).getByLabelText("Term (months)"), "120")
+        expect(screen.getByText(/Repaid from savings/)).toHaveTextContent("10.000,00")
+
+        await user.click(screen.getByRole("button", { name: "+ Split into another part" }))
+        const second = screen.getByRole("group", { name: "New part 2" })
+        await user.type(within(second).getByLabelText("Name"), "Second")
+        await user.type(within(second).getByLabelText(/^Amount/), "5000")
+        await user.type(within(second).getByLabelText("Rate (%/yr)"), "3.5")
+        await user.type(within(second).getByLabelText("Term (months)"), "60")
+        expect(screen.getByText(/Repaid from savings/)).toHaveTextContent("5.000,00")
+
+        await user.click(screen.getByRole("button", { name: "Close and continue" }))
+        await waitFor(() => expect(api.calls("POST", `${k.base}/d1/parts/part-1/close`)).toHaveLength(1))
+        const sent = api.calls("POST", `${k.base}/d1/parts/part-1/close`)[0].body as any
+        expect(sent.closedOn).toBe("2030-11-01")
+        expect(sent.continuation).toHaveLength(2)
+        expect(sent.continuation[0]).toMatchObject({ name: "Old (continued)", type: "annuity", principal: "50000", annualInterestRate: "0.041000", rateType: "nominal", endDate: "2040-11-01" })
+        expect(sent.continuation[1]).toMatchObject({ name: "Second", principal: "5000", annualInterestRate: "0.035000", endDate: "2035-11-01" })
+      })
+
+      test("new parts that add up to more than what is left cannot be sent", async () => {
+        await setup([debt({ parts: [upcoming("2030-11-01", { name: "Old" })] })])
+        await screen.findByText("Old")
+        const user = (await import("@testing-library/user-event")).default.setup()
+        await user.click(screen.getByRole("button", { name: "Continue…" }))
+        await screen.findByText(/60\.000,00/)
+        const first = screen.getByRole("group", { name: "New part 1" })
+        await user.clear(within(first).getByLabelText(/^Amount/))
+        await user.type(within(first).getByLabelText(/^Amount/), "70000")
+        expect(screen.getByText(/10\.000,00 more than what is left/)).toBeInTheDocument()
+        expect(screen.getByRole("button", { name: "Close and continue" })).toBeDisabled()
+      })
+
+      test("a closed part is muted, says what it was continued in, and can be reopened; the new part says what it continues", async () => {
+        const closedPart = part({ id: "old", name: "Old", closedOn: "2030-11-01", carriedOver: 60000, currentBalance: 0, monthlyPayment: 0 })
+        const child = part({ id: "new", name: "New", continuesPartId: "old", startDate: "2030-11-01" })
+        const { api, user } = await setup([debt({ parts: [closedPart, child] })])
+        const row = (await screen.findByText("Old")).closest("tr")!
+        expect(row.className).toContain("opacity-60")
+        expect(within(row).getByText(/Closed .*60\.000,00 left/)).toBeInTheDocument()
+        expect(within(row).getByText(/continued in New/)).toBeInTheDocument()
+        expect(within(row).queryByRole("button", { name: "Continue…" })).toBeNull()
+        expect(within(screen.getByText("New").closest("tr")!).getByText("Continues Old")).toBeInTheDocument()
+
+        await user.click(within(row).getByRole("button", { name: "Reopen" }))
+        await user.click(within(row).getByRole("button", { name: "Sure?" }))
+        await waitFor(() => expect(api.calls("DELETE", `${k.base}/d1/parts/old/close`)).toHaveLength(1))
+      })
+
+      test("a viewer gets no Continue or Reopen", async () => {
+        await setup([debt({ canEdit: false, parts: [upcoming("2030-11-01", { name: "Old" }), part({ id: "c", name: "Closed", closedOn: "2030-01-01" })] })])
+        await screen.findByText("Old")
+        expect(screen.queryByRole("button", { name: "Continue…" })).toBeNull()
+        expect(screen.queryByRole("button", { name: "Reopen" })).toBeNull()
+      })
+
+      test("how an annuity is recalculated at a reset is a setting in the Rates panel", async () => {
+        const { api, user } = await setup([debt({ parts: [part({ type: "annuity" })] })])
+        await screen.findByText("Part A")
+        await user.click(screen.getByRole("button", { name: "Rates" }))
+        expect(screen.getByRole("button", { name: "Contract term" })).toHaveAttribute("aria-pressed", "true")
+        await user.click(screen.getByRole("button", { name: "Remaining term" }))
+        await waitFor(() => expect(api.calls("PATCH", `${k.base}/d1/parts/part-1`)).toHaveLength(1))
+        expect(api.calls("PATCH", `${k.base}/d1/parts/part-1`)[0].body).toEqual({ resetRecalculation: "remaining" })
+      })
+
+      test("rate changes can be entered while adding a part, and go in the same request", async () => {
+        const { api, user } = await setup([debt({ parts: [] })])
+        await user.click(await screen.findByRole("button", { name: "+ Add part" }))
+        await user.type(screen.getByPlaceholderText(k.partPlaceholders.name), "Fixed")
+        await user.type(screen.getByPlaceholderText(k.partPlaceholders.principal), "250000")
+        await user.type(screen.getByPlaceholderText(k.partPlaceholders.rate), "3.15")
+        await user.type(screen.getByLabelText("Start date"), "2018-11-01")
+        await user.type(screen.getByLabelText("Term (months)"), "360")
+        await user.click(screen.getByRole("button", { name: "+ Rate change" }))
+        const group = screen.getByRole("group", { name: "Rate change 1" })
+        await user.type(within(group).getByLabelText("New rate from"), "2038-11-01")
+        await user.type(within(group).getByLabelText("Rate (%/yr)"), "4.1")
+        await user.click(screen.getByRole("button", { name: "Add part" }))
+        await waitFor(() => expect(api.calls("POST", `${k.base}/d1/parts`)).toHaveLength(1))
+        expect(api.calls("POST", `${k.base}/d1/parts`)[0].body).toMatchObject({ rates: [{ effectiveDate: "2038-11-01", annualInterestRate: "0.041000", rateType: "nominal" }] })
+      })
     })
 
     test("records and removes extra payments", async () => {

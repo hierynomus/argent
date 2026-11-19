@@ -115,6 +115,16 @@ describe("properties: linked mortgages and loans, debt and equity", () => {
     expect(r.body).toMatchObject({ debt: 320000, equity: 180000 })
   })
 
+  test("a closed part owes nothing any more (what was left was continued in other parts)", async () => {
+    const p = (await create({ currentValue: "400000" })).body
+    const m = (await post("/mortgages", { name: unique("cl") })).body
+    const old = (await post(`/mortgages/${m.id}/parts`, { name: "old", type: "interest_only", principal: "300000", annualInterestRate: "0.04", startDate: "2020-01-01", endDate: "2060-01-01" })).body
+    await post(`/mortgages/${m.id}/parts/${old.id}/close`, { closedOn: "2024-01-01", continuation: [{ name: "next", type: "interest_only", principal: "200000", annualInterestRate: "0.05", endDate: "2060-01-01" }] })
+    const r = await put(`/properties/${p.id}/links`, { mortgageIds: [m.id] })
+    expect(r.body.liabilities[0]).toMatchObject({ balance: 200000, monthlyPayment: 833.33 }) // only the continued 200,000 at 5%; 100,000 was repaid
+    expect(r.body).toMatchObject({ debt: 200000, equity: 200000 })
+  })
+
   test("a linked mortgage's rate changes count: its payment follows the new rate", async () => {
     const p = (await create({ currentValue: "400000" })).body
     const m = (await post("/mortgages", { name: unique("rc") })).body

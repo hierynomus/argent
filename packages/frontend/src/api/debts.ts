@@ -1,6 +1,6 @@
 import type {
-  AddMortgageMemberBody, CreateDebtRateBody, CreateMortgageBody, CreateMortgageExtraPaymentBody, CreateMortgagePartBody, LoanExtraPayment, LoanMember,
-  LoanPart, LoanWithParts, MortgageExtraPayment, MortgageMember, MortgagePart, MortgageWithParts, PartPreview, PartRate, PreviewDebtPartBody, UpdateMortgagePartBody,
+  AddMortgageMemberBody, CloseDebtPartBody, CreateDebtRateBody, CreateMortgageBody, CreateMortgageExtraPaymentBody, CreateMortgagePartBody, LoanExtraPayment, LoanMember,
+  LoanPart, LoanWithParts, MortgageExtraPayment, MortgageMember, MortgagePart, MortgageWithParts, PartCarryOver, PartPreview, PartRate, PreviewDebtPartBody, UpdateMortgagePartBody,
 } from "@argent/shared"
 import { http } from "./client"
 import type { DebtKind } from "./keys"
@@ -31,6 +31,10 @@ function debtApi(kind: DebtKind) {
     addPart: (id: string, body: CreateDebtPartBody) => http.post<DebtPart>(`${base}/${id}/parts`, body),
     updatePart: (id: string, partId: string, body: UpdateDebtPartBody) => http.patch<DebtPart>(`${base}/${id}/parts/${partId}`, body),
     removePart: (id: string, partId: string) => http.delete(`${base}/${id}/parts/${partId}`),
+    carryOver: (id: string, partId: string, date: string) => http.get<PartCarryOver>(`${base}/${id}/parts/${partId}/carry-over?date=${encodeURIComponent(date)}`),
+    closePart: (id: string, partId: string, body: CloseDebtPartBody) =>
+      http.post<{ closed: DebtPart; created: DebtPart[]; carriedOver: number; repaid: number }>(`${base}/${id}/parts/${partId}/close`, body),
+    reopenPart: (id: string, partId: string) => http.delete(`${base}/${id}/parts/${partId}/close`),
     addRate: (id: string, partId: string, body: CreateDebtRatePeriodBody) => http.post<PartRate>(`${base}/${id}/parts/${partId}/rates`, body),
     removeRate: (id: string, partId: string, rateId: string) => http.delete(`${base}/${id}/parts/${partId}/rates/${rateId}`),
     addExtraPayment: (id: string, partId: string, body: CreateDebtExtraPaymentBody) =>

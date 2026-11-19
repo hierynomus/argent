@@ -366,3 +366,64 @@ describe("rate changes (the end of a fixed-rate period)", () => {
     })
   })
 })
+
+describe("recalculating at a rate change: contract term or remaining term", () => {
+  const annuity = { type: "annuity", principal: "100000", annualInterestRate: "0.024", startDate: "2020-01-01", endDate: "2030-01-01" } satisfies PartInput
+  const reset = [{ effectiveDate: "2025-01-01", annualInterestRate: "0.06" }]
+  const extra = [{ paymentDate: "2022-01-10", amount: "30000" }] // shortens the term: the payment stays the same
+  const asOf = utc(2025, 0, 15)
+
+  test("by default the new payment is spread over the months left in the contract", () => {
+    const s = computePartState(annuity, extra, asOf, reset)
+    expect(s.projectedEndDate).toBe("2030-01-01") // recalculated over the contract: back to the scheduled end
+    expect(s.monthsRemaining).toBe(60)
+  })
+
+  test("with 'remaining' it is spread over the term that is left after the extra payment, so it stays shorter", () => {
+    const contract = computePartState(annuity, extra, asOf, reset)
+    const remaining = computePartState({ ...annuity, resetRecalculation: "remaining" }, extra, asOf, reset)
+    expect(remaining.currentBalance).toBe(contract.currentBalance) // nothing differs until the change
+    expect(remaining.monthlyPayment).toBeGreaterThan(contract.monthlyPayment)
+    expect(remaining.monthsRemaining).toBeLessThan(60)
+    expect(remaining.projectedEndDate < "2030-01-01").toBe(true)
+  })
+
+  test("without extra payments the two are the same (the remaining term is the contract term)", () => {
+    const a = computePartState(annuity, [], asOf, reset)
+    const b = computePartState({ ...annuity, resetRecalculation: "remaining" }, [], asOf, reset)
+    expect(b.monthlyPayment).toBeCloseTo(a.monthlyPayment, 0)
+    expect(b.monthsRemaining).toBe(a.monthsRemaining)
+  })
+})
+
+describe("closing a part (its remainder is continued elsewhere or repaid)", () => {
+  const linear = { type: "linear", principal: "12000", annualInterestRate: "0.12", startDate: "2024-01-01", endDate: "2025-01-01" } satisfies PartInput
+  const closed = { ...linear, closedOn: "2024-07-01" }
+
+  test("before the day it is closed it is simulated as usual, and what will be carried over is known", () => {
+    const s = computePartState(closed, [], utc(2024, 4, 15)) // 15 May
+    expect(s.currentBalance).toBe(8000)
+    expect(s.monthlyPayment).toBe(1080)
+    expect(s.closedOn).toBe("2024-07-01")
+    expect(s.carriedOver).toBe(6000) // after the 6 payments up to and including 1 July
+  })
+
+  test("from that day it owes nothing and costs nothing, and the carried-over amount stays", () => {
+    for (const asOf of [utc(2024, 6, 1), utc(2024, 8, 15), utc(2030, 0, 1)]) {
+      const s = computePartState(closed, [], asOf)
+      expect(s).toMatchObject({ currentBalance: 0, monthlyPayment: 0, monthlyInterest: 0, monthlyPrincipal: 0, monthsRemaining: 0, carriedOver: 6000, closedOn: "2024-07-01", projectedEndDate: "2024-07-01" })
+    }
+  })
+
+  test("a part that is not closed has no carried-over amount", () => {
+    expect(computePartState(linear, [], utc(2024, 4, 15))).toMatchObject({ closedOn: null, carriedOver: null })
+  })
+
+  test("extra payments before the close lower what is carried over; rate changes count", () => {
+    const withExtra = computePartState(closed, [{ paymentDate: "2024-03-10", amount: "1000" }], utc(2024, 8, 15))
+    expect(withExtra.carriedOver).toBe(5000)
+    const annuity = computePartState({ type: "annuity", principal: "100000", annualInterestRate: "0.024", startDate: "2020-01-01", endDate: "2030-01-01", closedOn: "2025-01-01" }, [], utc(2026, 0, 1), [{ effectiveDate: "2022-01-01", annualInterestRate: "0.06" }])
+    const open = computePartState({ type: "annuity", principal: "100000", annualInterestRate: "0.024", startDate: "2020-01-01", endDate: "2030-01-01" }, [], utc(2025, 0, 1), [{ effectiveDate: "2022-01-01", annualInterestRate: "0.06" }])
+    expect(annuity.carriedOver).toBe(open.currentBalance)
+  })
+})

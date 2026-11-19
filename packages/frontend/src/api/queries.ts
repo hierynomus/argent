@@ -126,6 +126,16 @@ export const useDebtPartPreview = (kind: DebtKind, body: MaybeRefOrGetter<Previe
     staleTime: 60 * 1000,
   })
 
+/** What is left of a part on a day: the balance a continuation starts from. Not requested while `date` is empty. */
+export const usePartCarryOver = (kind: DebtKind, debtId: MaybeRefOrGetter<string>, partId: MaybeRefOrGetter<string>, date: MaybeRefOrGetter<string>) =>
+  useQuery({
+    queryKey: computed(() => queryKeys.debtCarryOver(kind, toValue(debtId), toValue(partId), toValue(date))),
+    // parameters come from the key (see the note at the top of this file)
+    queryFn: ({ queryKey }) => debtApis[kind].carryOver(queryKey[3] as string, queryKey[4] as string, queryKey[5] as string),
+    enabled: () => /^\d{4}-\d{2}-\d{2}$/.test(toValue(date)),
+    retry: false,
+  })
+
 /** Cache refreshers, named for what changed. Prefix keys mean one call refreshes every dependent view. */
 export function useInvalidate() {
   const qc = useQueryClient()

@@ -97,6 +97,102 @@ for (const kind of ["mortgages", "loans"] as const) {
       expect(b.currentRate.annualInterestRate).toBe("0.080000")
     })
 
+    test("a part can be created with its rate changes in one request, and previewed with them", async () => {
+      const d = (await create()).body
+      const body = part({ principal: "100000", annualInterestRate: "0.024", startDate: "2020-01-01", endDate: "2040-01-01", rates: [{ effectiveDate: "2030-01-01", annualInterestRate: "0.05" }, { effectiveDate: "2035-01-01", annualInterestRate: "0.04", rateType: "effective" }] })
+      const r = await post(`${base}/${d.id}/parts`, body)
+      expect(r.status).toBe(201)
+      expect(r.body.rates.map((x: any) => [x.effectiveDate, x.rateType])).toEqual([["2030-01-01", "nominal"], ["2035-01-01", "effective"]])
+      expect(r.body.nextRateChange).toMatchObject({ effectiveDate: "2030-01-01" })
+      expect((await post(`${base}/${d.id}/parts`, { ...body, rates: [{ effectiveDate: "2030-01-01", annualInterestRate: "0.05" }, { effectiveDate: "2030-01-01", annualInterestRate: "0.06" }] })).status).toBe(400) // one per date
+      expect((await post(`${base}/${d.id}/parts`, { ...body, rates: [{ effectiveDate: "2050-01-01", annualInterestRate: "0.05" }] })).status).toBe(400) // outside the term
+      const preview = await post(`${base}/preview-part`, { ...body, name: undefined })
+      expect(preview.body.nextRateChange).toMatchObject({ effectiveDate: "2030-01-01", annualInterestRate: "0.05" })
+    })
+
+    test("how an annuity is recalculated at a reset is an option of the part", async () => {
+      const d = (await create()).body
+      const p = (await post(`${base}/${d.id}/parts`, part())).body
+      expect(p.resetRecalculation).toBe("contract")
+      const r = await patch(`${base}/${d.id}/parts/${p.id}`, { resetRecalculation: "remaining" })
+      expect(r.body.resetRecalculation).toBe("remaining")
+      expect((await patch(`${base}/${d.id}/parts/${p.id}`, { resetRecalculation: "whenever" })).status).toBe(400)
+      expect((await post(`${base}/${d.id}/parts`, part({ resetRecalculation: "remaining" }))).body.resetRecalculation).toBe("remaining")
+    })
+
+    describe("closing a part at the end of its fixed-rate period", () => {
+      const open = async () => {
+        const d = (await create()).body
+        const old = (await post(`${base}/${d.id}/parts`, part({ name: "Old", type: "linear", principal: "120000", annualInterestRate: "0.03", startDate: "2020-01-01", endDate: "2030-01-01" }))).body
+        return { d, old, url: `${base}/${d.id}/parts/${old.id}` }
+      }
+      const next = (over: object = {}) => ({ name: "New", type: "annuity", principal: "50000", annualInterestRate: "0.04", endDate: "2035-01-01", ...over })
+
+      test("carry-over says what is left on a day", async () => {
+        const { url } = await open()
+        const r = await get(`${url}/carry-over?date=2025-01-01`)
+        expect(r.status).toBe(200)
+        expect(r.body).toEqual({ date: "2025-01-01", balance: 60000 }) // 60 of 120 payments of 1000
+        expect((await get(`${url}/carry-over`)).status).toBe(400)
+        expect((await get(`${url}/carry-over?date=soon`)).status).toBe(400)
+      })
+
+      test("closes the part, starts the new ones that day, and counts the rest as repaid", async () => {
+        const { d, old, url } = await open()
+        const r = await post(`${url}/close`, { closedOn: "2025-01-01", continuation: [next(), next({ name: "Second", principal: "5000.50", type: "linear" })] })
+        expect(r.status).toBe(201)
+        expect(r.body).toMatchObject({ carriedOver: 60000, repaid: 4999.5 })
+        expect(r.body.closed).toMatchObject({ closedOn: "2025-01-01", currentBalance: 0, monthlyPayment: 0, carriedOver: 60000 })
+        expect(r.body.created).toHaveLength(2)
+        expect(r.body.created[0]).toMatchObject({ name: "New", startDate: "2025-01-01", continuesPartId: old.id, principal: "50000.00" })
+
+        const parts = (await detail(d.id)).parts
+        expect(parts).toHaveLength(3)
+        // the old part owes nothing; the new ones owe what is left of them (they started in 2025 and have paid since)
+        const owed = r.body.created.reduce((sum: number, x: any) => sum + x.currentBalance, 0)
+        expect((await detail(d.id)).totalCurrentBalance).toBeCloseTo(owed, 1)
+        expect(owed).toBeGreaterThan(0)
+        expect(owed).toBeLessThan(55000.5)
+      })
+
+      test("nothing continued: the whole remainder is repaid", async () => {
+        const { url } = await open()
+        const r = await post(`${url}/close`, { closedOn: "2025-01-01" })
+        expect(r.status).toBe(201)
+        expect(r.body).toMatchObject({ carriedOver: 60000, repaid: 60000, created: [] })
+      })
+
+      test("refuses what does not add up", async () => {
+        const { url } = await open()
+        const tooMuch = await post(`${url}/close`, { closedOn: "2025-01-01", continuation: [next({ principal: "60000.01" })] })
+        expect(tooMuch.status).toBe(400)
+        expect(tooMuch.body.error).toContain("60000.00")
+        expect((await post(`${url}/close`, { closedOn: "2019-01-01" })).status).toBe(400) // before the start
+        expect((await post(`${url}/close`, { closedOn: "2031-01-01" })).status).toBe(400) // after the end
+        expect((await post(`${url}/close`, { closedOn: "2025-01-01", continuation: [next({ endDate: "2024-01-01" })] })).status).toBe(400) // ends before it starts
+        expect((await post(`${url}/close`, { closedOn: "2025-01-01", continuation: [next({ name: "" })] })).status).toBe(400)
+      })
+
+      test("a closed part cannot be closed again; reopening brings its balance back", async () => {
+        const { d, url } = await open()
+        await post(`${url}/close`, { closedOn: "2025-01-01" })
+        expect((await post(`${url}/close`, { closedOn: "2026-01-01" })).status).toBe(409)
+        expect((await detail(d.id)).totalCurrentBalance).toBe(0)
+        expect((await del(`${url}/close`)).status).toBe(204)
+        expect((await detail(d.id)).totalCurrentBalance).toBeGreaterThan(0)
+        expect((await del(`${url}/close`)).status).toBe(409) // not closed any more
+      })
+
+      test("needs edit access and the right debt", async () => {
+        const { old, url } = await open()
+        const other = (await create()).body
+        expect((await post(`${base}/${NIL}/parts/${old.id}/close`, { closedOn: "2025-01-01" })).status).toBe(404)
+        expect((await post(`${base}/${other.id}/parts/${old.id}/close`, { closedOn: "2025-01-01" })).status).toBe(404)
+        expect((await get(`${base}/${other.id}/parts/${old.id}/carry-over?date=2025-01-01`)).status).toBe(404)
+        expect((await post(`${url}/close`, { closedOn: "2025-01-01", continuation: Array.from({ length: 11 }, () => next({ principal: "1" })) })).status).toBe(400) // at most 10 new parts
+      })
+    })
+
     test("rate changes need edit access, and belong to the part of that debt", async () => {
       const d = (await create()).body
       const other = (await create()).body

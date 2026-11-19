@@ -114,11 +114,12 @@ Vue 3 (rewritten from React; merged). `api/`, `lib/`, the shared zod schemas and
 - [ ] Cash movements are not editable (delete and re-enter); add an edit row if that becomes annoying
 
 ## Fixed-rate periods (mortgages/loans)
-- [x] Rate changes per part (end of a fixed-rate period): annuity repriced over the contract months left, linear/interest-only follow the rate; future changes project the payment; shown in the part row and a Rates panel
-- [ ] Step 2: continue the remainder as new parts at the reset date: close the old part (`closedOn`), open new part(s) from its balance on that date (pre-filled), link them as a chain, treat what is not carried over as repaid
-- [ ] Banks may recalculate an annuity at a reset over the *remaining term at that time* even after extra payments shortened it; this follows the contract term (confirm with your bank, make it an option if needed)
-- [ ] A reminder shortly before a fixed-rate period ends (banks send the new offer ~6 months before)
-- [ ] The add-part form and the preview cannot take rate changes yet (add them on the part afterwards)
+- [x] Rate changes per part (end of a fixed-rate period): annuity repriced over the contract months left (or the remaining term, a per-part option), linear/interest-only follow the rate; future changes project the payment; shown in the part row and a Rates panel; also enterable when adding a part and in the preview
+- [x] Continue the remainder as new parts at the reset date: close the part (`closedOn`), the new parts start that day (chain via `continuesPartId`), what is not continued is repaid; reopen possible
+- [x] Reminder: a part whose rate period ends within three months is highlighted yellowish
+- [ ] Closing does not record the repayment of the unconverted remainder as a payment (it is only shown as "repaid from savings" in the form); decide if it should appear in the extra-payments list
+- [ ] Reopening a part leaves the parts that continued it in place (remove them by hand)
+- [ ] Closing is the same day for the whole part; a mortgage where only a share of a part resets is modelled as two parts today
 
 ## Hygiene
 - [x] All migrations from now on come from `db:generate` (0018 does); `db:check` runs in `bun run check` and CI

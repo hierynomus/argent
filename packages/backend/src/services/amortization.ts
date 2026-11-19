@@ -21,6 +21,10 @@ export interface PartInput {
    * Default: one month after `startDate`.
    */
   firstPaymentDate?: string | null
+  /** at a rate change an annuity is recalculated over the months left in the "contract" (default) or the "remaining" term (shortened by extra payments) */
+  resetRecalculation?: string | null
+  /** the day the part stops being a liability: its balance on that day is continued in other parts and/or repaid */
+  closedOn?: string | null
 }
 
 export interface PartState {
@@ -43,6 +47,10 @@ export interface PartState {
   currentRate: { annualInterestRate: string; rateType: string }
   /** the first rate change after the current period (the end of the fixed-rate period), if one is known */
   nextRateChange: RateChange | null
+  /** the day the part was (or will be) closed, if it was */
+  closedOn: string | null
+  /** what was left of the part on the day it was (or will be) closed: continued in other parts and/or repaid */
+  carriedOver: number | null
 }
 
 /** From `effectiveDate` on, the part runs at this rate (the end of a fixed-rate period). The part's own rate is the first one. */
@@ -65,6 +73,19 @@ export function monthlyRate(annualRate: number, rateType: string = "nominal"): n
 const annuityPayment = (balance: number, r: number, months: number): number =>
   cents(r === 0 ? balance / months : (balance * r) / (1 - Math.pow(1 + r, -months)))
 
+/** How many installments of `installment` repay `balance` at monthly rate `r` (at most `cap`). */
+function monthsToRepay(balance: number, r: number, installment: number, cap: number): number {
+  let b = balance
+  let n = 0
+  while (b > 0 && n < cap) {
+    const principalPaid = installment - cents(b * r)
+    if (principalPaid <= 0) return cap // the installment does not even cover the interest
+    b = cents(b - Math.min(b, principalPaid))
+    n++
+  }
+  return Math.max(1, n)
+}
+
 /**
  * Compute the current amortization state for a mortgage/loan part.
  *
@@ -84,12 +105,12 @@ const annuityPayment = (balance: number, r: number, months: number): number =>
  *    term, as banks do when the payout is mid-month. Not applied to interest-only parts (they just pay it).
  *  - The scheduled payment stays the same, so extra payments shorten the term (see `monthsRemaining`).
  */
-export function computePartState(
+function simulatePart(
   part: PartInput,
   extraPayments: ExtraPayment[],
-  asOf: Date = new Date(),
-  rateChanges: RateChange[] = [],
-): PartState {
+  asOf: Date,
+  rateChanges: RateChange[],
+): Omit<PartState, "closedOn" | "carriedOver"> {
   const start = part.startDate
   const end = part.endDate
   const today = todayIso(asOf)
@@ -140,8 +161,12 @@ export function computePartState(
   const reprice = (m: number, balance: number) => {
     const next = monthlyAt(periodStart(m))
     if (next === r) return
+    const previousRate = r
     r = next
-    const monthsLeft = totalMonths - (m - 1)
+    const contractLeft = totalMonths - (m - 1)
+    // by default the new installment is spread over the months left in the contract; some banks use the term
+    // that remains after extra payments shortened it
+    const monthsLeft = part.resetRecalculation === "remaining" ? monthsToRepay(balance, previousRate, installment, contractLeft) : contractLeft
     if (part.type === "annuity" && balance > 0 && monthsLeft > 0) installment = annuityPayment(balance, r, monthsLeft)
   }
 
@@ -214,8 +239,10 @@ export function computePartState(
     for (let m = monthsElapsed + 1; b > 0 && m <= totalMonths; m++) {
       const next = monthlyAt(periodStart(m))
       if (next !== rate) {
+        const contractLeft = totalMonths - (m - 1)
+        const monthsLeft = part.resetRecalculation === "remaining" ? monthsToRepay(b, rate, pay, contractLeft) : contractLeft
         rate = next
-        pay = annuityPayment(b, rate, totalMonths - (m - 1))
+        pay = annuityPayment(b, rate, monthsLeft)
       }
       const interest = cents(b * rate)
       const principalPaid = pay - interest
@@ -243,5 +270,43 @@ export function computePartState(
     projectedEndDate: monthsElapsed + monthsRemaining === 0 ? anchor : paymentDate(monthsElapsed + monthsRemaining),
     currentRate: { annualInterestRate: current.annualInterestRate, rateType: current.rateType },
     nextRateChange: upcoming ? { effectiveDate: upcoming.effectiveDate, annualInterestRate: upcoming.annualInterestRate, rateType: upcoming.rateType } : null,
+  }
+}
+
+/** The instant a calendar date stands for in `computePartState` (noon UTC, so the same date in every time zone). */
+export const instantOf = (iso: string) => {
+  const [y, m, d] = iso.split("-").map(Number)
+  return new Date(Date.UTC(y, m - 1, d, 12))
+}
+
+/**
+ * The state of a part as of `asOf` (see `simulatePart`), and what became of it when it was closed.
+ *
+ * A closed part (`closedOn`) is a liability until that day. On the day it is closed what is left of it,
+ * `carriedOver`, is continued in other parts and/or repaid; from then on it owes nothing and costs nothing.
+ * Before that day it is simulated as usual and `carriedOver` is the balance it is projected to have then.
+ */
+export function computePartState(
+  part: PartInput,
+  extraPayments: ExtraPayment[],
+  asOf: Date = new Date(),
+  rateChanges: RateChange[] = [],
+): PartState {
+  const closedOn = part.closedOn ?? null
+  if (!closedOn) return { ...simulatePart(part, extraPayments, asOf, rateChanges), closedOn: null, carriedOver: null }
+
+  const atClose = simulatePart(part, extraPayments, instantOf(closedOn), rateChanges)
+  if (closedOn > todayIso(asOf)) return { ...simulatePart(part, extraPayments, asOf, rateChanges), closedOn, carriedOver: atClose.currentBalance }
+  return {
+    ...atClose,
+    currentBalance: 0,
+    monthlyPayment: 0,
+    monthlyInterest: 0,
+    monthlyPrincipal: 0,
+    monthsRemaining: 0,
+    projectedEndDate: closedOn,
+    nextRateChange: null,
+    closedOn,
+    carriedOver: atClose.currentBalance,
   }
 }
