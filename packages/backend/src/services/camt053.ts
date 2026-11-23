@@ -38,7 +38,7 @@ const parser = new XMLParser({
 
 /**
  * Extracts a merchant name from the AddtlNtryInf free-text field.
- * Handles the fixed-width column format used by Dutch banks (the large Dutch banks)
+ * Handles the fixed-width column format used by Dutch banks
  * for BEA (point-of-sale) and GEA (ATM) card transactions, e.g.:
  *   "BEA, Betaalpas                  ARGOS Dorpstraat,PAS345         NR:21370651, ..."
  *   "GEA, Betaalpas                  Geldmaat Stationsplein,PAS345   NR:00012345, ..."

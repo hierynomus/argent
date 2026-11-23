@@ -1,0 +1,25 @@
+version: 2
+
+# Bun is its own ecosystem for Dependabot: without this file the security updates ran as "npm_and_yarn" jobs,
+# which cannot read bun.lock ("dependency_file_not_supported") and failed for every npm advisory.
+updates:
+  - package-ecosystem: bun
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      npm-minor-and-patch:
+        update-types: [minor, patch]
+
+  - package-ecosystem: cargo
+    directory: /packages/desktop/src-tauri
+    schedule:
+      interval: weekly
+    groups:
+      cargo-minor-and-patch:
+        update-types: [minor, patch]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
