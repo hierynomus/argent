@@ -8,13 +8,18 @@ export interface Account {
   iban: string
   name: string | null
   currency: string
-  type: "checking" | "savings"
+  type: "checking" | "savings" | "cash"
+  /** "manual": entered by hand; its iban may be a "manual:…" placeholder (see `hasRealIban`) */
+  source: "import" | "manual"
   openingBalance: string
   openingBalanceDate: string | null
   balance: string
   ownerSub: string | null
   createdAt: string
 }
+
+/** Manual accounts without an IBAN carry a "manual:<id>" placeholder; show the name only. */
+export const hasRealIban = (a: { iban: string }) => !a.iban.startsWith("manual:")
 
 export interface Category {
   id: string
@@ -39,6 +44,8 @@ export interface Transaction {
   categoryId: string | null
   transferPeerId: string | null
   subscriptionId: string | null
+  /** entered by hand: can be edited and deleted */
+  isManual: boolean
   createdAt: string
 }
 
@@ -671,6 +678,9 @@ type Body<T extends z.ZodType> = z.input<T>
 
 export type UpdateTransactionBody = Body<typeof S.updateTransactionSchema>
 export type LinkTransferBody = Body<typeof S.linkTransferSchema>
+export type CreateAccountBody = Body<typeof S.createAccountSchema>
+export type CreateTransactionBody = Body<typeof S.createTransactionSchema>
+export type UpdateManualTransactionBody = Body<typeof S.updateManualTransactionSchema>
 export type UpdateAccountBody = Body<typeof S.updateAccountSchema>
 export type CreateCategoryBody = Body<typeof S.createCategorySchema>
 export type UpdateSubscriptionBody = Body<typeof S.updateSubscriptionSchema>

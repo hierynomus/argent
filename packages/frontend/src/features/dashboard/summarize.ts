@@ -158,9 +158,10 @@ export function unrealizedLabel(s: AssetClassSummary, fmt: (n: number) => string
   return `${s.unrealizedPnL >= 0 ? "↑" : "↓"} ${fmt(Math.abs(s.unrealizedPnL))} unrealized`
 }
 
-/** "1 savings · 2 checking"; undefined when there are no accounts of either kind. */
+/** "1 savings · 2 checking · 1 cash"; undefined when there are no accounts. */
 export function bankingLabel(accounts: Account[]): string | undefined {
   const savings = accounts.filter((a) => a.type === "savings").length
   const checking = accounts.filter((a) => a.type === "checking").length
-  return [savings > 0 ? `${savings} savings` : "", checking > 0 ? `${checking} checking` : ""].filter(Boolean).join(" · ") || undefined
+  const cash = accounts.filter((a) => a.type === "cash").length
+  return [savings > 0 ? `${savings} savings` : "", checking > 0 ? `${checking} checking` : "", cash > 0 ? `${cash} cash` : ""].filter(Boolean).join(" · ") || undefined
 }

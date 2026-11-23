@@ -61,10 +61,37 @@ export const addMemberSchema = z.object({
 
 // ─── Accounts / transactions / categories ────────────────────────────────────
 
+export const accountTypeSchema = z.enum(["checking", "savings", "cash"], { error: "type must be checking, savings or cash" })
+
+/** An account entered by hand (no bank export, or cash in the house). The IBAN is optional. */
+export const createAccountSchema = z.object({
+  name: requiredString("name"),
+  type: accountTypeSchema.default("checking"),
+  currency: currencySchema.default("EUR"),
+  iban: z.string().trim().max(50).optional(),
+  openingBalance: decimalString("openingBalance").optional(),
+  openingBalanceDate: isoDate("openingBalanceDate").nullable().optional(),
+})
+
+/** A transaction entered by hand. `amount` is always positive; `direction` says whether money came in or went out. */
+export const createTransactionSchema = z.object({
+  accountId: z.uuid("accountId must be a UUID"),
+  bookingDate: isoDate("bookingDate"),
+  direction: z.enum(["CRDT", "DBIT"], { error: "direction must be CRDT (money in) or DBIT (money out)" }),
+  amount: positiveDecimalString("amount"),
+  description: optionalText(500),
+  counterpartyName: optionalText(200),
+  counterpartyIban: optionalText(50),
+  categoryId: z.uuid("categoryId must be a UUID").nullable().optional(),
+})
+
+/** Editing a manual transaction (the account cannot change: delete and re-enter it instead). */
+export const updateManualTransactionSchema = createTransactionSchema.omit({ accountId: true }).partial()
+
 export const updateAccountSchema = z
   .object({
     name: z.string().trim().max(200).optional(),
-    type: z.enum(["checking", "savings"]).optional(),
+    type: accountTypeSchema.optional(),
     openingBalance: decimalString("openingBalance").optional(),
     openingBalanceDate: isoDate("openingBalanceDate").nullable().optional(),
   })

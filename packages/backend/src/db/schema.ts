@@ -6,7 +6,10 @@ export const accounts = pgTable("accounts", {
   iban: text("iban").notNull().unique(),
   name: text("name"),
   currency: text("currency").notNull(),
-  type: text("type").notNull().default("checking"),  // "checking" | "savings"
+  type: text("type").notNull().default("checking"),  // "checking" | "savings" | "cash"
+  // "import" (created by a CAMT.053 import) | "manual" (created by hand: no bank export, or cash). A manual account
+  // without a real IBAN gets the placeholder "manual:<uuid>" so the unique iban column keeps working.
+  source: text("source").notNull().default("import"),
   openingBalance: numeric("opening_balance", { precision: 15, scale: 2 }).notNull().default("0"),
   openingBalanceDate: date("opening_balance_date"),   // date from which openingBalance is valid
   ownerSub: text("owner_sub"),
@@ -61,6 +64,8 @@ export const transactions = pgTable("transactions", {
   subscriptionId: uuid("subscription_id").references((): AnyPgColumn => subscriptions.id),
   // Used to deduplicate imports; see computeImportHash in services/camt053.ts
   importHash: text("import_hash").notNull().unique(),
+  // entered by hand (editable and deletable, unlike bank records); its importHash is "manual:<uuid>"
+  isManual: boolean("is_manual").notNull().default(false),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 }, (t) => ({
   // Listing/paging per account, newest first

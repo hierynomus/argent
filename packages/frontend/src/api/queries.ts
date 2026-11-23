@@ -158,6 +158,13 @@ export function useInvalidate() {
     localSettings: () => qc.invalidateQueries({ queryKey: queryKeys.localSettings }),
     /** everything — after the whole database was replaced (restore) */
     everything: () => qc.invalidateQueries(),
+    /** after accounts or transactions were entered, edited or deleted by hand */
+    afterManualEntry: () =>
+      Promise.all([
+        qc.invalidateQueries({ queryKey: queryKeys.accounts }),
+        qc.invalidateQueries({ queryKey: queryKeys.transactions }),
+        qc.invalidateQueries({ queryKey: queryKeys.subscriptions }),
+      ]),
     /** after an import: everything derived from transactions and accounts */
     afterImport: () =>
       Promise.all([

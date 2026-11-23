@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Card } from "../../components/ui"
-import type { AccountWithMembers } from "@argent/shared"
+import { hasRealIban, type AccountWithMembers } from "@argent/shared"
 import GroupAccess from "./GroupAccess.vue"
 import OwnerRow from "./OwnerRow.vue"
 
@@ -16,7 +16,7 @@ defineEmits<{ changed: [] }>()
         <template v-if="account.name">{{ account.name }}</template>
         <span v-else class="text-gray-400 dark:text-gray-500 italic">Unnamed</span>
       </div>
-      <div class="font-mono text-xs text-gray-400 dark:text-gray-500 mt-0.5">{{ account.iban }}</div>
+      <div v-if="hasRealIban(account)" class="font-mono text-xs text-gray-400 dark:text-gray-500 mt-0.5">{{ account.iban }}</div>
       <div class="mt-2"><OwnerRow :account="account" @changed="$emit('changed')" /></div>
     </div>
     <GroupAccess :account="account" @changed="$emit('changed')" />

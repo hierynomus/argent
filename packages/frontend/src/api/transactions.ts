@@ -1,5 +1,5 @@
 import type {
-  LinkTransferBody, PaginatedResponse, TransactionFilters, TransactionWithDetails, TransferPeerSummary, UpdateTransactionBody,
+  CreateTransactionBody, LinkTransferBody, Transaction, UpdateManualTransactionBody, PaginatedResponse, TransactionFilters, TransactionWithDetails, TransferPeerSummary, UpdateTransactionBody,
 } from "@argent/shared"
 import { http } from "./client"
 
@@ -25,3 +25,11 @@ export const linkTransfer = (id: string, body: LinkTransferBody) =>
   http.post<TransactionWithDetails>(`/transactions/${id}/transfer`, body)
 
 export const unlinkTransfer = (id: string) => http.delete(`/transactions/${id}/transfer`)
+
+/** Enter a transaction by hand. */
+export const createTransaction = (body: CreateTransactionBody) => http.post<Transaction>("/transactions", body)
+
+/** Edit a transaction that was entered by hand (imported ones are read-only). */
+export const editTransaction = (id: string, body: UpdateManualTransactionBody) => http.put<Transaction>(`/transactions/${id}`, body)
+
+export const deleteTransaction = (id: string) => http.delete(`/transactions/${id}`)

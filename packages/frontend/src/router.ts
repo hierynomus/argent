@@ -13,6 +13,7 @@ export const routes = [
   { path: "/profile", component: () => import("./pages/Profile.vue") },
   { path: "/checking", component: () => import("./pages/Checking.vue") },
   { path: "/savings", component: () => import("./pages/Savings.vue") },
+  { path: "/cash", component: () => import("./pages/Cash.vue") },
   { path: "/subscriptions", component: () => import("./pages/Subscriptions.vue") },
   { path: "/settings", component: () => import("./pages/Settings.vue") },
   { path: "/mortgages", component: () => import("./pages/Mortgages.vue") },

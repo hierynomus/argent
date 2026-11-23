@@ -4,7 +4,8 @@ import { transactions } from "../db/schema"
 import { and, eq, gte, ilike, inArray, isNull, lte, sql } from "drizzle-orm"
 import type { AuthUser } from "../middleware/auth"
 import { validateJson, validateQuery } from "../middleware/validate"
-import { updateTransactionSchema, linkTransferSchema, transactionFiltersSchema } from "@argent/shared"
+import { updateTransactionSchema, linkTransferSchema, transactionFiltersSchema, createTransactionSchema, updateManualTransactionSchema } from "@argent/shared"
+import { runBackgroundJobs } from "../services/backgroundJobs"
 import { getViewableAccountIds, toAccessContext, canEditAccount } from "../services/accessControl"
 
 const app = new Hono<{ Variables: { user: AuthUser } }>()
@@ -68,6 +69,69 @@ app.get("/", validateQuery(transactionFiltersSchema), async (c) => {
     page,
     pageSize,
   })
+})
+
+/** Enter a transaction by hand (a bank without an export, cash). It links to transfers like any other. */
+app.post("/", validateJson(createTransactionSchema), async (c) => {
+  const body = c.req.valid("json")
+  if (!(await canEditAccount(toAccessContext(c.get("user")), body.accountId))) return c.json({ error: "Not found" }, 404)
+  const account = await db.query.accounts.findFirst({ where: (a, { eq }) => eq(a.id, body.accountId) })
+  if (!account) return c.json({ error: "Not found" }, 404)
+  const [created] = await db
+    .insert(transactions)
+    .values({
+      accountId: account.id,
+      amount: body.amount,
+      currency: account.currency,
+      creditDebitIndicator: body.direction,
+      bookingDate: body.bookingDate,
+      description: body.description || null,
+      counterpartyName: body.counterpartyName || null,
+      counterpartyIban: body.counterpartyIban ? body.counterpartyIban.replace(/\s+/g, "").toUpperCase() : null,
+      categoryId: body.categoryId ?? null,
+      importHash: `manual:${crypto.randomUUID()}`,
+      isManual: true,
+    })
+    .returning()
+  await runBackgroundJobs("manual transaction")
+  return c.json(created, 201)
+})
+
+/** Edit a transaction entered by hand. Bank records (imports) are not editable, only labelled and linked. */
+app.put("/:id", validateJson(updateManualTransactionSchema), async (c) => {
+  const id = c.req.param("id")
+  const body = c.req.valid("json")
+  const tx = await db.query.transactions.findFirst({ where: (t, { eq }) => eq(t.id, id) })
+  if (!tx || !(await canEditAccount(toAccessContext(c.get("user")), tx.accountId))) return c.json({ error: "Not found" }, 404)
+  if (!tx.isManual) return c.json({ error: "Only transactions entered by hand can be edited" }, 409)
+  const updates: Partial<typeof transactions.$inferInsert> = {}
+  if (body.bookingDate !== undefined) updates.bookingDate = body.bookingDate
+  if (body.direction !== undefined) updates.creditDebitIndicator = body.direction
+  if (body.amount !== undefined) updates.amount = body.amount
+  if (body.description !== undefined) updates.description = body.description || null
+  if (body.counterpartyName !== undefined) updates.counterpartyName = body.counterpartyName || null
+  if (body.counterpartyIban !== undefined) updates.counterpartyIban = body.counterpartyIban ? body.counterpartyIban.replace(/\s+/g, "").toUpperCase() : null
+  if (body.categoryId !== undefined) updates.categoryId = body.categoryId
+  if (Object.keys(updates).length === 0) return c.json({ error: "Nothing to update" }, 400)
+  // the other leg of a transfer no longer matches when the amount, direction or date changes
+  if (tx.transferPeerId && (updates.amount || updates.creditDebitIndicator || updates.bookingDate)) {
+    await db.update(transactions).set({ transferPeerId: null }).where(eq(transactions.id, tx.transferPeerId))
+    updates.transferPeerId = null
+  }
+  const [updated] = await db.update(transactions).set(updates).where(eq(transactions.id, id)).returning()
+  await runBackgroundJobs("manual transaction")
+  return c.json(updated)
+})
+
+/** Delete a transaction entered by hand (its transfer partner stays, unlinked). */
+app.delete("/:id", async (c) => {
+  const id = c.req.param("id")
+  const tx = await db.query.transactions.findFirst({ where: (t, { eq }) => eq(t.id, id) })
+  if (!tx || !(await canEditAccount(toAccessContext(c.get("user")), tx.accountId))) return c.json({ error: "Not found" }, 404)
+  if (!tx.isManual) return c.json({ error: "Only transactions entered by hand can be deleted" }, 409)
+  if (tx.transferPeerId) await db.update(transactions).set({ transferPeerId: null }).where(eq(transactions.id, tx.transferPeerId))
+  await db.delete(transactions).where(eq(transactions.id, id))
+  return c.body(null, 204)
 })
 
 app.get("/:id/transfer-suggestions", async (c) => {

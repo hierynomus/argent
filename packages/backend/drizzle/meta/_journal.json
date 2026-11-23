@@ -197,6 +197,13 @@
       "when": 1795123356771,
       "tag": "0027_amazing_vanisher",
       "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1795455432834,
+      "tag": "0028_furry_bloodstorm",
+      "breakpoints": true
     }
   ]
 }

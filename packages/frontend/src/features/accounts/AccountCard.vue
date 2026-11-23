@@ -1,15 +1,21 @@
 <script setup lang="ts">
-import { Card } from "../../components/ui"
-import { computed } from "vue"
+import { Button, Card, ConfirmButton, ErrorText } from "../../components/ui"
+import ManualTransactionForm from "../transactions/ManualTransactionForm.vue"
+import { computed, ref } from "vue"
+import { useMutation } from "@tanstack/vue-query"
 import { RouterLink } from "vue-router"
-import type { Account } from "@argent/shared"
-import { useRecentTransactions } from "../../api"
+import { hasRealIban, type Account } from "@argent/shared"
+import { deleteAccount, useInvalidate, useRecentTransactions } from "../../api"
 import { fmtAmount, fmtBalance, fmtDate } from "../../lib/format"
 
 /** One bank account: balance header (links to the filtered Overview) plus its 10 latest transactions. */
 const props = defineProps<{ account: Account }>()
 const { data } = useRecentTransactions(10, () => props.account.id)
 const txs = computed(() => data.value?.data ?? [])
+
+const adding = ref(false)
+const invalidate = useInvalidate()
+const remove = useMutation({ mutationFn: () => deleteAccount(props.account.id), onSuccess: () => invalidate.afterManualEntry() })
 </script>
 
 <template>
@@ -17,7 +23,7 @@ const txs = computed(() => data.value?.data ?? [])
     <RouterLink :to="`/overview?account=${account.id}`" class="block px-6 py-5 border-b border-gray-100 dark:border-gray-800 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors">
       <div class="flex items-start justify-between gap-4">
         <div>
-          <p class="text-sm text-gray-500 dark:text-gray-400">{{ account.iban }}</p>
+          <p v-if="hasRealIban(account)" class="text-sm text-gray-500 dark:text-gray-400">{{ account.iban }}</p>
           <p class="text-lg font-semibold text-gray-900 dark:text-gray-100 mt-0.5">{{ account.name ?? account.iban }}</p>
           <p v-if="account.openingBalanceDate" class="text-xs text-gray-400 dark:text-gray-500 mt-1">since {{ fmtDate(account.openingBalanceDate) }}</p>
         </div>
@@ -29,7 +35,13 @@ const txs = computed(() => data.value?.data ?? [])
     </RouterLink>
 
     <div class="px-6 py-4">
-      <p class="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-3">Recent transactions</p>
+      <div class="flex items-center justify-between mb-3">
+        <p class="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">Recent transactions</p>
+        <Button v-if="!adding" variant="link" size="xs" @click="adding = true">+ Add transaction</Button>
+      </div>
+      <div v-if="adding" class="mb-4 pb-4 border-b border-gray-100 dark:border-gray-800">
+        <ManualTransactionForm :account="account" @done="adding = false" />
+      </div>
       <p v-if="txs.length === 0" class="text-sm text-gray-400 dark:text-gray-500 py-2">No transactions yet.</p>
       <table v-else class="w-full text-sm">
         <tbody class="divide-y divide-gray-100 dark:divide-gray-800">
@@ -42,6 +54,10 @@ const txs = computed(() => data.value?.data ?? [])
           </tr>
         </tbody>
       </table>
+      <div v-if="account.source === 'manual' && txs.length === 0 && !adding" class="mt-3">
+        <ConfirmButton label="Delete account" prompt="Delete this account?" confirm-label="Yes" @confirm="remove.mutate()" />
+        <ErrorText :error="remove.error.value" />
+      </div>
     </div>
   </Card>
 </template>

@@ -6,7 +6,7 @@ desktop app with no accounts and no server.
 
 ## What it does
 
-- **Banking**: import CAMT.053 bank statements (duplicates are detected), label transactions, link transfers between
+- **Banking**: import CAMT.053 bank statements (duplicates are detected), or add accounts and transactions by hand for banks without an export, plus a Cash account for money in the house; label transactions, link transfers between
   your own accounts automatically, detect recurring payments as subscriptions.
 - **Liabilities**: mortgages and loans in parts (linear, annuity, interest-only), with fixed-rate periods and rate
   changes, extra payments (shorten the term or lower the payment), a first-payment date, and a live preview while you

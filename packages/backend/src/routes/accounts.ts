@@ -2,11 +2,12 @@ import { Decimal } from "../services/money"
 import { Hono } from "hono"
 import { and, eq, gte, inArray, sql } from "drizzle-orm"
 import { db } from "../db"
-import { accounts, transactions } from "../db/schema"
+import { accountMembers, accounts, transactions } from "../db/schema"
 import { getViewableAccountIds, toAccessContext, canEditAccount, canViewAccount } from "../services/accessControl"
 import type { AuthUser } from "../middleware/auth"
 import { validateJson } from "../middleware/validate"
-import { updateAccountSchema } from "@argent/shared"
+import { createAccountSchema, updateAccountSchema } from "@argent/shared"
+import { isOwnerOrAdmin } from "../middleware/guards"
 
 const app = new Hono<{ Variables: { user: AuthUser } }>()
 
@@ -40,6 +41,46 @@ app.get("/", async (c) => {
   return c.json(accountsWithBalance)
 })
 
+/** Create an account by hand: a bank without an export, or cash. The owner is the caller; sharing works as for any account. */
+app.post("/", validateJson(createAccountSchema), async (c) => {
+  const user = c.get("user")
+  const body = c.req.valid("json")
+  const iban = body.iban ? body.iban.replace(/\s+/g, "").toUpperCase() : ""
+  if (iban) {
+    const taken = await db.query.accounts.findFirst({ where: (a, { eq }) => eq(a.iban, iban) })
+    if (taken) return c.json({ error: "An account with this IBAN already exists" }, 409)
+  }
+  const [created] = await db
+    .insert(accounts)
+    .values({
+      iban: iban || `manual:${crypto.randomUUID()}`,
+      name: body.name,
+      currency: body.currency,
+      type: body.type,
+      source: "manual",
+      openingBalance: body.openingBalance ?? "0",
+      openingBalanceDate: body.openingBalanceDate ?? null,
+      ownerSub: user.sub,
+    })
+    .returning()
+  return c.json({ ...created, balance: new Decimal(created!.openingBalance).toFixed(2) }, 201)
+})
+
+/** Remove an account that was entered by hand and has no transactions (a typo, a duplicate). */
+app.delete("/:id", async (c) => {
+  const user = c.get("user")
+  const id = c.req.param("id")
+  const account = await db.query.accounts.findFirst({ where: (a, { eq }) => eq(a.id, id) })
+  if (!account || !(await canViewAccount(toAccessContext(user), id))) return c.json({ error: "Not found" }, 404)
+  if (!isOwnerOrAdmin(account, user)) return c.json({ error: "Forbidden" }, 403)
+  if (account.source !== "manual") return c.json({ error: "Imported accounts cannot be deleted" }, 409)
+  const [used] = await db.select({ n: sql<number>`count(*)` }).from(transactions).where(eq(transactions.accountId, id))
+  if (Number(used?.n ?? 0) > 0) return c.json({ error: "Delete the account's transactions first" }, 409)
+  await db.delete(accountMembers).where(eq(accountMembers.accountId, id))
+  await db.delete(accounts).where(eq(accounts.id, id))
+  return c.body(null, 204)
+})
+
 app.get("/:id", async (c) => {
   const user = c.get("user")
   const access = toAccessContext(user)
@@ -60,7 +101,7 @@ app.patch("/:id", validateJson(updateAccountSchema), async (c) => {
 
   const updates: Record<string, unknown> = {}
   if (body.name !== undefined) updates.name = body.name.trim() || null
-  if (body.type === "savings" || body.type === "checking") updates.type = body.type
+  if (body.type !== undefined) updates.type = body.type
   if (body.openingBalance !== undefined) updates.openingBalance = body.openingBalance
   if ("openingBalanceDate" in body) updates.openingBalanceDate = body.openingBalanceDate ?? null
 

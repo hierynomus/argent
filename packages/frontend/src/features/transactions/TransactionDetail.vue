@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted } from "vue"
+import { onBeforeUnmount, onMounted, ref } from "vue"
 import { useRouter } from "vue-router"
 import { useMutation } from "@tanstack/vue-query"
-import type { Category, TransactionWithDetails } from "@argent/shared"
-import { unlinkTransfer } from "../../api"
-import { Button, ErrorText, Select } from "../../components/ui"
+import { hasRealIban, type Category, type TransactionWithDetails } from "@argent/shared"
+import { deleteTransaction, unlinkTransfer, useInvalidate } from "../../api"
+import { Button, ConfirmButton, ErrorText, Select } from "../../components/ui"
+import ManualTransactionForm from "./ManualTransactionForm.vue"
 import { fmtSignedAmount } from "../../lib/format"
 import LinkTransferSection from "./LinkTransferSection.vue"
 
@@ -16,6 +17,16 @@ const router = useRouter()
 const unlink = useMutation({
   mutationFn: () => unlinkTransfer(props.tx.id),
   onSuccess: () => emit("transferChange", { ...props.tx, transferPeerId: null, transferPeer: null }),
+})
+
+const editing = ref(false)
+const invalidate = useInvalidate()
+const remove = useMutation({
+  mutationFn: () => deleteTransaction(props.tx.id),
+  onSuccess: () => {
+    invalidate.afterManualEntry()
+    emit("close")
+  },
 })
 
 const onKey = (e: KeyboardEvent) => e.key === "Escape" && emit("close")
@@ -44,6 +55,14 @@ const DT = "text-gray-500 dark:text-gray-400 font-medium pt-0.5"
         {{ fmtSignedAmount(tx.amount, tx.creditDebitIndicator, tx.currency) }}
       </div>
 
+      <div v-if="tx.isManual" class="flex items-center gap-3 text-sm">
+        <span class="text-xs px-2 py-0.5 rounded-full border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300">Entered by hand</span>
+        <Button v-if="!editing" variant="link" size="xs" @click="editing = true">Edit</Button>
+        <ConfirmButton class="ml-auto" label="Delete" prompt="Delete this transaction?" confirm-label="Yes" @confirm="remove.mutate()" />
+      </div>
+      <ErrorText :error="remove.error.value" />
+      <ManualTransactionForm v-if="editing" :account="tx.account" :tx="tx" @done="editing = false; emit('close')" />
+
       <dl class="grid grid-cols-[9rem_1fr] gap-x-4 gap-y-3 text-sm">
         <dt :class="DT">Booking date</dt>
         <dd><span class="text-gray-900 dark:text-gray-100">{{ tx.bookingDate }}</span></dd>
@@ -56,7 +75,7 @@ const DT = "text-gray-500 dark:text-gray-400 font-medium pt-0.5"
         <dt :class="DT">Account</dt>
         <dd>
           <div class="text-gray-900 dark:text-gray-100">{{ tx.account.name ?? tx.account.iban }}</div>
-          <div v-if="tx.account.name" class="text-gray-400 dark:text-gray-500 text-xs font-mono mt-0.5">{{ tx.account.iban }}</div>
+          <div v-if="tx.account.name && hasRealIban(tx.account)" class="text-gray-400 dark:text-gray-500 text-xs font-mono mt-0.5">{{ tx.account.iban }}</div>
         </dd>
 
         <template v-if="tx.counterpartyName && !tx.transferPeerId">

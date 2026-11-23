@@ -48,7 +48,7 @@ export const metalDetail = (over: Partial<MetalPortfolioDetail> = {}): MetalPort
 } as MetalPortfolioDetail)
 
 export const account = (over: Partial<Account> = {}): Account => ({
-  id: "a1", iban: "NL05TEST0417164300", name: "Checking", currency: "EUR", type: "checking", openingBalance: "100.00",
+  id: "a1", iban: "NL05TEST0417164300", name: "Checking", currency: "EUR", type: "checking", source: "import", openingBalance: "100.00",
   openingBalanceDate: "2024-01-01", balance: "250.00", ownerSub: "dev-user", createdAt: "2024-01-01T00:00:00Z", ...over,
 } as Account)
 
@@ -69,7 +69,7 @@ export const me = (over: Partial<UserProfile> = {}): UserProfile => ({
 export const transaction = (over: Partial<TransactionWithDetails> = {}): TransactionWithDetails => ({
   id: "t1", accountId: "a1", amount: "12.50", currency: "EUR", creditDebitIndicator: "DBIT", bookingDate: "2024-06-01", valueDate: null,
   description: "Coffee beans", counterpartyName: "Roastery", counterpartyIban: null, reference: null, categoryId: null, transferPeerId: null,
-  subscriptionId: null, importHash: "h", createdAt: "2024-06-01T00:00:00Z", account: account(), category: null, transferPeer: null, ...over,
+  subscriptionId: null, isManual: false, importHash: "h", createdAt: "2024-06-01T00:00:00Z", account: account(), category: null, transferPeer: null, ...over,
 } as TransactionWithDetails)
 
 export const page = <T,>(data: T[]) => ({ data, total: data.length, page: 1, pageSize: 50 })

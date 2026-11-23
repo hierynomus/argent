@@ -6,4 +6,4 @@ import AccountsByType from "../features/accounts/AccountsByType.vue"
 const matches = (a: Account) => a.type === "checking" || a.type == null
 </script>
 
-<template><AccountsByType title="Checking" noun="checking accounts" empty-hint="Import a CAMT.053 file to get started." :matches="matches" /></template>
+<template><AccountsByType title="Checking" noun="checking accounts" empty-hint="Import a CAMT.053 file to get started, or add an account by hand." account-type="checking" :matches="matches" /></template>
