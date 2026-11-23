@@ -45,3 +45,14 @@ bun run --cwd packages/desktop dev       # a development window
 Installers end up in `packages/desktop/src-tauri/target/release/bundle/`. Without the window, the same
 server is a single file: `bun run --cwd packages/backend build:standalone` → `packages/backend/dist/argent`.
 Not done: code signing / notarization (macOS, Windows) and auto-update.
+
+## Installers for every platform (GitHub Actions)
+
+Tauri builds installers only for the system it runs on, so `.github/workflows/desktop.yml` builds on one runner per platform:
+Linux (`.deb`, `.rpm`, `.AppImage`), macOS arm64 and Intel (`.dmg`), Windows (`.msi`, `.exe`). `ci.yml` calls it (Linux on pull
+requests, all platforms on main; the installers are kept as workflow artifacts). Pushing a tag such as `v0.1.0` runs
+`release.yml`, which builds all of them and attaches them to a GitHub release.
+
+The macOS build is signed ad hoc so it starts on Apple silicon; other Macs still show a Gatekeeper warning until a Developer ID
+certificate and notarization are set up. Windows installers are unsigned (SmartScreen warns). The installer version comes from
+`tauri.conf.json`, not the tag: bump it before tagging.
