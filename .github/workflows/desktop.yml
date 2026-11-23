@@ -64,7 +64,7 @@ jobs:
           # until a real Developer ID certificate + notarization are configured)
           APPLE_SIGNING_IDENTITY: ${{ runner.os == 'macOS' && '-' || '' }}
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: argent-desktop-${{ runner.os }}-${{ runner.arch }}
           if-no-files-found: error
