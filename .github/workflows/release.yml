@@ -70,5 +70,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ needs.version.outputs.version }}
         run: |
-          gh release create "v$VERSION" installers/* --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+          # the artifacts are merged into one folder per installer type (appimage/, deb/, dmg/, ...): upload the files
+          mapfile -t files < <(find installers -type f | sort)
+          [ "${#files[@]}" -gt 0 ] || { echo "no installers were downloaded"; exit 1; }
+          printf 'uploading %s\n' "${files[@]}"
+          gh release create "v$VERSION" "${files[@]}" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
             --title "Argent v$VERSION" --generate-notes
