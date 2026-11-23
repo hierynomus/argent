@@ -6,7 +6,7 @@ import { isLocalMode } from "../../auth"
 import LocalBackupFolder from "./LocalBackupFolder.vue"
 import { Button, Card, ErrorText } from "../../components/ui"
 
-/** Admin → Backup & Restore: download everything as JSON, or replace everything from such a file. */
+/** Settings → Backup & Restore (admins): download everything as JSON, or replace everything from such a file. */
 const invalidate = useInvalidate()
 const fileInput = ref<HTMLInputElement | null>(null)
 const file = ref<File | null>(null)

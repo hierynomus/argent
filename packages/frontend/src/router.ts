@@ -9,7 +9,8 @@ export const routes = [
   { path: "/overview", component: () => import("./pages/Overview.vue") },
   // the old, simpler transactions list was folded into the overview
   { path: "/transactions", redirect: "/overview" },
-  { path: "/admin", component: () => import("./pages/Admin.vue") },
+  // Admin was folded into Settings
+  { path: "/admin", redirect: "/settings?tab=access" },
   { path: "/profile", component: () => import("./pages/Profile.vue") },
   { path: "/checking", component: () => import("./pages/Checking.vue") },
   { path: "/savings", component: () => import("./pages/Savings.vue") },

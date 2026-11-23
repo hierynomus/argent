@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref, watch, watchEffect } from "vue"
 import { useRouter } from "vue-router"
-import { useAuth } from "../auth"
-import { useMe } from "../api"
+import { isLocalMode, useAuth } from "../auth"
+import { useLockStatus, useMe } from "../api"
+import { useLockApp } from "../features/lock/useLock"
 import Logo from "./Logo.vue"
 import NavItem from "./NavItem.vue"
 
@@ -55,6 +56,13 @@ onBeforeUnmount(() => {
 })
 
 const displayName = () => me.value?.name || me.value?.email || auth.user?.profile.email || "Account"
+const local = isLocalMode()
+const { data: lock } = useLockStatus({ enabled: local })
+const locking = useLockApp()
+function lockNow() {
+  menuOpen.value = false
+  locking.mutate()
+}
 function goProfile() {
   menuOpen.value = false
   router.push("/profile")
@@ -95,7 +103,9 @@ const SECTION = "pt-5 pb-1"
         <div v-if="menuOpen" class="absolute right-0 mt-1 w-44 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg py-1 z-50">
           <button type="button" class="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800" @click="goProfile">Profile</button>
           <div class="border-t border-gray-100 dark:border-gray-800 my-1" />
-          <button type="button" class="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800" @click="auth.signoutRedirect()">Sign out</button>
+          <!-- the standalone app has no account to sign out of: it locks, when it has a password -->
+          <button v-if="local" type="button" :disabled="!lock?.passwordSet" class="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 disabled:text-gray-400 disabled:hover:bg-transparent dark:disabled:text-gray-600" :title="lock?.passwordSet ? undefined : 'Set a password in Profile first'" @click="lockNow">Lock</button>
+          <button v-else type="button" class="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800" @click="auth.signoutRedirect()">Sign out</button>
         </div>
       </div>
     </header>
@@ -111,7 +121,7 @@ const SECTION = "pt-5 pb-1"
 
           <!-- Section headers keep the same height in both modes so the items below don't shift. -->
           <template v-for="section in [
-            { label: 'Banking', items: [['/checking', 'credit-card', 'Checking'], ['/savings', 'piggy-bank', 'Savings'], ['/cash', 'wallet', 'Cash'], ['/overview', 'list', 'Transactions'], ['/subscriptions', 'repeat', 'Subscriptions'], ['/settings', 'settings', 'Settings']] },
+            { label: 'Banking', items: [['/checking', 'credit-card', 'Checking'], ['/savings', 'piggy-bank', 'Savings'], ['/cash', 'wallet', 'Cash'], ['/overview', 'list', 'Transactions'], ['/subscriptions', 'repeat', 'Subscriptions']] },
             { label: 'Liabilities', items: [['/mortgages', 'building', 'Mortgages'], ['/loans', 'banknote', 'Loans']] },
             { label: 'Investments', items: [['/crypto', 'coin', 'Crypto'], ['/metals', 'gem', 'Metals'], ['/stocks', 'trending-up', 'Stocks'], ['/property', 'house', 'Property'], ['/equity', 'layers', 'Options']] },
           ]" :key="section.label">
@@ -124,8 +134,7 @@ const SECTION = "pt-5 pb-1"
 
           <div class="flex-1" />
           <div class="border-t border-gray-100 dark:border-gray-800 my-2" />
-          <NavItem v-if="me?.isAdmin" to="/admin" icon="shield" label="Admin" :show-label="displayLabels" />
-          <NavItem to="/profile" icon="user" label="Profile" :show-label="displayLabels" />
+          <NavItem to="/settings" icon="settings" label="Settings" :show-label="displayLabels" />
         </nav>
       </aside>
 

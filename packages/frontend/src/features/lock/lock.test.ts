@@ -2,7 +2,7 @@ import { afterEach, describe, expect, test } from "vitest"
 import { mockApi, respond } from "../../../test/fakeApi"
 import { renderApp, screen, waitFor } from "../../../test/render"
 import App from "../../App.vue"
-import SecurityTab from "../settings/SecurityTab.vue"
+import PasswordCard from "./PasswordCard.vue"
 
 const asLocal = () => ((window as any).__ENV__ = { VITE_AUTH_MODE: "local" })
 afterEach(() => delete (window as any).__ENV__)
@@ -58,10 +58,10 @@ describe("the app gate (standalone)", () => {
   })
 })
 
-describe("Settings → Security", () => {
+describe("Profile → app password", () => {
   test("sets a first password, only when both entries agree", async () => {
     const api = mockApi({ "GET /local/auth/status": { passwordSet: false, unlocked: true }, "PUT /local/auth/password": { passwordSet: true, unlocked: true } })
-    const { user } = await renderApp(SecurityTab)
+    const { user } = await renderApp(PasswordCard)
     await user.type(await screen.findByLabelText("Password"), "a good password")
     await user.type(screen.getByLabelText("Repeat the password"), "another one")
     await user.click(screen.getByRole("button", { name: "Set password" }))
@@ -77,7 +77,7 @@ describe("Settings → Security", () => {
 
   test("a short password is refused", async () => {
     const api = mockApi({ "GET /local/auth/status": { passwordSet: false, unlocked: true } })
-    const { user } = await renderApp(SecurityTab)
+    const { user } = await renderApp(PasswordCard)
     await user.type(await screen.findByLabelText("Password"), "short")
     await user.click(screen.getByRole("button", { name: "Set password" }))
     expect(await screen.findByText(/at least 8/)).toBeInTheDocument()
@@ -86,7 +86,7 @@ describe("Settings → Security", () => {
 
   test("changing sends the current password too", async () => {
     const api = mockApi({ "GET /local/auth/status": { passwordSet: true, unlocked: true }, "PUT /local/auth/password": { passwordSet: true, unlocked: true } })
-    const { user } = await renderApp(SecurityTab)
+    const { user } = await renderApp(PasswordCard)
     await user.type(await screen.findByLabelText("Current password"), "old password")
     await user.type(screen.getByLabelText("New password"), "new password")
     await user.type(screen.getByLabelText("Repeat the password"), "new password")
@@ -96,7 +96,7 @@ describe("Settings → Security", () => {
 
   test("removing needs the current password", async () => {
     const api = mockApi({ "GET /local/auth/status": { passwordSet: true, unlocked: true }, "POST /local/auth/password/remove": { passwordSet: false, unlocked: true } })
-    const { user } = await renderApp(SecurityTab)
+    const { user } = await renderApp(PasswordCard)
     await user.click(await screen.findByRole("button", { name: "Remove password" }))
     await user.click(screen.getAllByRole("button", { name: "Remove password" }).at(-1)!)
     expect(await screen.findByText("Enter the current password")).toBeInTheDocument()
@@ -107,7 +107,7 @@ describe("Settings → Security", () => {
 
   test("Lock now locks", async () => {
     const api = mockApi({ "GET /local/auth/status": { passwordSet: true, unlocked: true }, "POST /local/auth/lock": { passwordSet: true, unlocked: false } })
-    const { user } = await renderApp(SecurityTab)
+    const { user } = await renderApp(PasswordCard)
     await user.click(await screen.findByRole("button", { name: "Lock now" }))
     await waitFor(() => expect(api.calls("POST", "/local/auth/lock")).toHaveLength(1))
   })

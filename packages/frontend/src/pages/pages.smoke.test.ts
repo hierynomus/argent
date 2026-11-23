@@ -6,7 +6,6 @@ import Layout from "../components/Layout.vue"
 import DashboardPage from "./Dashboard.vue"
 import OverviewPage from "./Overview.vue"
 import SettingsPage from "./Settings.vue"
-import AdminPage from "./Admin.vue"
 import SubscriptionsPage from "./Subscriptions.vue"
 import ProfilePage from "./Profile.vue"
 import CheckingPage from "./Checking.vue"
@@ -150,20 +149,20 @@ describe("Settings", () => {
   })
 })
 
-describe("Admin", () => {
+describe("Settings: access and sharing (admin)", () => {
   test("lists accounts with their members, then the sharing overview", async () => {
     const api = mockApi({
-      "GET /me": me(),
+      "GET /me": me({ isAdmin: true }),
+      "GET /accounts": [],
       "GET /admin/accounts": [{ ...account(), members: [{ groupName: "family", role: "editor" }], ownerProfile: { email: "o@x.nl", name: "Owner" } }],
       "GET /admin/sharing": { portfolios: [{ id: "p1", name: "Crypto A", type: "crypto", members: [{ groupName: "friends", role: "viewer" }] }], mortgages: [], loans: [] },
       "POST /admin/accounts/:id/members": ({ body }: any) => body,
       "DELETE /admin/accounts/:id/members/:group": respond(204),
       "PATCH /admin/accounts/:id": ({ body }: any) => ({ ...account(), ...body }),
     })
-    const { user } = await renderApp(AdminPage)
-    expect(await screen.findByRole("heading", { name: "Administration" })).toBeInTheDocument()
+    const { user } = await renderApp(SettingsPage, { route: "/settings?tab=access" })
     expect(await screen.findByText("NL05TEST0417164300")).toBeInTheDocument()
-    await user.click(screen.getByRole("button", { name: /Sharing Overview/ }))
+    await user.click(screen.getByRole("button", { name: "Sharing" }))
     expect(await screen.findByText("Crypto A")).toBeInTheDocument()
     expect(screen.getByText("friends")).toBeInTheDocument()
     expect(api.unmatched).toEqual([])

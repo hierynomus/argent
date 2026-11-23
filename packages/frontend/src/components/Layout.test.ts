@@ -40,7 +40,7 @@ describe("Layout: navigation", () => {
     mockApi({ "GET /me": me() })
     await mount()
     await screen.findByText("page body")
-    for (const to of ["/dashboard", "/checking", "/savings", "/overview", "/subscriptions", "/settings", "/mortgages", "/loans", "/crypto", "/metals", "/stocks", "/property", "/equity", "/profile"]) {
+    for (const to of ["/dashboard", "/checking", "/savings", "/overview", "/subscriptions", "/settings", "/mortgages", "/loans", "/crypto", "/metals", "/stocks", "/property", "/equity"]) {
       expect(hrefs()).toContain(to)
     }
   })
@@ -61,15 +61,13 @@ describe("Layout: navigation", () => {
     expect(link("/crypto").className).not.toContain("bg-indigo-50")
   })
 
-  test("the Admin link is only for admins", async () => {
-    mockApi({ "GET /me": me({ isAdmin: false }) })
-    const { unmount } = await mount()
-    await screen.findByText("page body")
-    await waitFor(() => expect(hrefs()).not.toContain("/admin"))
-    unmount()
+  test("Settings is the one configuration link: no Admin or Profile in the sidebar", async () => {
     mockApi({ "GET /me": me({ isAdmin: true }) })
     await mount()
-    await waitFor(() => expect(hrefs()).toContain("/admin"))
+    await screen.findByText("page body")
+    expect(hrefs()).toContain("/settings")
+    expect(hrefs()).not.toContain("/admin")
+    expect(hrefs()).not.toContain("/profile")
   })
 })
 
@@ -176,5 +174,30 @@ describe("Layout: theme", () => {
     } finally {
       window.matchMedia = original
     }
+  })
+})
+
+describe("Layout: standalone menu", () => {
+  const local = () => ((window as any).__ENV__ = { VITE_AUTH_MODE: "local" })
+  afterEach(() => delete (window as any).__ENV__)
+
+  test("has Lock instead of Sign out, enabled once a password is set", async () => {
+    local()
+    const api = mockApi({ "GET /me": me(), "GET /local/auth/status": { passwordSet: true, unlocked: true }, "POST /local/auth/lock": { passwordSet: true, unlocked: false } })
+    const { user } = await mount()
+    await user.click(await screen.findByRole("button", { name: /Dev User/ }))
+    expect(screen.queryByRole("button", { name: "Sign out" })).not.toBeInTheDocument()
+    const lock = await screen.findByRole("button", { name: "Lock" })
+    await waitFor(() => expect(lock).toBeEnabled())
+    await user.click(lock)
+    await waitFor(() => expect(api.calls("POST", "/local/auth/lock")).toHaveLength(1))
+  })
+
+  test("Lock is disabled while there is no password", async () => {
+    local()
+    mockApi({ "GET /me": me(), "GET /local/auth/status": { passwordSet: false, unlocked: true } })
+    const { user } = await mount()
+    await user.click(await screen.findByRole("button", { name: /Dev User/ }))
+    expect(await screen.findByRole("button", { name: "Lock" })).toBeDisabled()
   })
 })

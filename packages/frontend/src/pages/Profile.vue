@@ -4,6 +4,8 @@ import type { UserProfile } from "@argent/shared"
 import { queryKeys, updateMe, useMe } from "../api"
 import Icon, { type IconName } from "../components/Icon.vue"
 import { Card, ErrorText, LoadingText } from "../components/ui"
+import { isLocalMode } from "../auth"
+import PasswordCard from "../features/lock/PasswordCard.vue"
 
 type Theme = "light" | "dark" | "system"
 const THEMES: { value: Theme; label: string; description: string; icon: IconName }[] = [
@@ -69,5 +71,7 @@ const changeTheme = useMutation({
       </div>
       <ErrorText :error="changeTheme.error.value" />
     </Card>
+
+    <PasswordCard v-if="isLocalMode()" />
   </div>
 </template>

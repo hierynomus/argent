@@ -2,11 +2,12 @@
 import { reactive, ref } from "vue"
 import { useMutation } from "@tanstack/vue-query"
 import { removePasswordSchema, setPasswordSchema } from "@argent/shared"
-import { lockApp, removeAppPassword, setAppPassword, useInvalidate, useLockStatus } from "../../api"
+import { removeAppPassword, setAppPassword, useInvalidate, useLockStatus } from "../../api"
 import { Button, Card, ErrorText, Field, Input, LoadingText } from "../../components/ui"
 import { useFormErrors } from "../../lib/validate"
+import { useLockApp } from "./useLock"
 
-/** Settings → Security (standalone app): the password that locks the app, so nobody opening it sees your numbers. */
+/** Profile → App password (standalone app): the password that locks the app, so nobody opening it sees your numbers. */
 const invalidate = useInvalidate()
 const { data: status, isLoading } = useLockStatus()
 const { errors, check } = useFormErrors()
@@ -26,13 +27,7 @@ const save = useMutation({
   onSuccess: (s) => finish(status.value?.passwordSet ? "Password changed." : "Password set. Argent asks for it each time it starts.")(s),
 })
 const remove = useMutation({ mutationFn: () => removeAppPassword(form.current), onSuccess: finish("Password removed.") })
-const lockNow = useMutation({
-  mutationFn: lockApp,
-  onSuccess: (s) => {
-    invalidate.forgetAll()
-    invalidate.lockStatus(s)
-  },
-})
+const lockNow = useLockApp()
 
 function submit() {
   done.value = ""
@@ -46,7 +41,7 @@ function submit() {
 
 <template>
   <LoadingText v-if="isLoading" />
-  <Card v-else class="px-5 py-5 space-y-4 max-w-xl">
+  <Card v-else class="px-5 py-5 space-y-4 mt-6">
     <div>
       <p class="text-sm font-medium text-gray-900 dark:text-gray-100">App password</p>
       <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">

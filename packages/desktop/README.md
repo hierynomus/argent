@@ -25,9 +25,9 @@ Override with `ARGENT_CONFIG_DIR` / `ARGENT_DATA_DIR`, with `"dataDir"` in `conf
 }
 ```
 
-**Password.** Settings → Security sets a password that locks the app: nobody who opens it sees your numbers until it is entered, and it is asked for again each time the app starts (or after **Lock now**). Only a salted scrypt hash is kept, as `passwordHash` in `config.json`; five wrong guesses block further tries for 30 seconds. It locks the app and its API, not the files: the database in the data folder and the backups are not encrypted, so use disk encryption (FileVault, BitLocker, LUKS) for that. A forgotten password cannot be recovered; delete the `passwordHash` line from `config.json` while the app is closed to remove it.
+**Password.** Profile (top right menu) has an app password that locks the app: nobody who opens it sees your numbers until it is entered, and it is asked for again each time the app starts, or after **Lock** in the top-right menu. Only a salted scrypt hash is kept, as `passwordHash` in `config.json`; five wrong guesses block further tries for 30 seconds. It locks the app and its API, not the files: the database in the data folder and the backups are not encrypted, so use disk encryption (FileVault, BitLocker, LUKS) for that. A forgotten password cannot be recovered; delete the `passwordHash` line from `config.json` while the app is closed to remove it.
 
-`backupDir` is where Admin → Backup & Restore → "Back up now" writes its files (default `<dataDir>/backups`); the folder field on that page changes it and keeps it in `config.json` (or `ARGENT_BACKUP_DIR`).
+`backupDir` is where Settings → Backup & Restore → "Back up now" writes its files (default `<dataDir>/backups`); the folder field on that page changes it and keeps it in `config.json` (or `ARGENT_BACKUP_DIR`).
 `databaseUrl` replaces the embedded database with your own Postgres server (migrations run on start).
 Environment variables win over the file (`ARGENT_PORT`, `ARGENT_DATA_DIR`, `DATABASE_URL`, `COINGECKO_API_KEY`).
 `argent --print-paths` shows what is in use. Back up by copying the data directory while Argent is stopped
