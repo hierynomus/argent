@@ -19,3 +19,6 @@ packages/backend/dist/
 # Standalone build
 packages/backend/.build/
 packages/backend/dist/
+
+# Claude Code local settings
+.claude/settings.local.json
