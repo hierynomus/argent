@@ -65,7 +65,19 @@ run = "bun run --cwd packages/backend build:standalone"
 [tasks."build:desktop"]
 description = "Desktop installer (Tauri) for this machine: packages/desktop/src-tauri/target/release/bundle (needs Rust; on Linux libwebkit2gtk-4.1-dev)"
 depends = ["build:web"]
-run = "bun run --cwd packages/desktop bundle"
+run = """
+# Linux: appimagetool downloads its runtime from GitHub on every run and can hang on that connection.
+# Fetch it once (with a timeout) and hand it over, so the AppImage step never waits on the network.
+if [ "$(uname -s)" = Linux ]; then
+  runtime="${XDG_CACHE_HOME:-$HOME/.cache}/tauri/runtime-$(uname -m)"
+  if [ ! -s "$runtime" ]; then
+    mkdir -p "$(dirname "$runtime")"
+    curl -fsSL --max-time 60 -o "$runtime" "https://github.com/AppImage/type2-runtime/releases/download/continuous/runtime-$(uname -m)"
+  fi
+  export LDAI_RUNTIME_FILE="$runtime"
+fi
+bun run --cwd packages/desktop bundle
+"""
 
 [tasks."build:images"]
 description = "Build the two container images (CONTAINER_CLI=podman|docker, default docker)"
