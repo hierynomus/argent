@@ -25,7 +25,7 @@ jobs:
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: 1.3.13
-      - uses: azure/setup-helm@v4
+      - uses: azure/setup-helm@v5
       # lint, render every charts/argent/ci/*-values.yaml and assert what the chart promises (hardened pods, wiring, required settings)
       - run: bun run check:chart
       # the rendered objects must be valid Kubernetes (and CRD) objects
