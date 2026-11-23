@@ -175,11 +175,10 @@ describe("extra payments: timing and a shorter term", () => {
   const extra = [{ paymentDate: "2026-05-24", amount: "1000" }]
   const now = utc(2026, 10, 18)
 
-  test("a loan with an extra payment: balance close to the reference 10355.2, payment unchanged", () => {
+  test("a loan with an extra payment: the balance drops, the payment stays", () => {
     const s = computePartState(loan, extra, now)
     expect(s.monthsElapsed).toBe(23)
     expect(s.currentBalance).toBeCloseTo(10355.22, 2)
-    expect(Math.abs(s.currentBalance - 10355.2)).toBeLessThan(0.5)
     expect(s.originalMonthlyPayment).toBe(842.36)
     expect(s.monthlyPayment).toBe(842.36)
   })
