@@ -22,7 +22,8 @@ export async function downloadBackup(): Promise<void> {
   a.href = url
   a.download = filename
   a.click()
-  URL.revokeObjectURL(url)
+  // the browser reads the blob after the click: revoking at once can cancel the download in a webview
+  setTimeout(() => URL.revokeObjectURL(url), 60_000)
 }
 
 export const restoreBackup = (data: unknown) =>

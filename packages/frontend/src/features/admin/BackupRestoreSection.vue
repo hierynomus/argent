@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from "vue"
+import { computed, onBeforeUnmount, onMounted, ref } from "vue"
 import { useMutation } from "@tanstack/vue-query"
 import { downloadBackup, restoreBackup, useInvalidate } from "../../api"
 import { Button, Card, ErrorText } from "../../components/ui"
@@ -11,6 +11,13 @@ const file = ref<File | null>(null)
 const confirming = ref(false)
 
 const download = useMutation({ mutationFn: downloadBackup })
+
+// The desktop app saves downloads itself and reports where the file went (an `argent-download` event);
+// in a browser the browser shows its own download UI and this never fires.
+const saved = ref<{ success: boolean; path: string } | null>(null)
+const onSaved = (e: Event) => (saved.value = (e as CustomEvent<{ success: boolean; path: string }>).detail)
+onMounted(() => window.addEventListener("argent-download", onSaved))
+onBeforeUnmount(() => window.removeEventListener("argent-download", onSaved))
 
 const restore = useMutation({
   mutationFn: async (f: File) => {
@@ -53,6 +60,8 @@ const DANGER = "px-3 py-1 text-sm bg-red-600 text-white rounded-md hover:bg-red-
           <p class="text-sm font-medium text-gray-900 dark:text-gray-100">Download backup</p>
           <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">Export all accounts, transactions, categories, portfolios and more as a single JSON file.</p>
           <ErrorText :error="download.error.value" />
+          <p v-if="saved?.success" class="text-xs text-green-700 dark:text-green-400 mt-1" role="status">Saved{{ saved.path ? ` to ${saved.path}` : " to your Downloads folder" }}</p>
+          <p v-else-if="saved" class="text-xs text-red-600 dark:text-red-400 mt-1" role="alert">The backup could not be saved.</p>
         </div>
         <Button size="sm" class="shrink-0 rounded-md px-4 py-1.5" :disabled="download.isPending.value" @click="download.mutate()">{{ download.isPending.value ? "Exporting…" : "Download" }}</Button>
       </div>

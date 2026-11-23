@@ -34,6 +34,15 @@ describe("BackupRestoreSection: download", () => {
     }
   })
 
+  test("the desktop app reports where it saved the file", async () => {
+    await renderApp(BackupRestoreSection)
+    expect(screen.queryByRole("status")).toBeNull()
+    window.dispatchEvent(new CustomEvent("argent-download", { detail: { success: true, path: "/home/me/Downloads/argent-backup.json" } }))
+    expect(await screen.findByText("Saved to /home/me/Downloads/argent-backup.json")).toBeInTheDocument()
+    window.dispatchEvent(new CustomEvent("argent-download", { detail: { success: false, path: "" } }))
+    expect(await screen.findByText("The backup could not be saved.")).toBeInTheDocument()
+  })
+
   test("a failed download is reported", async () => {
     const orig = globalThis.fetch
     globalThis.fetch = (async () => new Response("nope", { status: 403 })) as unknown as typeof fetch

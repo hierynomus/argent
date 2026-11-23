@@ -5,7 +5,8 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-use tauri::{Manager, RunEvent, Url};
+use tauri::webview::DownloadEvent;
+use tauri::{Manager, RunEvent, Url, WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_shell::process::{CommandChild, CommandEvent};
 use tauri_plugin_shell::ShellExt;
 
@@ -51,6 +52,25 @@ fn main() {
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .setup(|app| {
+            // The window is built here (not in tauri.conf.json) because only the builder can handle downloads.
+            // Without a handler the webview never saves a file: clicking "Download backup" would do nothing.
+            // Files go to the user's Downloads folder (a free name is chosen); the page is told where it ended up.
+            WebviewWindowBuilder::new(app, "main", WebviewUrl::App("index.html".into()))
+                .title("Argent")
+                .inner_size(1280.0, 820.0)
+                .min_inner_size(900.0, 600.0)
+                .on_download(|webview, event| {
+                    if let DownloadEvent::Finished { path, success, .. } = event {
+                        let path = path.map(|p| p.display().to_string()).unwrap_or_default();
+                        let _ = webview.eval(format!(
+                            "window.dispatchEvent(new CustomEvent('argent-download', {{ detail: {{ success: {success}, path: {} }} }}))",
+                            js_string(&path)
+                        ));
+                    }
+                    true
+                })
+                .build()?;
+
             // The server picks the data directory and reads ~/.config/argent/config.json itself; it prints
             // "ARGENT_LISTENING <url>" once it accepts requests and stops cleanly when told to.
             let (mut events, child) = app
