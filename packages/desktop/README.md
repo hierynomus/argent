@@ -18,12 +18,14 @@ Override with `ARGENT_CONFIG_DIR` / `ARGENT_DATA_DIR`, with `"dataDir"` in `conf
 {
   "port": 47821,
   "dataDir": "~/Documents/Argent",
+  "backupDir": "~/Backups/Argent",
   "databaseUrl": "postgres://user:pass@host/db",
   "coingeckoApiKey": "CG-…",
   "openBrowser": true
 }
 ```
 
+`backupDir` is where Admin → Backup & Restore → "Back up now" writes its files (default `<dataDir>/backups`); the folder field on that page changes it and keeps it in `config.json` (or `ARGENT_BACKUP_DIR`).
 `databaseUrl` replaces the embedded database with your own Postgres server (migrations run on start).
 Environment variables win over the file (`ARGENT_PORT`, `ARGENT_DATA_DIR`, `DATABASE_URL`, `COINGECKO_API_KEY`).
 `argent --print-paths` shows what is in use. Back up by copying the data directory while Argent is stopped

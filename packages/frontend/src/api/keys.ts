@@ -12,6 +12,7 @@ export type DebtKind = "mortgages" | "loans"
  */
 export const queryKeys = {
   me: ["me"] as const,
+  localSettings: ["local", "settings"] as const,
   accounts: ["accounts"] as const,
   categories: ["categories"] as const,
   subscriptions: ["subscriptions"] as const,

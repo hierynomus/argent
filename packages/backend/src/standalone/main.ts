@@ -4,6 +4,7 @@ import { join } from "path"
 import { resolveAppDirs, type Platform } from "../lib/appPaths"
 import { ensureSettingsFile, expandHome, readSettings, settingsToEnv } from "../lib/settings"
 import { registerPgliteAssets } from "../db/pgliteAssets"
+import { createLocalSettings } from "../services/localSettings"
 import { releaseLock, takeLock } from "./lock"
 import { spaHandler, type AssetSource } from "./static"
 
@@ -23,12 +24,12 @@ Usage: argent [options]
   --port <n>              port of the local web server (default 47821)
   --data-dir <dir>        where the database lives
   --no-open               do not open the browser
-  --print-paths           show the config file and data directory, then exit
+  --print-paths           show the config file, data and backup directories, then exit
   --exit-on-stdin-close   shut down on a "shutdown" line or when stdin closes (used by the desktop app)
   -h, --help
 
-Settings live in <config dir>/config.json (port, dataDir, databaseUrl, coingeckoApiKey, openBrowser);
-the environment (ARGENT_PORT, ARGENT_DATA_DIR, ARGENT_CONFIG_DIR, DATABASE_URL, COINGECKO_API_KEY) wins over the file.`
+Settings live in <config dir>/config.json (port, dataDir, backupDir, databaseUrl, coingeckoApiKey, openBrowser);
+the environment (ARGENT_PORT, ARGENT_DATA_DIR, ARGENT_BACKUP_DIR, ARGENT_CONFIG_DIR, DATABASE_URL, COINGECKO_API_KEY) wins over the file.`
 
 function parseArgs(argv: string[]) {
   const out = { port: undefined as string | undefined, dataDir: undefined as string | undefined, noOpen: false, printPaths: false, exitOnStdinClose: false, help: false }
@@ -67,7 +68,7 @@ export async function runStandalone(web: AssetSource, embedded?: Embedded): Prom
   const dataDir = expandHome(args.dataDir ?? process.env.ARGENT_DATA_DIR ?? settings.dataDir ?? dirs.dataDir, home)
 
   if (args.printPaths) {
-    console.log(`config file: ${join(dirs.configDir, "config.json")}\ndata dir:    ${dataDir}\ndatabase:    ${settings.databaseUrl ? "external Postgres (databaseUrl)" : join(dataDir, "db")}`)
+    console.log(`config file: ${join(dirs.configDir, "config.json")}\ndata dir:    ${dataDir}\nbackups:     ${expandHome(process.env.ARGENT_BACKUP_DIR || settings.backupDir || join(dataDir, "backups"), home)}\ndatabase:    ${settings.databaseUrl ? "external Postgres (databaseUrl)" : join(dataDir, "db")}`)
     return
   }
 
@@ -111,7 +112,8 @@ export async function runStandalone(web: AssetSource, embedded?: Embedded): Prom
   const { closeDb } = await import("../db")
   const { config } = await import("../config")
 
-  const app = createApp({ spa: spaHandler(web, { VITE_AUTH_MODE: "local" }) })
+  const local = createLocalSettings({ configDir: dirs.configDir, dataDir, home, backupDir: process.env.ARGENT_BACKUP_DIR || settings.backupDir })
+  const app = createApp({ spa: spaHandler(web, { VITE_AUTH_MODE: "local" }), local })
   let server: ReturnType<typeof Bun.serve>
   try {
     server = Bun.serve({ port: config.port, hostname: "127.0.0.1", fetch: app.fetch })

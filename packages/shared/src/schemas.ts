@@ -105,6 +105,11 @@ export const updateMeSchema = z.object({
   theme: z.enum(["light", "dark", "system"], { error: "Invalid theme value" }).optional(),
 })
 
+/** The standalone (local) app's own settings that can be changed from the UI. */
+export const localSettingsSchema = z.object({
+  backupDir: z.string({ error: "Enter a folder" }).trim().min(1, "Enter a folder"),
+})
+
 export const setAccountOwnerSchema = z.object({
   ownerSub: z.string().trim().min(1).nullable(),
 })

@@ -9,6 +9,8 @@ export const settingsSchema = z
     port: z.number().int().min(1).max(65535).optional(),
     /** where the embedded database lives (default: the platform's data directory) */
     dataDir: z.string().min(1).optional(),
+    /** where "Back up now" writes its files (default: <dataDir>/backups) */
+    backupDir: z.string().min(1).optional(),
     /** use your own Postgres server instead of the embedded database */
     databaseUrl: z.string().min(1).optional(),
     /** optional CoinGecko demo API key (a higher rate limit) */

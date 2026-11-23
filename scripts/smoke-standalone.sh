@@ -35,10 +35,17 @@ curl -fs "localhost:$port/api/me" | grep -q '"isAdmin":true' || fail "API needs 
 second="$("$bin" --no-open --port "$port")" || fail "second start should exit 0"
 echo "$second" | grep -q "already running" || fail "second instance not refused"
 curl -fs -X POST "localhost:$port/api/categories" -H 'content-type: application/json' -d '{"name":"Smoke","color":"#112233"}' >/dev/null || fail "create"
+curl -fs "localhost:$port/api/local/settings" | grep -q "$tmp/data/backups" || fail "default backup folder"
+chosen="$tmp/my backups"
+curl -fs -X PUT "localhost:$port/api/local/settings" -H 'content-type: application/json' -d "{\"backupDir\":\"$chosen\"}" >/dev/null || fail "choosing a backup folder"
+grep -q backupDir "$tmp/config/config.json" || fail "backup folder not kept in config.json"
+file="$(curl -fs -X POST "localhost:$port/api/local/backup" | sed -E 's/.*"path":"([^"]+)".*/\1/')"
+[ -s "$file" ] && grep -q '"version"' "$file" || fail "backup file not written to the chosen folder ($file)"
 stop
 [ ! -e "$tmp/data/argent.lock" ] || fail "lock left behind"
 
 start
 curl -fs "localhost:$port/api/categories" | grep -q '"Smoke"' || fail "data lost across restart"
+curl -fs "localhost:$port/api/local/settings" | grep -q "my backups" || fail "backup folder not remembered across restart"
 stop
 echo "standalone OK"

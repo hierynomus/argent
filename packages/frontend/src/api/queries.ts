@@ -7,6 +7,7 @@ import { getCategories } from "./categories"
 import { debtApis, type Debt } from "./debts"
 import { equityApi } from "./equity"
 import { queryKeys, type DebtKind, type PortfolioKind } from "./keys"
+import { getLocalSettings } from "./local"
 import { getMe } from "./me"
 import { portfolioApis, type HistoryParams, type PortfolioDetailByKind } from "./portfolios"
 import { propertiesApi } from "./properties"
@@ -30,6 +31,8 @@ type Enabled = { enabled?: MaybeRefOrGetter<boolean> }
 const enabledOf = (o: Enabled) => computed(() => (o.enabled === undefined ? true : toValue(o.enabled)))
 
 export const useMe = () => useQuery({ queryKey: queryKeys.me, queryFn: getMe })
+/** The standalone app's settings (backup folder, paths); the caller only enables it in the desktop app. */
+export const useLocalSettings = (o: Enabled = {}) => useQuery({ queryKey: queryKeys.localSettings, queryFn: getLocalSettings, enabled: enabledOf(o) })
 export const useAccounts = () => useQuery({ queryKey: queryKeys.accounts, queryFn: getAccounts })
 export const useCategories = () => useQuery({ queryKey: queryKeys.categories, queryFn: getCategories })
 export const useSubscriptions = () => useQuery({ queryKey: queryKeys.subscriptions, queryFn: getSubscriptions })
@@ -152,6 +155,7 @@ export function useInvalidate() {
     properties: () => qc.invalidateQueries({ queryKey: queryKeys.properties }),
     equity: () => qc.invalidateQueries({ queryKey: queryKeys.equity }),
     admin: () => qc.invalidateQueries({ queryKey: ["admin"] }),
+    localSettings: () => qc.invalidateQueries({ queryKey: queryKeys.localSettings }),
     /** everything — after the whole database was replaced (restore) */
     everything: () => qc.invalidateQueries(),
     /** after an import: everything derived from transactions and accounts */

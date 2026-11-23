@@ -19,6 +19,8 @@ import mortgagesRoute from "./routes/mortgages"
 import loansRoute from "./routes/loans"
 import propertiesRoute from "./routes/properties"
 import equityRoute from "./routes/equity"
+import { localRoutes } from "./routes/localRoutes"
+import type { LocalSettingsStore } from "./services/localSettings"
 
 /**
  * Builds the HTTP app (routes + middleware) without starting a server or any
@@ -28,12 +30,15 @@ export function createApp({
   logRequests = false,
   auth = authMiddleware,
   spa,
+  local,
 }: {
   logRequests?: boolean
   /** Replaces the authentication middleware — for tests that need to act as a specific user. */
   auth?: MiddlewareHandler
   /** Serves the web app (standalone install): answers a non-API path, or null to fall through to the 404. */
   spa?: (path: string) => Promise<Response | null>
+  /** The standalone app's own settings and folder backups (`/api/local/*`). */
+  local?: LocalSettingsStore
 } = {}) {
   const app = new Hono()
 
@@ -72,6 +77,7 @@ export function createApp({
   api.route("/loans", loansRoute)
   api.route("/properties", propertiesRoute)
   api.route("/equity", equityRoute)
+  if (local) api.route("/local", localRoutes(local))
 
   // Consistent JSON errors: the frontend reads `{ error }` from every failure.
   app.notFound((c) => c.json({ error: "Not found" }, 404))

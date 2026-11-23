@@ -27,3 +27,6 @@ export function getOidcConfig(): UserManagerSettings {
     userStore: undefined,
   }
 }
+
+/** True in the standalone/desktop app: one local user, its own server (set at runtime through /env-config.js). */
+export const isLocalMode = (): boolean => window.__ENV__?.VITE_AUTH_MODE === "local"

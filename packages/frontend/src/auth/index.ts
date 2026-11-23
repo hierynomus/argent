@@ -1,2 +1,2 @@
 export * from "./auth"
-export { getOidcConfig } from "./config"
+export { getOidcConfig, isLocalMode } from "./config"

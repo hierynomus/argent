@@ -724,3 +724,19 @@ export interface PriceHistory {
   range: HistoryRange
   points: PricePoint[]
 }
+
+/** The standalone (local) app's settings: `GET /api/local/settings`. */
+export interface LocalSettings {
+  /** where "Back up now" writes its files */
+  backupDir: string
+  /** the folder used when none is chosen */
+  defaultBackupDir: string
+  configFile: string
+  dataDir: string
+}
+export type LocalSettingsBody = z.input<typeof S.localSettingsSchema>
+/** `POST /api/local/backup`: the file that was written. */
+export interface SavedBackup {
+  path: string
+  bytes: number
+}
