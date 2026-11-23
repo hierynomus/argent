@@ -22,8 +22,8 @@
     "decimal.js": "^10.6.0",
     "drizzle-orm": "^0.45.2",
     "fast-xml-parser": "^5.12.0",
-    "fflate": "^0.8.2",
-    "hono": "^4.7.0",
+    "fflate": "^0.8.3",
+    "hono": "^4.13.21",
     "jose": "^6.2.18",
     "postgres": "^3.4.5",
     "zod": "^4.6.7"

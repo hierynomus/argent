@@ -12,18 +12,18 @@
   },
   "dependencies": {
     "@argent/shared": "workspace:*",
-    "@tanstack/vue-query": "^5.108.0",
-    "oidc-client-ts": "^3.1.0",
-    "vue": "^3.5.45",
+    "@tanstack/vue-query": "^5.108.3",
+    "oidc-client-ts": "^3.5.0",
+    "vue": "^3.5.46",
     "vue-router": "^5.5.1",
     "zod": "^4.6.7"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "^7.0.1",
-    "@testing-library/user-event": "^14.6.12",
+    "@testing-library/user-event": "^14.6.13",
     "@testing-library/vue": "^8.1.0",
     "@vitejs/plugin-vue": "^6.0.11",
-    "autoprefixer": "^10.4.20",
+    "autoprefixer": "^10.7.0",
     "axe-core": "^4.14.1",
     "happy-dom": "^21.0.4",
     "postcss": "^8.5.3",
