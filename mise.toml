@@ -1,2 +1,85 @@
 [tools]
 bun = "latest"
+rust = "stable"   # the desktop app (Tauri)
+
+# ── setup ────────────────────────────────────────────────────────────────────
+[tasks.install]
+description = "Install dependencies"
+run = "bun install"
+
+[tasks."dev:setup"]
+description = "Create the local .env.development files from the examples (never overwrites)"
+run = """
+for pkg in backend frontend; do
+  f=packages/$pkg/.env.development
+  [ -e "$f" ] || { cp packages/$pkg/.env.example "$f" && echo "created $f"; }
+done
+"""
+
+# ── development ──────────────────────────────────────────────────────────────
+[tasks."dev:backend"]
+description = "API on :3000 (fake auth, embedded PGlite database that persists in packages/backend/.data)"
+depends = ["install", "dev:setup"]
+run = "bun run dev:backend"
+
+[tasks."dev:frontend"]
+description = "Vite dev server on :5173 (proxies /api to the backend)"
+depends = ["install", "dev:setup"]
+run = "bun run dev:frontend"
+
+[tasks.dev]
+description = "Full dev environment: backend + frontend side by side (Ctrl-C stops both)"
+depends = ["dev:backend", "dev:frontend"]
+
+[tasks."dev:desktop"]
+description = "Desktop app in development mode (Tauri window around the standalone server; needs Rust)"
+depends = ["install", "build:web"]
+run = "bun run --cwd packages/desktop dev"
+
+[tasks."dev:local"]
+description = "The standalone (local-mode) app from source, on the built web app: http://127.0.0.1:47821"
+depends = ["install", "build:web"]
+run = "bun run --cwd packages/backend start:local"
+
+[tasks.db-reset]
+description = "Throw away the local development database"
+run = "bun run db:reset"
+
+# ── quality ──────────────────────────────────────────────────────────────────
+[tasks.check]
+description = "Typecheck + all tests + time-zone matrix + migration drift (run before finishing work)"
+depends = ["install"]
+run = "bun run check"
+
+# ── builds ───────────────────────────────────────────────────────────────────
+[tasks."build:web"]
+description = "Build the web app (packages/frontend/dist)"
+depends = ["install"]
+run = "bun run build"
+
+[tasks."build:standalone"]
+description = "One executable with API + web app + embedded database: packages/backend/dist/argent"
+depends = ["build:web"]
+run = "bun run --cwd packages/backend build:standalone"
+
+[tasks."build:desktop"]
+description = "Desktop installer (Tauri) for this machine: packages/desktop/src-tauri/target/release/bundle (needs Rust; on Linux libwebkit2gtk-4.1-dev)"
+depends = ["build:web"]
+run = "bun run --cwd packages/desktop bundle"
+
+[tasks."build:images"]
+description = "Build the two container images (CONTAINER_CLI=podman|docker, default docker)"
+run = """
+cli="${CONTAINER_CLI:-docker}"
+$cli build -f docker/backend.Dockerfile -t argent-backend:dev .
+$cli build -f docker/frontend.Dockerfile -t argent-frontend:dev .
+"""
+
+[tasks."smoke:standalone"]
+description = "Build the standalone executable and run its smoke test"
+depends = ["build:standalone"]
+run = "scripts/smoke-standalone.sh"
+
+[tasks."check:chart"]
+description = "Lint and render the Helm chart with every ci values file (needs helm)"
+run = "bun run check:chart"
