@@ -149,4 +149,3 @@ Vue 3 (rewritten from React; merged). `api/`, `lib/`, the shared zod schemas and
 - macOS/Windows installers and code signing / notarization; auto-update; release workflow publishing the installers.
 - A settings screen in the app for `config.json` (port, data directory, external Postgres); today the file is edited by hand.
 - Local mode has one user, so sharing/groups UI is meaningless there: hide it when `VITE_AUTH_MODE=local`.
-- Root `bun run build` (`--filter '*'`) recurses into itself (pre-existing); build packages individually.
