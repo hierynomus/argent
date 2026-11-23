@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "fs"
+import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "fs"
 import { join } from "path"
 import { z } from "zod"
 
@@ -87,4 +87,10 @@ export function updateSettingsFile(configDir: string, change: Record<string, unk
     else raw[key] = value
   }
   writeFileSync(file, JSON.stringify(raw, null, 2) + "\n", { mode: 0o600 })
+  // the mode above only applies to a new file; the password hash must not be readable by other users of the machine
+  try {
+    chmodSync(file, 0o600)
+  } catch {
+    // Windows has no such modes
+  }
 }
