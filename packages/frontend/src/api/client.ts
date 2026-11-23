@@ -7,6 +7,9 @@
  */
 const BASE = "/api"
 
+/** Dispatched on `window` when the server says the standalone app is locked. */
+export const LOCKED_EVENT = "argent:locked"
+
 type TokenGetter = () => string | undefined
 let tokenGetter: TokenGetter = () => undefined
 
@@ -40,6 +43,8 @@ export async function request<T>(path: string, init: RequestInit = {}): Promise<
 
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: res.statusText }))
+    // the standalone app was locked meanwhile: the window shows the unlock screen again
+    if (res.status === 401 && err.locked) window.dispatchEvent(new Event(LOCKED_EVENT))
     throw new ApiError(err.error ?? "Request failed", res.status)
   }
 

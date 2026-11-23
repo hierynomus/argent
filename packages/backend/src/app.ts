@@ -1,3 +1,6 @@
+import { getCookie } from "hono/cookie"
+import { lockRoutes, SESSION_COOKIE } from "./routes/lockRoutes"
+import type { LocalLock } from "./services/localLock"
 import { Hono } from "hono"
 import { config } from "./config"
 import { cors } from "hono/cors"
@@ -31,6 +34,7 @@ export function createApp({
   auth = authMiddleware,
   spa,
   local,
+  lock,
 }: {
   logRequests?: boolean
   /** Replaces the authentication middleware — for tests that need to act as a specific user. */
@@ -39,6 +43,8 @@ export function createApp({
   spa?: (path: string) => Promise<Response | null>
   /** The standalone app's own settings and folder backups (`/api/local/*`). */
   local?: LocalSettingsStore
+  /** The standalone app's password: every API route except its own is closed until it is unlocked. */
+  lock?: LocalLock
 } = {}) {
   const app = new Hono()
 
@@ -61,6 +67,13 @@ export function createApp({
 
   // All API routes require authentication
   const api = app.basePath("/api")
+  if (lock) {
+    api.route("/local/auth", lockRoutes(lock))
+    api.use(async (c, next) => {
+      if (lock.isUnlocked(getCookie(c, SESSION_COOKIE))) return next()
+      return c.json({ error: "Locked", locked: true }, 401)
+    })
+  }
   api.use(auth)
 
   api.route("/me", meRoute)

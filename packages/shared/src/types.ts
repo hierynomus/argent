@@ -744,6 +744,14 @@ export interface LocalSettings {
   configFile: string
   dataDir: string
 }
+/** `GET /api/local/auth/status` */
+export interface LockStatus {
+  passwordSet: boolean
+  unlocked: boolean
+}
+export type UnlockBody = Body<typeof S.unlockSchema>
+export type SetPasswordBody = Body<typeof S.setPasswordSchema>
+export type RemovePasswordBody = Body<typeof S.removePasswordSchema>
 export type LocalSettingsBody = z.input<typeof S.localSettingsSchema>
 /** `POST /api/local/backup`: the file that was written. */
 export interface SavedBackup {

@@ -15,6 +15,8 @@ export const settingsSchema = z
     databaseUrl: z.string().min(1).optional(),
     /** optional CoinGecko demo API key (a higher rate limit) */
     coingeckoApiKey: z.string().min(1).optional(),
+    /** scrypt hash of the password that unlocks the app (set from Settings → Security; never write one by hand) */
+    passwordHash: z.string().min(1).optional(),
     /** open the browser on start (the command-line app; the desktop app has its own window) */
     openBrowser: z.boolean().optional(),
   })
@@ -72,4 +74,17 @@ export function settingsToEnv(settings: Settings, env: Record<string, string | u
   if (settings.databaseUrl) set("DATABASE_URL", settings.databaseUrl)
   else if (!env.DATABASE_URL) set("PGLITE_DATA_DIR", join(dataDir, "db"))
   return out
+}
+
+/** Changes keys of `config.json` and keeps everything else in it (creating the file and folder when needed). */
+export function updateSettingsFile(configDir: string, change: Record<string, unknown>): void {
+  const file = join(configDir, SETTINGS_FILE)
+  let raw: Record<string, unknown> = {}
+  if (existsSync(file)) raw = JSON.parse(readFileSync(file, "utf8")) as Record<string, unknown>
+  else mkdirSync(configDir, { recursive: true })
+  for (const [key, value] of Object.entries(change)) {
+    if (value === undefined) delete raw[key]
+    else raw[key] = value
+  }
+  writeFileSync(file, JSON.stringify(raw, null, 2) + "\n", { mode: 0o600 })
 }

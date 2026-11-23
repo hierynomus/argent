@@ -2,9 +2,10 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "fs"
 import { homedir, tmpdir } from "os"
 import { join } from "path"
 import { resolveAppDirs, type Platform } from "../lib/appPaths"
-import { ensureSettingsFile, expandHome, readSettings, settingsToEnv } from "../lib/settings"
+import { ensureSettingsFile, expandHome, readSettings, settingsToEnv, updateSettingsFile } from "../lib/settings"
 import { registerPgliteAssets } from "../db/pgliteAssets"
 import { createLocalSettings } from "../services/localSettings"
+import { createLocalLock } from "../services/localLock"
 import { releaseLock, takeLock } from "./lock"
 import { spaHandler, type AssetSource } from "./static"
 
@@ -115,7 +116,8 @@ export async function runStandalone(web: AssetSource, embedded?: Embedded): Prom
   const { config } = await import("../config")
 
   const local = createLocalSettings({ configDir: dirs.configDir, dataDir, home, backupDir: process.env.ARGENT_BACKUP_DIR || settings.backupDir })
-  const app = createApp({ spa: spaHandler(web, { VITE_AUTH_MODE: "local" }), local })
+  const lock = createLocalLock({ hash: settings.passwordHash, save: (hash) => updateSettingsFile(dirs.configDir, { passwordHash: hash }) })
+  const app = createApp({ spa: spaHandler(web, { VITE_AUTH_MODE: "local" }), local, lock })
   let server: ReturnType<typeof Bun.serve>
   try {
     server = Bun.serve({ port: config.port, hostname: "127.0.0.1", fetch: app.fetch })

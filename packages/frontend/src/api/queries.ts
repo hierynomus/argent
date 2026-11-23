@@ -1,5 +1,5 @@
 import { computed, toValue, type MaybeRefOrGetter } from "vue"
-import type { PreviewDebtPartBody } from "@argent/shared"
+import type { LockStatus, PreviewDebtPartBody } from "@argent/shared"
 import { useQueries, useQuery, useQueryClient } from "@tanstack/vue-query"
 import { getAccounts } from "./accounts"
 import { getAdminAccounts, getAdminSharing } from "./admin"
@@ -7,7 +7,7 @@ import { getCategories } from "./categories"
 import { debtApis, type Debt } from "./debts"
 import { equityApi } from "./equity"
 import { queryKeys, type DebtKind, type PortfolioKind } from "./keys"
-import { getLocalSettings } from "./local"
+import { getLocalSettings, getLockStatus } from "./local"
 import { getMe } from "./me"
 import { portfolioApis, type HistoryParams, type PortfolioDetailByKind } from "./portfolios"
 import { propertiesApi } from "./properties"
@@ -32,6 +32,8 @@ const enabledOf = (o: Enabled) => computed(() => (o.enabled === undefined ? true
 
 export const useMe = () => useQuery({ queryKey: queryKeys.me, queryFn: getMe })
 /** The standalone app's settings (backup folder, paths); the caller only enables it in the desktop app. */
+/** Whether the standalone app is locked (only asked in local mode). */
+export const useLockStatus = (o: Enabled = {}) => useQuery({ queryKey: queryKeys.lockStatus, queryFn: getLockStatus, enabled: enabledOf(o), retry: false, staleTime: Infinity })
 export const useLocalSettings = (o: Enabled = {}) => useQuery({ queryKey: queryKeys.localSettings, queryFn: getLocalSettings, enabled: enabledOf(o) })
 export const useAccounts = () => useQuery({ queryKey: queryKeys.accounts, queryFn: getAccounts })
 export const useCategories = () => useQuery({ queryKey: queryKeys.categories, queryFn: getCategories })
@@ -155,6 +157,10 @@ export function useInvalidate() {
     properties: () => qc.invalidateQueries({ queryKey: queryKeys.properties }),
     equity: () => qc.invalidateQueries({ queryKey: queryKeys.equity }),
     admin: () => qc.invalidateQueries({ queryKey: ["admin"] }),
+    /** the lock state changed (unlocked, locked, password set or removed): remember it */
+    lockStatus: (status: LockStatus) => qc.setQueryData(queryKeys.lockStatus, status),
+    /** forget everything that was loaded, so a locked app keeps no data in memory */
+    forgetAll: () => qc.clear(),
     localSettings: () => qc.invalidateQueries({ queryKey: queryKeys.localSettings }),
     /** everything — after the whole database was replaced (restore) */
     everything: () => qc.invalidateQueries(),

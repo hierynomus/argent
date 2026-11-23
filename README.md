@@ -16,6 +16,7 @@ desktop app with no accounts and no server.
   stock options with vesting schedules.
 - **Net worth** dashboard across everything, per currency (EUR and USD are never summed).
 - **Sharing**: share accounts, portfolios and debts with groups as viewer or editor (server deployment).
+- **Password lock** for the desktop app (Settings → Security).
 - **Backup and restore** of all data as one JSON file.
 
 Prices come from CoinGecko (crypto), Yahoo Finance (stocks, metals futures) and Frankfurter (exchange rates).

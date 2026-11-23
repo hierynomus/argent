@@ -3,6 +3,8 @@ import { computed } from "vue"
 import { useRoute, useRouter } from "vue-router"
 import { useMe } from "../api"
 import ImportPanel from "../features/import/ImportPanel.vue"
+import { isLocalMode } from "../auth"
+import SecurityTab from "../features/settings/SecurityTab.vue"
 import AccountsTab from "../features/settings/AccountsTab.vue"
 import LabelsTab from "../features/settings/LabelsTab.vue"
 
@@ -14,6 +16,7 @@ const tabs = computed(() => [
   { id: "accounts", label: "Accounts" },
   { id: "labels", label: "Labels" },
   ...(me.value?.canImport ? [{ id: "import", label: "Import" }] : []),
+  ...(isLocalMode() ? [{ id: "security", label: "Security" }] : []),
 ])
 const activeTab = computed(() => (typeof route.query.tab === "string" ? route.query.tab : "accounts"))
 const setTab = (id: string) => router.replace({ query: { tab: id } })
@@ -39,6 +42,7 @@ const setTab = (id: string) => router.replace({ query: { tab: id } })
 
     <AccountsTab v-if="activeTab === 'accounts'" />
     <LabelsTab v-if="activeTab === 'labels'" />
+    <SecurityTab v-if="activeTab === 'security' && isLocalMode()" />
     <ImportPanel v-if="activeTab === 'import' && me?.canImport" />
   </div>
 </template>

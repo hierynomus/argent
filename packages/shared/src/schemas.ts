@@ -137,6 +137,16 @@ export const localSettingsSchema = z.object({
   backupDir: z.string({ error: "Enter a folder" }).trim().min(1, "Enter a folder"),
 })
 
+export const unlockSchema = z.object({ password: z.string({ error: "Enter the password" }).min(1, "Enter the password").max(500) })
+
+/** Set the password of the standalone app, or change it (then `currentPassword` is needed). */
+export const setPasswordSchema = z.object({
+  password: z.string({ error: "Enter a password" }).min(8, "Use at least 8 characters").max(500, "That password is too long"),
+  currentPassword: z.string().max(500).optional(),
+})
+
+export const removePasswordSchema = z.object({ currentPassword: z.string({ error: "Enter the current password" }).min(1, "Enter the current password").max(500) })
+
 export const setAccountOwnerSchema = z.object({
   ownerSub: z.string().trim().min(1).nullable(),
 })

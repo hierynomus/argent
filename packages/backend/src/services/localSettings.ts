@@ -1,7 +1,7 @@
-import { accessSync, constants, existsSync, mkdirSync, readFileSync, writeFileSync } from "fs"
+import { accessSync, constants, existsSync, mkdirSync, writeFileSync } from "fs"
 import { isAbsolute, join } from "path"
 import type { LocalSettings, SavedBackup } from "@argent/shared"
-import { expandHome, SETTINGS_FILE } from "../lib/settings"
+import { expandHome, SETTINGS_FILE, updateSettingsFile } from "../lib/settings"
 
 /** The settings of the standalone app that the UI can change, kept in `config.json`. */
 export interface LocalSettingsStore {
@@ -31,12 +31,7 @@ export function createLocalSettings({ configDir, dataDir, home, backupDir }: { c
       } catch (err) {
         throw new Error(`Cannot write to ${dir}: ${(err as NodeJS.ErrnoException).code ?? (err as Error).message}`)
       }
-      // keep what else is in the file; only this key changes
-      let raw: Record<string, unknown> = {}
-      if (existsSync(configFile)) raw = JSON.parse(readFileSync(configFile, "utf8")) as Record<string, unknown>
-      else mkdirSync(configDir, { recursive: true })
-      raw.backupDir = input.trim()
-      writeFileSync(configFile, JSON.stringify(raw, null, 2) + "\n")
+      updateSettingsFile(configDir, { backupDir: input.trim() })
       current = dir
       return view()
     },
