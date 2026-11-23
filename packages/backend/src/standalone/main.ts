@@ -13,6 +13,7 @@ export interface Embedded {
   /** the built web app, URL path → embedded file */
   web: AssetSource
   pgliteWasm: string
+  initdbWasm: string
   pgliteData: string
   /** migration file name (`0001_x.sql`, `meta/_journal.json`) → embedded file */
   migrations: Record<string, string>
@@ -100,7 +101,8 @@ export async function runStandalone(web: AssetSource, embedded?: Embedded): Prom
       writeFileSync(target, await Bun.file(file).bytes())
     }
     registerPgliteAssets({
-      wasmModule: await WebAssembly.compile(await Bun.file(embedded.pgliteWasm).arrayBuffer()),
+      pgliteWasmModule: await WebAssembly.compile(await Bun.file(embedded.pgliteWasm).arrayBuffer()),
+      initdbWasmModule: await WebAssembly.compile(await Bun.file(embedded.initdbWasm).arrayBuffer()),
       fsBundle: Bun.file(embedded.pgliteData),
       migrationsFolder: migrationsTmp,
     })

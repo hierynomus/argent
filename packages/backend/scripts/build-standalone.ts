@@ -50,8 +50,9 @@ const migrations = walk(migrationsDir)
   .filter((f) => f.endsWith(".sql") || f.endsWith(".json"))
   .map((f) => `  ${JSON.stringify(relative(migrationsDir, f).split("\\").join("/"))}: ${embed(f)},`)
 
-const pgliteWasm = embed(join(pgliteDist, "postgres.wasm"))
-const pgliteData = embed(join(pgliteDist, "postgres.data"))
+const pgliteWasm = embed(join(pgliteDist, "pglite.wasm"))
+const initdbWasm = embed(join(pgliteDist, "initdb.wasm"))
+const pgliteData = embed(join(pgliteDist, "pglite.data"))
 
 mkdirSync(buildDir, { recursive: true })
 const entry = join(buildDir, "entry.ts")
@@ -70,6 +71,7 @@ ${migrations.join("\n")}
 await runStandalone(embeddedSource(web), {
   web: embeddedSource(web),
   pgliteWasm: ${pgliteWasm},
+  initdbWasm: ${initdbWasm},
   pgliteData: ${pgliteData},
   migrations,
 }).catch((err) => {

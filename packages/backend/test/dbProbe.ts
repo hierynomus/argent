@@ -24,3 +24,7 @@ if (op === "reload") {
   if (op === "write") await db.insert(accounts).values({ iban, currency: "EUR" })
   console.log(JSON.stringify({ count: (await db.select().from(accounts)).length }))
 }
+
+// PGlite 0.6 keeps the process alive for a while after its last query. Exit like a stopped dev server would:
+// without closing the database, so these tests also prove that what was written is already on disk.
+process.exit(0)

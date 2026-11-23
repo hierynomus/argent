@@ -3,6 +3,7 @@ import { join } from "path"
 import * as schema from "./schema"
 import { resolveDbLocation } from "./location"
 import { getPgliteAssets } from "./pgliteAssets"
+import { dataDirVersionProblem } from "./pgliteVersion"
 
 export type DB = PostgresJsDatabase<typeof schema>
 
@@ -25,12 +26,20 @@ async function createDb(): Promise<DB> {
     const { drizzle } = await import("drizzle-orm/pglite")
     const { migrate } = await import("drizzle-orm/pglite/migrator")
 
+    if (location.kind === "pglite") {
+      const problem = dataDirVersionProblem(location.dir)
+      if (problem) {
+        console.error(`[db] ${problem}`)
+        process.exit(1)
+      }
+    }
+
     const clients = (globalClients.__argentPglite ??= new Map())
     const key = location.kind === "pglite" ? location.dir : ":memory:"
     let client = clients.get(key) as InstanceType<typeof PGlite> | undefined
     if (!client) {
       const assets = getPgliteAssets()
-      client = new PGlite(location.kind === "pglite" ? location.dir : undefined, assets ? { wasmModule: assets.wasmModule, fsBundle: assets.fsBundle } : undefined)
+      client = new PGlite(location.kind === "pglite" ? location.dir : undefined, assets ? { pgliteWasmModule: assets.pgliteWasmModule, initdbWasmModule: assets.initdbWasmModule, fsBundle: assets.fsBundle } : undefined)
       clients.set(key, client)
     }
     const db = drizzle(client, { schema })

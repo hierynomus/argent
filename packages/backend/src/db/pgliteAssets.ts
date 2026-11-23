@@ -5,9 +5,11 @@
  * database module is first imported (see `standalone/main.ts`).
  */
 export interface PgliteAssets {
-  /** the compiled postgres.wasm */
-  wasmModule: WebAssembly.Module
-  /** postgres.data: the initial file system of a fresh database */
+  /** the compiled pglite.wasm (the Postgres server) */
+  pgliteWasmModule: WebAssembly.Module
+  /** the compiled initdb.wasm (creates a fresh data directory) */
+  initdbWasmModule: WebAssembly.Module
+  /** pglite.data: the file system the server starts from */
   fsBundle: Blob
   /** a directory holding the extracted drizzle migrations */
   migrationsFolder: string
