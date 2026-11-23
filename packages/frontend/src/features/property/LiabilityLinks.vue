@@ -50,7 +50,7 @@ const save = useMutation({
     </fieldset>
     <div class="flex gap-2 mt-3">
       <Button size="sm" :disabled="save.isPending.value" @click="save.mutate()">Save links</Button>
-      <Button variant="muted-link" size="sm" class="!px-2" @click="emit('done')">Cancel</Button>
+      <Button variant="muted-link" size="sm" class="px-2!" @click="emit('done')">Cancel</Button>
     </div>
     <ErrorText :error="save.error.value" />
   </div>

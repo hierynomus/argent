@@ -4,7 +4,7 @@ defineProps<{ role: "viewer" | "editor" | string }>()
 
 <template>
   <span
-    class="text-xs px-1.5 py-0.5 rounded font-medium"
+    class="text-xs px-1.5 py-0.5 rounded-sm font-medium"
     :class="
       role === 'editor'
         ? 'bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-300'

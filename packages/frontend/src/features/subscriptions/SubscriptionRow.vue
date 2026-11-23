@@ -43,8 +43,8 @@ function startEdit() {
             @keydown.enter="saveName"
             @keydown.esc="editing = false"
           />
-          <Button size="sm" class="!py-1" :disabled="update.isPending.value" @click="saveName">Save</Button>
-          <Button variant="muted-link" size="sm" class="!px-2 !py-1" @click="editing = false">Cancel</Button>
+          <Button size="sm" class="py-1!" :disabled="update.isPending.value" @click="saveName">Save</Button>
+          <Button variant="muted-link" size="sm" class="px-2! py-1!" @click="editing = false">Cancel</Button>
         </div>
         <div v-else class="font-medium text-gray-900 dark:text-gray-100 truncate">{{ sub.name ?? sub.counterpartyName ?? sub.counterpartyIban }}</div>
         <div class="font-mono text-xs text-gray-400 dark:text-gray-500 mt-0.5 truncate">{{ sub.counterpartyIban }}</div>

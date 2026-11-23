@@ -18,7 +18,7 @@ const norm = (o: T | { value: T; label: string }) => (typeof o === "string" ? { 
 </script>
 
 <template>
-  <div class="flex rounded border border-gray-300 dark:border-gray-600 overflow-hidden text-sm">
+  <div class="flex rounded-sm border border-gray-300 dark:border-gray-600 overflow-hidden text-sm">
     <button
       v-for="opt in options"
       :key="norm(opt).value"

@@ -105,7 +105,7 @@ const tooltipStyle = computed(() => {
 
 <template>
   <div
-    class="relative select-none focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 rounded"
+    class="relative select-none focus:outline-hidden focus-visible:ring-2 focus-visible:ring-indigo-500 rounded-sm"
     tabindex="0"
     role="group"
     :aria-label="`${label}. Use the left and right arrow keys to read values.`"
@@ -144,7 +144,7 @@ const tooltipStyle = computed(() => {
       </g>
     </svg>
 
-    <div v-if="current" class="absolute pointer-events-none z-10 rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shadow px-2.5 py-1.5 text-xs whitespace-nowrap" :style="tooltipStyle" data-testid="chart-tooltip">
+    <div v-if="current" class="absolute pointer-events-none z-10 rounded-md border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 shadow-sm px-2.5 py-1.5 text-xs whitespace-nowrap" :style="tooltipStyle" data-testid="chart-tooltip">
       <div class="text-gray-500 dark:text-gray-400">{{ formatDate(current.t) }}</div>
       <div class="font-medium text-gray-900 dark:text-gray-100 tabular-nums">{{ formatValue(current.v) }}</div>
     </div>

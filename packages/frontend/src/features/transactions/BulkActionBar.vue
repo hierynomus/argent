@@ -50,16 +50,16 @@ const createSub = useMutation({
           type="text"
           placeholder="Name (optional)"
           aria-label="Subscription name"
-          class="!py-1.5 w-40"
+          class="py-1.5! w-40"
           @keydown.enter="createSub.mutate()"
           @keydown.esc="creatingSub = false"
         />
         <Button size="sm" class="rounded-md" :disabled="createSub.isPending.value" @click="createSub.mutate()">{{ createSub.isPending.value ? "Creating…" : "Create" }}</Button>
-        <Button variant="muted-link" size="sm" class="!px-2" @click="creatingSub = false">Cancel</Button>
+        <Button variant="muted-link" size="sm" class="px-2!" @click="creatingSub = false">Cancel</Button>
       </template>
       <template v-else>
         <span class="text-sm font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap">{{ selectedIds.size }} selected</span>
-        <Select v-model="labelId" density="sm" aria-label="Label to apply" class="!py-1.5">
+        <Select v-model="labelId" density="sm" aria-label="Label to apply" class="py-1.5!">
           <option value="">Unlabeled</option>
           <option v-for="l in labels" :key="l.id" :value="l.id">{{ l.name }}</option>
         </Select>
@@ -68,7 +68,7 @@ const createSub = useMutation({
           <div class="w-px h-5 bg-gray-200 dark:bg-gray-700 shrink-0" />
           <Button variant="secondary" class="rounded-md whitespace-nowrap font-medium" @click="creatingSub = true">↻ Create subscription</Button>
         </template>
-        <Button variant="muted-link" size="sm" class="!px-2" @click="emit('clear')">Clear</Button>
+        <Button variant="muted-link" size="sm" class="px-2!" @click="emit('clear')">Clear</Button>
       </template>
     </div>
     <ErrorText :error="applyLabel.error.value ?? createSub.error.value" />

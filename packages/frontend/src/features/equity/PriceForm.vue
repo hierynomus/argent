@@ -29,7 +29,7 @@ const submit = () => check(createEquityPriceSchema, body()) && save.mutate()
     <Field :label="`Price per share (${currency})`" :error="errors.price"><Input v-model="form.price" v-focus density="sm" type="number" min="0" step="any" placeholder="12.00" class="w-36" /></Field>
     <Field label="Note (optional)" :error="errors.note"><Input v-model="form.note" density="sm" type="text" placeholder="e.g. Series A round" class="w-48" /></Field>
     <Button type="submit" size="sm" :disabled="!form.price || save.isPending.value">{{ save.isPending.value ? "Saving…" : "Save price" }}</Button>
-    <Button variant="muted-link" size="sm" class="!px-2" @click="emit('done')">Cancel</Button>
+    <Button variant="muted-link" size="sm" class="px-2!" @click="emit('done')">Cancel</Button>
     <ErrorText :error="save.error.value" />
   </form>
 </template>

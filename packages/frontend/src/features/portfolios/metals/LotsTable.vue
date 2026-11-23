@@ -61,7 +61,7 @@ const sellingId = ref<string | null>(null)
               <button
                 v-if="canEdit && lot.remainingQuantity > 0"
                 type="button"
-                class="px-2 py-1 text-xs rounded font-medium transition-colors"
+                class="px-2 py-1 text-xs rounded-sm font-medium transition-colors"
                 :class="
                   sellingId === lot.id
                     ? 'bg-gray-200 dark:bg-gray-700 text-gray-600 dark:text-gray-400'

@@ -43,8 +43,8 @@ const changeTheme = useMutation({
       <div class="px-5 py-4">
         <p class="text-xs text-gray-400 dark:text-gray-500 mb-0.5">Role</p>
         <div class="flex items-center gap-2 mt-0.5">
-          <span v-if="me?.isAdmin" class="text-xs font-medium px-1.5 py-0.5 rounded bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300">Admin</span>
-          <span v-if="me?.canImport" class="text-xs font-medium px-1.5 py-0.5 rounded bg-green-50 dark:bg-green-950 text-green-700 dark:text-green-300">Import</span>
+          <span v-if="me?.isAdmin" class="text-xs font-medium px-1.5 py-0.5 rounded-sm bg-indigo-50 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300">Admin</span>
+          <span v-if="me?.canImport" class="text-xs font-medium px-1.5 py-0.5 rounded-sm bg-green-50 dark:bg-green-950 text-green-700 dark:text-green-300">Import</span>
           <span v-if="!me?.isAdmin && !me?.canImport" class="text-sm text-gray-400">Viewer</span>
         </div>
       </div>

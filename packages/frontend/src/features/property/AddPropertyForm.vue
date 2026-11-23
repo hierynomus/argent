@@ -49,7 +49,7 @@ const submit = () => check(createPropertySchema, body()) && create.mutate()
       </div>
       <div class="flex gap-2">
         <Button type="submit" class="rounded-md" :disabled="!form.name.trim() || create.isPending.value">{{ create.isPending.value ? "Adding…" : "Add property" }}</Button>
-        <Button variant="muted-link" size="sm" class="!px-2" @click="emit('done')">Cancel</Button>
+        <Button variant="muted-link" size="sm" class="px-2!" @click="emit('done')">Cancel</Button>
       </div>
       <ErrorText :error="create.error.value" />
     </form>

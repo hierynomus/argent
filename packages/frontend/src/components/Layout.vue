@@ -64,7 +64,7 @@ const SECTION = "pt-5 pb-1"
 
 <template>
   <div class="min-h-screen bg-gray-50 dark:bg-gray-950 flex flex-col">
-    <header class="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 px-4 py-3 flex items-center justify-between flex-shrink-0 z-20">
+    <header class="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 px-4 py-3 flex items-center justify-between shrink-0 z-20">
       <div class="flex items-center gap-3">
         <button
           type="button"
@@ -103,7 +103,7 @@ const SECTION = "pt-5 pb-1"
     <div class="flex flex-1 min-h-0">
       <aside
         :style="{ width: expanded ? '220px' : '64px' }"
-        class="flex-shrink-0 bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 flex flex-col transition-[width] duration-200 overflow-hidden z-10"
+        class="shrink-0 bg-white dark:bg-gray-900 border-r border-gray-200 dark:border-gray-800 flex flex-col transition-[width] duration-200 overflow-hidden z-10"
       >
         <nav aria-label="Main" class="flex-1 p-2 flex flex-col gap-0.5 overflow-y-auto overflow-x-hidden">
           <div class="pt-3" />

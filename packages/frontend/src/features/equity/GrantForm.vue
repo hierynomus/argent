@@ -75,7 +75,7 @@ const submit = () => check(createEquityGrantSchema, body()) && save.mutate()
     <p v-else class="text-xs text-gray-500 dark:text-gray-400">These options only become payable on an exit, so they are shown as "on exit" and do not count in your net worth.</p>
     <div class="flex gap-2">
       <Button type="submit" size="sm" :disabled="save.isPending.value">{{ save.isPending.value ? "Saving…" : grant ? "Save grant" : "Add grant" }}</Button>
-      <Button variant="muted-link" size="sm" class="!px-2" @click="emit('done')">Cancel</Button>
+      <Button variant="muted-link" size="sm" class="px-2!" @click="emit('done')">Cancel</Button>
     </div>
     <ErrorText :error="save.error.value" />
   </form>

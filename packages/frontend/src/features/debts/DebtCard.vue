@@ -40,12 +40,12 @@ const refresh = () => invalidate.debts(props.kind)
         <p class="text-lg font-semibold text-gray-900 dark:text-gray-100">{{ debt.name }}</p>
         <div class="flex items-center gap-2 mt-0.5">
           <p class="text-xs text-gray-400 dark:text-gray-500">{{ debt.currency }}</p>
-          <span v-if="!debt.isOwner" class="text-xs px-1.5 py-0.5 rounded bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400">
+          <span v-if="!debt.isOwner" class="text-xs px-1.5 py-0.5 rounded-sm bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400">
             {{ debt.canEdit ? "editor" : "viewer" }}
           </span>
         </div>
       </div>
-      <div class="text-right flex-shrink-0">
+      <div class="text-right shrink-0">
         <p class="text-2xl font-bold text-gray-900 dark:text-gray-100">{{ fmtCur(debt.totalCurrentBalance, debt.currency) }}</p>
         <p class="text-sm text-gray-500 dark:text-gray-400">{{ fmtCur(debt.totalMonthlyPayment, debt.currency) }}<span class="text-xs">/mo</span></p>
       </div>

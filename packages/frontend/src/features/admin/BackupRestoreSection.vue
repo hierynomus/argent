@@ -75,7 +75,7 @@ const DANGER = "px-3 py-1 text-sm bg-red-600 text-white rounded-md hover:bg-red-
           type="file"
           accept=".json"
           aria-label="Backup file"
-          class="text-sm text-gray-600 dark:text-gray-400 file:mr-3 file:py-1 file:px-3 file:rounded file:border-0 file:text-sm file:bg-gray-100 dark:file:bg-gray-700 file:text-gray-700 dark:file:text-gray-200 hover:file:bg-gray-200 dark:hover:file:bg-gray-600"
+          class="text-sm text-gray-600 dark:text-gray-400 file:mr-3 file:py-1 file:px-3 file:rounded-sm file:border-0 file:text-sm file:bg-gray-100 dark:file:bg-gray-700 file:text-gray-700 dark:file:text-gray-200 hover:file:bg-gray-200 dark:hover:file:bg-gray-600"
           @change="chooseFile"
         />
         <button v-if="file && !confirming" type="button" :class="DANGER" @click="confirming = true">Restore</button>
@@ -87,7 +87,7 @@ const DANGER = "px-3 py-1 text-sm bg-red-600 text-white rounded-md hover:bg-red-
         </p>
         <div class="flex gap-2">
           <button type="button" :class="DANGER" @click="confirmRestore">Yes, replace all data</button>
-          <Button variant="muted-link" size="sm" class="!py-1" @click="confirming = false">Cancel</Button>
+          <Button variant="muted-link" size="sm" class="py-1!" @click="confirming = false">Cancel</Button>
         </div>
       </div>
 

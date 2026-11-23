@@ -21,7 +21,7 @@ const txs = computed(() => data.value?.data ?? [])
           <p class="text-lg font-semibold text-gray-900 dark:text-gray-100 mt-0.5">{{ account.name ?? account.iban }}</p>
           <p v-if="account.openingBalanceDate" class="text-xs text-gray-400 dark:text-gray-500 mt-1">since {{ fmtDate(account.openingBalanceDate) }}</p>
         </div>
-        <div class="text-right flex-shrink-0">
+        <div class="text-right shrink-0">
           <p class="text-2xl font-bold text-gray-900 dark:text-gray-100">{{ fmtBalance(account.balance, account.currency) }}</p>
           <p class="text-xs text-gray-400 dark:text-gray-500 mt-0.5">{{ account.currency }}</p>
         </div>

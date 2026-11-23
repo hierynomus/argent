@@ -69,7 +69,7 @@ const err = computed(() => {
   <FormCard @submit="submit">
     <TradeKindToggle v-model="direction" :options="DIRECTIONS" />
 
-    <p v-if="direction === 'swap'" class="text-xs text-gray-500 dark:text-gray-400 mb-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 rounded px-3 py-2">
+    <p v-if="direction === 'swap'" class="text-xs text-gray-500 dark:text-gray-400 mb-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 rounded-sm px-3 py-2">
       Cost basis transfers automatically — no P&L is realized at swap time.
     </p>
 

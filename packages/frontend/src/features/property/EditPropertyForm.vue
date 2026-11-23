@@ -43,7 +43,7 @@ const submit = () => check(updatePropertySchema, body()) && save.mutate()
     <Field label="Purchase price" :error="errors.purchasePrice"><Input v-model="form.purchasePrice" density="sm" type="number" min="0" step="0.01" class="w-32" /></Field>
     <Field label="Purchase date" :error="errors.purchaseDate"><Input v-model="form.purchaseDate" density="sm" type="date" class="w-36" /></Field>
     <Button type="submit" size="sm" :disabled="save.isPending.value">Save</Button>
-    <Button variant="muted-link" size="sm" class="!px-2" @click="emit('done')">Cancel</Button>
+    <Button variant="muted-link" size="sm" class="px-2!" @click="emit('done')">Cancel</Button>
     <ErrorText :error="save.error.value" />
   </form>
 </template>

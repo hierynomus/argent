@@ -30,7 +30,7 @@ const submit = () => check(createEquityPlanSchema, body()) && create.mutate()
         <Field label="Company" :error="errors.name"><Input v-model="form.name" v-focus type="text" placeholder="e.g. Acme BV" class="w-56" /></Field>
         <FieldGroup label="Currency"><SegmentedControl v-model="form.currency" :options="['EUR', 'USD'] as const" padding="px-3 py-1.5 font-medium" /></FieldGroup>
         <Button type="submit" class="rounded-md" :disabled="!form.name.trim() || create.isPending.value">{{ create.isPending.value ? "Adding…" : "Add company" }}</Button>
-        <Button variant="muted-link" size="sm" class="!px-2" @click="emit('done')">Cancel</Button>
+        <Button variant="muted-link" size="sm" class="px-2!" @click="emit('done')">Cancel</Button>
       </div>
       <ErrorText :error="create.error.value" />
     </form>

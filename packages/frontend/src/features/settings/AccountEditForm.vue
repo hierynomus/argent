@@ -46,8 +46,8 @@ const submit = () => check(updateAccountSchema, body()) && save.mutate()
       <FieldGroup label="Type"><SegmentedControl v-model="form.type" :options="['checking', 'savings'] as const" padding="px-3 py-1 font-medium" capitalize /></FieldGroup>
       <Field :label="`Opening balance (${account.currency})`" :error="errors.openingBalance"><Input v-model="form.openingBalance" density="sm" type="number" step="0.01" placeholder="0.00" class="w-32" /></Field>
       <Field label="As of date" :error="errors.openingBalanceDate"><Input v-model="form.openingBalanceDate" density="sm" type="date" /></Field>
-      <Button size="sm" class="!py-1" :disabled="save.isPending.value" @click="submit">Save</Button>
-      <Button variant="muted-link" size="sm" class="!px-2 !py-1" @click="emit('done')">Cancel</Button>
+      <Button size="sm" class="py-1!" :disabled="save.isPending.value" @click="submit">Save</Button>
+      <Button variant="muted-link" size="sm" class="px-2! py-1!" @click="emit('done')">Cancel</Button>
     </div>
     <ErrorText :error="save.error.value" />
     <p v-if="account.openingBalanceDate" class="mt-2 text-xs text-gray-400 dark:text-gray-500">

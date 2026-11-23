@@ -42,7 +42,7 @@ function submit() {
       </Field>
       <Field label="Label (optional)"><Input v-model="name" type="text" placeholder="e.g. Netflix" class="w-40" /></Field>
       <Button type="submit" class="rounded-md" :disabled="create.isPending.value || !counterpartyIban.trim()">{{ create.isPending.value ? "Adding…" : "Add" }}</Button>
-      <Button variant="muted-link" size="sm" class="!px-2" @click="emit('done')">Cancel</Button>
+      <Button variant="muted-link" size="sm" class="px-2!" @click="emit('done')">Cancel</Button>
     </div>
     <ErrorText :error="create.error.value" />
   </form>
