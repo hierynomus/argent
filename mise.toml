@@ -95,3 +95,7 @@ run = "scripts/smoke-standalone.sh"
 [tasks."check:chart"]
 description = "Lint and render the Helm chart with every ci values file (needs helm)"
 run = "bun run check:chart"
+
+[tasks.release]
+description = "Publish a release: GitHub Actions works out the next version, builds every platform and creates the tag (BUMP=patch|minor|major, default patch; needs gh)"
+run = 'gh workflow run release.yml --ref main -f bump="${BUMP:-patch}" && echo "started: gh run watch, or see the Actions tab"'

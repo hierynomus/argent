@@ -10,6 +10,10 @@ on:
         description: JSON list of runner labels to build on
         type: string
         default: '["ubuntu-22.04","macos-latest","macos-15-intel","windows-latest"]'
+      version:
+        description: x.y.z to put into the installers (release.yml); empty keeps the version in tauri.conf.json
+        type: string
+        default: ""
 
 jobs:
   bundle:
@@ -45,6 +49,13 @@ jobs:
           echo "LDAI_RUNTIME_FILE=$RUNNER_TEMP/runtime" >> "$GITHUB_ENV"
 
       - run: bun install --frozen-lockfile
+      - name: Set the installer version
+        if: inputs.version != ''
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          bun -e 'const p = "packages/desktop/src-tauri/tauri.conf.json"; const c = JSON.parse(await Bun.file(p).text()); c.version = process.env.VERSION; await Bun.write(p, JSON.stringify(c, null, 2) + "\n")'
+          grep '"version"' packages/desktop/src-tauri/tauri.conf.json
       - run: bun run --cwd packages/frontend build
       # the sidecar (the Argent server executable for this platform), then the Tauri bundle
       - run: bun run --cwd packages/desktop bundle

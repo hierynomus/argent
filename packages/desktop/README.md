@@ -50,9 +50,10 @@ Not done: code signing / notarization (macOS, Windows) and auto-update.
 
 Tauri builds installers only for the system it runs on, so `.github/workflows/desktop.yml` builds on one runner per platform:
 Linux (`.deb`, `.rpm`, `.AppImage`), macOS arm64 and Intel (`.dmg`), Windows (`.msi`, `.exe`). `ci.yml` calls it (Linux on pull
-requests, all platforms on main; the installers are kept as workflow artifacts). Pushing a tag such as `v0.1.0` runs
-`release.yml`, which builds all of them and attaches them to a GitHub release.
+requests, all platforms on main; the installers are kept as workflow artifacts). A release needs no manual version bump or tag: run **Release** from the Actions tab (branch `main`, choose patch / minor / major),
+or `BUMP=minor mise run release` (needs `gh`). `release.yml` takes the latest `v*` tag, raises it, builds all installers with that
+version (written into `tauri.conf.json` on the runner only) and publishes the GitHub release, which creates the tag. Pushing a
+`vX.Y.Z` tag by hand also works. The version in the repository files is just a placeholder.
 
 The macOS build is signed ad hoc so it starts on Apple silicon; other Macs still show a Gatekeeper warning until a Developer ID
-certificate and notarization are set up. Windows installers are unsigned (SmartScreen warns). The installer version comes from
-`tauri.conf.json`, not the tag: bump it before tagging.
+certificate and notarization are set up. Windows installers are unsigned (SmartScreen warns).

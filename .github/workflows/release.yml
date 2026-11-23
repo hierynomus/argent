@@ -1,16 +1,60 @@
 name: Release
 
-# Push a tag like v0.1.0: builds the installers on every platform and attaches them to a GitHub release.
+# Run it from the Actions tab ("Run workflow", branch main) and pick patch / minor / major: the next version is
+# worked out from the latest v* tag, the installers are built with that version on every platform, and the
+# release (which creates the tag) is published with them. Nothing in the repository has to be edited.
+# Pushing a v* tag by hand still works and releases that version.
 on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: Which part of the latest version to raise
+        type: choice
+        options: [patch, minor, major]
+        default: patch
   push:
     tags: ["v*"]
 
+concurrency: release
+
 jobs:
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.next.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # the tags
+      - id: next
+        env:
+          BUMP: ${{ inputs.bump }}
+        run: |
+          if [ "$GITHUB_REF_TYPE" = tag ]; then
+            version="${GITHUB_REF_NAME#v}"
+          else
+            [ "$GITHUB_REF" = refs/heads/main ] || { echo "Releases are made from main (this is $GITHUB_REF)"; exit 1; }
+            last="$(git tag --list 'v[0-9]*' --sort=-v:refname | head -n1)"
+            IFS=. read -r major minor patch <<< "${last:-v0.0.0}"; major="${major#v}"
+            case "$BUMP" in
+              major) version="$((major + 1)).0.0" ;;
+              minor) version="$major.$((minor + 1)).0" ;;
+              *)     version="$major.$minor.$((patch + 1))" ;;
+            esac
+            if git rev-parse -q --verify "refs/tags/v$version" >/dev/null; then echo "v$version already exists"; exit 1; fi
+          fi
+          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "'$version' is not a plain x.y.z version"; exit 1; }
+          echo "Releasing $version (latest tag: ${last:-none})"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
   desktop:
+    needs: version
     uses: ./.github/workflows/desktop.yml
+    with:
+      version: ${{ needs.version.outputs.version }}
 
   release:
-    needs: desktop
+    needs: [version, desktop]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -21,7 +65,10 @@ jobs:
           path: installers
           merge-multiple: true
       - run: ls -la installers
-      - name: Create the release
+      - name: Publish the release (this creates the tag when there is none yet)
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$GITHUB_REF_NAME" installers/* --repo "$GITHUB_REPOSITORY" --title "Argent $GITHUB_REF_NAME" --generate-notes
+          VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          gh release create "v$VERSION" installers/* --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+            --title "Argent v$VERSION" --generate-notes
