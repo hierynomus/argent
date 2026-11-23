@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "The window only shows the local Argent server; it needs no access to the system.",
+  "windows": ["main"],
+  "permissions": ["core:default"]
+}

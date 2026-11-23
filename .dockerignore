@@ -10,3 +10,5 @@
 charts
 scripts
 **/*.test.ts
+**/src-tauri
+**/.build

@@ -1,0 +1,15 @@
+{
+  "name": "@argent/desktop",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "sidecar": "bun run scripts/prepare-sidecar.ts",
+    "dev": "bun run sidecar && tauri dev",
+    "bundle": "bun run sidecar && tauri build",
+    "tauri": "tauri"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.2.0"
+  }
+}

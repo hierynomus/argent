@@ -15,3 +15,7 @@ packages/backend/.data/
 # Build output
 packages/frontend/dist/
 packages/backend/dist/
+
+# Standalone build
+packages/backend/.build/
+packages/backend/dist/

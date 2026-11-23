@@ -1,12 +1,18 @@
 export interface Config {
   production: boolean
-  authMode: "oidc" | "fake"
-  /** OIDC issuer (required unless authMode is fake) */
+  authMode: "oidc" | "fake" | "local"
+  /**
+   * `local` is the standalone desktop/command-line app: one built-in user, no identity provider. It is only
+   * safe because the server then listens on the loopback interface (127.0.0.1) and nowhere else.
+   */
+  /** OIDC issuer (required unless authMode is fake or local) */
   issuer: string | undefined
   adminGroup: string
   importGroup: string
   corsOrigin: string
   port: number
+  /** the interface the server listens on: always loopback in local mode */
+  host: string
   sweepIntervalMs: number
   /** optional CoinGecko demo API key: a much higher rate limit than the key-less API */
   coingeckoApiKey: string | undefined
@@ -23,12 +29,13 @@ type Env = Record<string, string | undefined>
  */
 export function loadConfig(env: Env = process.env): Config {
   const production = env.NODE_ENV === "production"
-  const authMode = env.AUTH_MODE === "fake" ? "fake" : "oidc"
+  const authMode = env.AUTH_MODE === "fake" ? "fake" : env.AUTH_MODE === "local" ? "local" : "oidc"
   const problems: string[] = []
 
   if (production && authMode === "fake") problems.push("AUTH_MODE=fake is not allowed when NODE_ENV=production")
   // without it the app would silently fall back to the embedded development database
-  if (production && (!env.DATABASE_URL || env.DATABASE_URL === "memory")) problems.push("DATABASE_URL (a Postgres connection string) is required in production")
+  if (authMode === "local" && env.HOST && !["127.0.0.1", "localhost", "::1"].includes(env.HOST)) problems.push(`AUTH_MODE=local has no login, so HOST must be a loopback address (got "${env.HOST}")`)
+  if (production && authMode !== "local" && (!env.DATABASE_URL || env.DATABASE_URL === "memory")) problems.push("DATABASE_URL (a Postgres connection string) is required in production")
   if (authMode === "oidc" && !env.AUTHENTIK_ISSUER) problems.push("AUTHENTIK_ISSUER is required")
   if (production && authMode === "oidc") {
     for (const name of ["AUTHENTIK_ADMIN_GROUP", "AUTHENTIK_IMPORT_GROUP", "CORS_ORIGIN"] as const) {
@@ -49,8 +56,10 @@ export function loadConfig(env: Env = process.env): Config {
     issuer: env.AUTHENTIK_ISSUER,
     adminGroup: env.AUTHENTIK_ADMIN_GROUP ?? "argent-admin",
     importGroup: env.AUTHENTIK_IMPORT_GROUP ?? "argent-import",
-    corsOrigin: env.CORS_ORIGIN ?? "http://localhost:5173",
+    // local mode serves the SPA itself, so everything is same-origin
+    corsOrigin: env.CORS_ORIGIN ?? (authMode === "local" ? `http://127.0.0.1:${port}` : "http://localhost:5173"),
     port,
+    host: authMode === "local" ? "127.0.0.1" : (env.HOST || "0.0.0.0"),
     sweepIntervalMs,
     coingeckoApiKey: env.COINGECKO_API_KEY || undefined,
   }

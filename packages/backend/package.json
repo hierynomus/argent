@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "bun run --hot --env-file=.env.development src/index.ts",
     "start": "bun run src/index.ts",
+    "start:local": "bun run src/standalone/dev.ts",
+    "build:standalone": "bun run scripts/build-standalone.ts",
     "db:generate": "drizzle-kit generate",
     "db:reset": "rm -rf .data",
     "db:migrate": "bun run src/db/migrate.ts",

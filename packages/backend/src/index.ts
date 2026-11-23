@@ -16,5 +16,6 @@ setInterval(() => void runBackgroundJobs("periodic"), SWEEP_INTERVAL_MS)
 
 export default {
   port,
+  hostname: config.host,
   fetch: app.fetch,
 }

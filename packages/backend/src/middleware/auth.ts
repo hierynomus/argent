@@ -52,21 +52,32 @@ if (config.authMode === "fake") {
   console.warn("[auth] AUTH_MODE=fake — JWT validation disabled. Do not use in production.")
 }
 
-const fakeAuthMiddleware = createMiddleware<{
-  Variables: { user: AuthUser }
-}>(async (c, next) => {
-  const user: AuthUser = {
-    sub: "dev-user",
-    email: "dev@localhost",
-    name: "Dev User",
-    groups: [ADMIN_GROUP, IMPORT_GROUP],
-    isAdmin: true,
-    canImport: true,
-  }
-  c.set("user", user)
-  // iat = 0 → syncs once per server start
-  syncProfileOnce(user.sub, user.email ?? null, user.name ?? null, 0)
-  await next()
+// AUTH_MODE=local (the standalone app): the same idea for the one person using their own computer. The
+// server only listens on 127.0.0.1 in this mode (see config.ts), so there is nobody else to keep out.
+function staticUserMiddleware(user: AuthUser) {
+  return createMiddleware<{ Variables: { user: AuthUser } }>(async (c, next) => {
+    c.set("user", user)
+    // iat = 0 → syncs once per server start
+    syncProfileOnce(user.sub, user.email ?? null, user.name ?? null, 0)
+    await next()
+  })
+}
+
+const fakeAuthMiddleware = staticUserMiddleware({
+  sub: "dev-user",
+  email: "dev@localhost",
+  name: "Dev User",
+  groups: [ADMIN_GROUP, IMPORT_GROUP],
+  isAdmin: true,
+  canImport: true,
+})
+
+const localAuthMiddleware = staticUserMiddleware({
+  sub: "local-user",
+  name: "Me",
+  groups: [ADMIN_GROUP, IMPORT_GROUP],
+  isAdmin: true,
+  canImport: true,
 })
 
 // ── Real auth (JWKS) ─────────────────────────────────────────────────────────
@@ -114,4 +125,4 @@ function createRealAuthMiddleware() {
 }
 
 export const authMiddleware =
-  config.authMode === "fake" ? fakeAuthMiddleware : createRealAuthMiddleware()
+  config.authMode === "fake" ? fakeAuthMiddleware : config.authMode === "local" ? localAuthMiddleware : createRealAuthMiddleware()

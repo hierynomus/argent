@@ -18,6 +18,7 @@ COPY packages/shared/package.json ./packages/shared/
 COPY packages/backend/package.json ./packages/backend/
 # the frontend is a workspace too; its manifest is needed to resolve the lockfile, its dependencies are not installed
 COPY packages/frontend/package.json ./packages/frontend/
+COPY packages/desktop/package.json ./packages/desktop/
 RUN bun install --frozen-lockfile --production --filter @argent/backend --filter @argent/shared
 
 # ── runtime ─────────────────────────────────────────────────────────────────────────────────────────

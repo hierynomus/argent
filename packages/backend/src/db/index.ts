@@ -2,6 +2,7 @@ import type { PostgresJsDatabase } from "drizzle-orm/postgres-js"
 import { join } from "path"
 import * as schema from "./schema"
 import { resolveDbLocation } from "./location"
+import { getPgliteAssets } from "./pgliteAssets"
 
 export type DB = PostgresJsDatabase<typeof schema>
 
@@ -28,14 +29,15 @@ async function createDb(): Promise<DB> {
     const key = location.kind === "pglite" ? location.dir : ":memory:"
     let client = clients.get(key) as InstanceType<typeof PGlite> | undefined
     if (!client) {
-      client = new PGlite(location.kind === "pglite" ? location.dir : undefined)
+      const assets = getPgliteAssets()
+      client = new PGlite(location.kind === "pglite" ? location.dir : undefined, assets ? { wasmModule: assets.wasmModule, fsBundle: assets.fsBundle } : undefined)
       clients.set(key, client)
     }
     const db = drizzle(client, { schema })
 
     try {
       // applies only the migrations this database has not seen yet, so it is safe on every (re)load
-      await migrate(db, { migrationsFolder: join(import.meta.dir, "../../drizzle") })
+      await migrate(db, { migrationsFolder: getPgliteAssets()?.migrationsFolder ?? join(import.meta.dir, "../../drizzle") })
       console.log(location.kind === "pglite" ? `[db] PGlite ready, data in ${location.dir} (migrations applied)` : "[db] In-memory PGlite ready (migrations applied)")
     } catch (err) {
       console.error(
@@ -53,8 +55,23 @@ async function createDb(): Promise<DB> {
   const { default: postgres } = await import("postgres")
   const { drizzle } = await import("drizzle-orm/postgres-js")
   const client = postgres(location.url)
-  return drizzle(client, { schema })
+  const pg = drizzle(client, { schema })
+  // a standalone install pointed at its own Postgres server has no init container to migrate for it
+  if (process.env.ARGENT_MIGRATE_ON_START === "1") {
+    const { migrate } = await import("drizzle-orm/postgres-js/migrator")
+    await migrate(pg, { migrationsFolder: getPgliteAssets()?.migrationsFolder ?? join(import.meta.dir, "../../drizzle") })
+    console.log("[db] Postgres migrations applied")
+  }
+  return pg
 }
 
 // Top-level await is supported in Bun
 export const db = await createDb()
+
+/** Flushes and closes the embedded database (a no-op for a Postgres server). Call before the process exits. */
+export async function closeDb(): Promise<void> {
+  const clients = globalClients.__argentPglite
+  if (!clients) return
+  for (const client of clients.values()) await (client as { close(): Promise<void> }).close()
+  clients.clear()
+}

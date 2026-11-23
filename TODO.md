@@ -142,3 +142,11 @@ Vue 3 (rewritten from React; merged). `api/`, `lib/`, the shared zod schemas and
 - [x] All migrations from now on come from `db:generate` (0018 does); `db:check` runs in `bun run check` and CI
 - [x] `tsconfig.tsbuildinfo` is no longer tracked (the Vue build does not emit it)
 - [ ] Root `package.json` was reformatted by tooling (workspaces array is expanded) — cosmetic
+
+
+## Standalone / desktop app
+- The Tauri shell (`packages/desktop`) was written but never compiled locally (no webkit2gtk dev libs here); the `desktop` CI job is its first build. Run it once and click through (window opens on the local server, closing it flushes the database).
+- macOS/Windows installers and code signing / notarization; auto-update; release workflow publishing the installers.
+- A settings screen in the app for `config.json` (port, data directory, external Postgres); today the file is edited by hand.
+- Local mode has one user, so sharing/groups UI is meaningless there: hide it when `VITE_AUTH_MODE=local`.
+- Root `bun run build` (`--filter '*'`) recurses into itself (pre-existing); build packages individually.

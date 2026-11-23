@@ -27,10 +27,13 @@ import equityRoute from "./routes/equity"
 export function createApp({
   logRequests = false,
   auth = authMiddleware,
+  spa,
 }: {
   logRequests?: boolean
   /** Replaces the authentication middleware — for tests that need to act as a specific user. */
   auth?: MiddlewareHandler
+  /** Serves the web app (standalone install): answers a non-API path, or null to fall through to the 404. */
+  spa?: (path: string) => Promise<Response | null>
 } = {}) {
   const app = new Hono()
 
@@ -43,6 +46,13 @@ export function createApp({
   )
 
   app.get("/health", (c) => c.json({ status: "ok" }))
+
+  if (spa) {
+    app.use("*", async (c, next) => {
+      if (c.req.path === "/api" || c.req.path.startsWith("/api/") || (c.req.method !== "GET" && c.req.method !== "HEAD")) return next()
+      return (await spa(c.req.path)) ?? next()
+    })
+  }
 
   // All API routes require authentication
   const api = app.basePath("/api")
