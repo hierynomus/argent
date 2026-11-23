@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "argent.fullname" . }}-backend
+  labels:
+    {{- include "argent.componentLabels" (dict "root" . "component" "backend") | nindent 4 }}
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "argent.componentSelectorLabels" (dict "root" . "component" "backend") | nindent 4 }}
+  ports:
+    - name: http
+      port: {{ .Values.backend.port }}
+      targetPort: http

@@ -1,0 +1,4 @@
+host: argent.example.com
+auth:
+  issuer: https://authentik.example.com/application/o/argent
+  clientId: argent-client

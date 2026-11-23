@@ -1,0 +1,58 @@
+{{- if eq .Values.database.mode "cnpg" }}
+{{- $cnpg := .Values.database.cnpg }}
+# Needs the CloudNativePG operator on the cluster. It generates the credentials in the Secret <cluster>-app
+# (key `uri` is the connection string the API uses), so no password is kept in these values.
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: {{ include "argent.cnpgName" . }}
+  labels:
+    {{- include "argent.componentLabels" (dict "root" . "component" "database") | nindent 4 }}
+  {{- if $cnpg.keepOnUninstall }}
+  annotations:
+    helm.sh/resource-policy: keep
+  {{- end }}
+spec:
+  instances: {{ $cnpg.instances }}
+  imageName: {{ $cnpg.imageName | quote }}
+  enableSuperuserAccess: false
+  storage:
+    size: {{ $cnpg.storage.size }}
+    {{- with $cnpg.storage.storageClass }}
+    storageClass: {{ . }}
+    {{- end }}
+  {{- with $cnpg.resources }}
+  resources:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  postgresql:
+    parameters:
+      {{- toYaml $cnpg.parameters | nindent 6 }}
+  bootstrap:
+    initdb:
+      database: argent
+      owner: argent
+  {{- if $cnpg.backup.barmanObjectStore }}
+  backup:
+    retentionPolicy: {{ $cnpg.backup.retentionPolicy | quote }}
+    barmanObjectStore:
+      {{- toYaml $cnpg.backup.barmanObjectStore | nindent 6 }}
+  {{- end }}
+  {{- with $cnpg.extraSpec }}
+  {{- toYaml . | nindent 2 }}
+  {{- end }}
+{{- if and $cnpg.backup.barmanObjectStore $cnpg.backup.schedule }}
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: ScheduledBackup
+metadata:
+  name: {{ include "argent.cnpgName" . }}
+  labels:
+    {{- include "argent.componentLabels" (dict "root" . "component" "database") | nindent 4 }}
+spec:
+  schedule: {{ $cnpg.backup.schedule | quote }}
+  backupOwnerReference: self
+  cluster:
+    name: {{ include "argent.cnpgName" . }}
+{{- end }}
+{{- end }}

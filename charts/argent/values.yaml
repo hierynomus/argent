@@ -1,0 +1,207 @@
+# Default values for the argent chart. The required settings are marked REQUIRED; the rest has defaults that
+# are safe for a small production install (hardened pods, two replicas, database by CloudNativePG).
+
+nameOverride: ""
+fullnameOverride: ""
+
+# -- REQUIRED: the public host name of the app, e.g. argent.example.com (used by the ingress and for CORS)
+host: ""
+
+# ── sign-in (Authentik OIDC) ───────────────────────────────────────────────────────────────────────
+auth:
+  # -- REQUIRED: the OIDC issuer URL of the Authentik application, e.g. https://authentik.example.com/application/o/argent
+  # The backend validates the JWTs against its JWKS; the SPA starts the code flow against it.
+  issuer: ""
+  # -- REQUIRED: client id of the Authentik OIDC provider (a public client; redirect URI https://<host>/auth/callback)
+  clientId: ""
+  # -- OIDC authority the SPA signs in at. Defaults to `issuer`.
+  authority: ""
+  # -- Authentik group that grants admin rights (the JWT `groups` claim)
+  adminGroup: argent-admin
+  # -- Authentik group that may import bank statements (admins can too)
+  importGroup: argent-import
+
+# -- CORS origin of the API. Defaults to https://<host>.
+corsOrigin: ""
+
+imagePullSecrets: []
+
+serviceAccount:
+  create: true
+  annotations: {}
+  # -- Use this name instead of the generated one
+  name: ""
+
+# ── backend (API) ──────────────────────────────────────────────────────────────────────────────────
+backend:
+  image:
+    repository: your-registry/argent-backend
+    # -- Defaults to the chart's appVersion
+    tag: ""
+    # -- Pin the image by digest (overrides the tag), e.g. sha256:abc…
+    digest: ""
+    pullPolicy: IfNotPresent
+  replicaCount: 2
+  port: 3000
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      memory: 256Mi
+  # -- Extra environment variables (a list of `name`/`value` or `valueFrom` entries)
+  extraEnv: []
+  podAnnotations: {}
+  podLabels: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  # -- Spread the replicas over nodes (soft by default); set to [] to disable
+  topologySpreadConstraints: auto
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 1
+  autoscaling:
+    enabled: false
+    minReplicas: 2
+    maxReplicas: 4
+    targetCPUUtilizationPercentage: 80
+  # Database migrations run in an init container (the same image) before the API starts, guarded by an
+  # advisory lock, so several replicas can start together.
+  migrations:
+    enabled: true
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        memory: 256Mi
+
+# ── frontend (nginx serving the SPA) ───────────────────────────────────────────────────────────────
+frontend:
+  image:
+    repository: your-registry/argent-frontend
+    tag: ""
+    digest: ""
+    pullPolicy: IfNotPresent
+  replicaCount: 2
+  port: 8080
+  resources:
+    requests:
+      cpu: 20m
+      memory: 32Mi
+    limits:
+      memory: 64Mi
+  extraEnv: []
+  podAnnotations: {}
+  podLabels: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  topologySpreadConstraints: auto
+  podDisruptionBudget:
+    enabled: true
+    minAvailable: 1
+  autoscaling:
+    enabled: false
+    minReplicas: 2
+    maxReplicas: 4
+    targetCPUUtilizationPercentage: 80
+
+# ── hardening (applied to both deployments) ────────────────────────────────────────────────────────
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 65532
+  runAsGroup: 65532
+  fsGroup: 65532
+  seccompProfile:
+    type: RuntimeDefault
+
+# The root file system is read-only; /tmp is an emptyDir (the SPA's runtime config and nginx temp files go there)
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop: ["ALL"]
+
+# ── database ───────────────────────────────────────────────────────────────────────────────────────
+database:
+  # -- `cnpg`: a CloudNativePG cluster created by this chart (the operator must be installed).
+  # `external`: use an existing PostgreSQL; give its connection string in a Secret (see `external`).
+  mode: cnpg
+
+  cnpg:
+    instances: 2
+    # -- PostgreSQL image of the cluster. Keep the major version of an existing database.
+    imageName: ghcr.io/cloudnative-pg/postgresql:16
+    storage:
+      size: 5Gi
+      storageClass: ""
+    resources: {}
+    parameters:
+      max_connections: "100"
+    # -- Keep the cluster (and its data) when the release is uninstalled
+    keepOnUninstall: true
+    # -- Scheduled backups to object storage; see https://cloudnative-pg.io/documentation/current/backup/
+    # Example: { destinationPath: "s3://bucket/argent", s3Credentials: { accessKeyId: { name: s3, key: ACCESS_KEY_ID }, secretAccessKey: { name: s3, key: SECRET_ACCESS_KEY } } }
+    backup:
+      barmanObjectStore: {}
+      retentionPolicy: 30d
+      # -- Cron (6 fields, with seconds) of a daily ScheduledBackup; empty = no schedule
+      schedule: ""
+    # -- Extra spec merged into the Cluster (monitoring, affinity, …)
+    extraSpec: {}
+
+  external:
+    # -- REQUIRED with mode=external: a Secret holding the connection string (postgresql://user:pass@host:5432/db)
+    existingSecret: ""
+    existingSecretKey: DATABASE_URL
+
+# ── optional settings ──────────────────────────────────────────────────────────────────────────────
+# A CoinGecko "demo" API key raises the crypto price rate limit (coingecko.com/en/api). Give it directly
+# (a Secret is created) or reference a Secret that has the key `COINGECKO_API_KEY`.
+coingecko:
+  apiKey: ""
+  existingSecret: ""
+
+# ── exposure ───────────────────────────────────────────────────────────────────────────────────────
+ingress:
+  enabled: true
+  # -- `traefik`: Traefik IngressRoute CRDs (k3s/RKE2 default); `ingress`: a standard Ingress
+  type: traefik
+  # -- Standard Ingress only
+  className: ""
+  annotations: {}
+  tls:
+    enabled: true
+    # -- Secret holding the certificate. Defaults to <fullname>-tls
+    secretName: ""
+    certManager:
+      # -- Request the certificate from cert-manager: a Certificate for `traefik`, the issuer annotation for `ingress`
+      enabled: true
+      issuerRef:
+        name: letsencrypt
+        kind: ClusterIssuer
+  traefik:
+    apiVersion: traefik.io/v1alpha1
+    entryPoints:
+      web: web
+      websecure: websecure
+    # -- Redirect HTTP to HTTPS
+    redirectHttps: true
+    middlewares: []
+
+# ── network policies (off by default) ──────────────────────────────────────────────────────────────
+networkPolicy:
+  enabled: false
+  # -- Where the ingress controller runs (it may reach the pods). The default is k3s' Traefik.
+  ingressController:
+    namespaceSelector:
+      matchLabels:
+        kubernetes.io/metadata.name: kube-system
+  # -- The API calls the OIDC issuer and the price providers over HTTPS; set the CIDRs to restrict it (default: anywhere)
+  egressHttpsTo:
+    - ipBlock:
+        cidr: 0.0.0.0/0
+  # -- Where an external database lives (mode=external): extra egress rules (a list of NetworkPolicyEgressRule)
+  extraEgress: []

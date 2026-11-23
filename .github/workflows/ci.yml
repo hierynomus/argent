@@ -17,3 +17,51 @@ jobs:
       # type-check (shared, backend, frontend) + all tests + "migrations match schema.ts"
       - run: bun run check
       - run: bun run --cwd packages/frontend build
+
+  chart:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.13
+      - uses: azure/setup-helm@v4
+      # lint, render every charts/argent/ci/*-values.yaml and assert what the chart promises (hardened pods, wiring, required settings)
+      - run: bun run check:chart
+      # the rendered objects must be valid Kubernetes (and CRD) objects
+      - name: Validate against the Kubernetes and CRD schemas
+        run: |
+          curl -sSL https://github.com/yannh/kubeconform/releases/download/v0.6.7/kubeconform-linux-amd64.tar.gz | tar xz kubeconform
+          for values in charts/argent/ci/*-values.yaml; do
+            echo "== $values"
+            helm template argent charts/argent -f "$values" --namespace argent \
+              | ./kubeconform -strict -summary -kubernetes-version 1.31.0 \
+                  -schema-location default \
+                  -schema-location 'https://raw.githubusercontent.com/datreeio/CRDs-catalog/main/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json' -
+          done
+
+  images:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the images
+        run: |
+          docker build -f docker/backend.Dockerfile  -t argent-backend:test .
+          docker build -f docker/frontend.Dockerfile -t argent-frontend:test .
+      # run them as Kubernetes does (unprivileged, read-only root file system, no capabilities): migrations, health, headers, runtime config
+      - run: scripts/smoke-images.sh
+      # informational for now (exit-code 0): the base images are patched by their vendor, so look at what is left
+      - name: Scan the backend image for known vulnerabilities
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: argent-backend:test
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "0"
+      - name: Scan the frontend image for known vulnerabilities
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: argent-frontend:test
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: "0"

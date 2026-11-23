@@ -1,0 +1,45 @@
+{{- if and .Values.ingress.enabled (eq .Values.ingress.type "ingress") }}
+{{- $host := include "argent.host" . }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "argent.fullname" . }}
+  labels:
+    {{- include "argent.labels" . | nindent 4 }}
+  {{- $annotations := .Values.ingress.annotations }}
+  {{- if and .Values.ingress.tls.enabled .Values.ingress.tls.certManager.enabled }}
+  {{- $annotations = merge (dict (printf "cert-manager.io/%s" (ternary "cluster-issuer" "issuer" (eq .Values.ingress.tls.certManager.issuerRef.kind "ClusterIssuer"))) .Values.ingress.tls.certManager.issuerRef.name) $annotations }}
+  {{- end }}
+  {{- with $annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  {{- with .Values.ingress.className }}
+  ingressClassName: {{ . }}
+  {{- end }}
+  {{- if .Values.ingress.tls.enabled }}
+  tls:
+    - hosts:
+        - {{ $host | quote }}
+      secretName: {{ include "argent.tlsSecretName" . }}
+  {{- end }}
+  rules:
+    - host: {{ $host | quote }}
+      http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "argent.fullname" . }}-backend
+                port:
+                  number: {{ .Values.backend.port }}
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "argent.fullname" . }}-frontend
+                port:
+                  number: {{ .Values.frontend.port }}
+{{- end }}

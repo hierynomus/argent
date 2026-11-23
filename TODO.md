@@ -55,7 +55,7 @@ Verify everything with `bun run check` (type-check all packages + all tests + "m
 
 ## Deployment readiness
 - [ ] CI has never run on GitHub (`.github/workflows/ci.yml`; frontend tests now run through Vitest)
-- [ ] Set the `k8s/` placeholders (registry, domain, `AUTHENTIK_*` groups, optional `COINGECKO_API_KEY`) and try the real Authentik login
+- [ ] Install the Helm chart (`charts/argent`) on a real cluster with your registry/domain/Authentik values, and try the real login (the chart is lint/render/schema-checked and the images smoke-tested, but never installed)
 - [x] Dev database persists (PGlite in `packages/backend/.data/pglite`, reused across `bun --hot` reloads); `bun run db:reset` to start over; tracked `.env.example` files; production requires `DATABASE_URL`. Still open: a seed script with sample data
 
 ## Background jobs / ops
@@ -125,6 +125,18 @@ Vue 3 (rewritten from React; merged). `api/`, `lib/`, the shared zod schemas and
 - [x] Each extra payment either shortens the term (default, installment stays) or lowers the payment (end date stays); chosen when entering it, shown in the list
 - [ ] Banks may offer the lowered installment only from a fixed day (next month's collection); here it applies to the next installment after the payment date
 - [ ] An extra payment cannot be edited, only removed and re-entered (so changing its effect means re-entering it)
+
+## Deployment (Helm chart and images)
+- [x] `k8s/` replaced by `charts/argent` (hardened pods, Traefik/standard ingress, cert-manager, CloudNativePG or external DB, PDB/HPA/NetworkPolicy, schema, helm test); `bun run check:chart` + kubeconform in CI
+- [x] Images on SUSE BCI micro (Bun / nginx), non-root, read-only root file system; `scripts/smoke-images.sh` runs them like Kubernetes does
+- [x] The old backend Dockerfile never copied the lockfile (`bun.lockb*` did not match `bun.lock`) so `--frozen-lockfile` checked nothing; fixed
+- [x] Migrations wait for the database and hold an advisory lock (replicas can start together)
+- [ ] CI does not push images or publish the chart (OCI registry) yet; add a release workflow with `helm package`/`helm push` and image digests
+- [ ] A kind-based install test in CI (`helm install` + `helm test` with the CNPG operator)
+- [ ] The Trivy scan is informational; make it fail on fixable CRITICAL findings once the baseline is known
+- [ ] nginx on BCI is 1.21.x (SUSE-patched); if a current upstream nginx matters, switch the frontend base to Chainguard or a Docker Hardened Image
+- [ ] The CloudNativePG PostgreSQL image (`ghcr.io/cloudnative-pg/postgresql`) is Debian-based: choose a different image if a SUSE-based one becomes available for CNPG
+- [ ] A Content-Security-Policy for the SPA (it must allow the Authentik authority in `connect-src`, which is runtime config)
 
 ## Hygiene
 - [x] All migrations from now on come from `db:generate` (0018 does); `db:check` runs in `bun run check` and CI

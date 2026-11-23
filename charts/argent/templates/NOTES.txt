@@ -1,0 +1,24 @@
+Argent {{ .Chart.AppVersion }} is installed as "{{ .Release.Name }}".
+
+{{- if .Values.ingress.enabled }}
+
+  https://{{ include "argent.host" . }}
+
+Authentik must have an OIDC application (a public client) with the redirect URI
+  https://{{ include "argent.host" . }}/auth/callback
+and the groups "{{ .Values.auth.adminGroup }}" (admin) and "{{ .Values.auth.importGroup }}" (import) in its `groups` claim.
+{{- else }}
+
+The ingress is disabled; expose {{ include "argent.fullname" . }}-frontend (port {{ .Values.frontend.port }}) and route /api to
+{{ include "argent.fullname" . }}-backend (port {{ .Values.backend.port }}).
+{{- end }}
+
+{{- if eq .Values.database.mode "cnpg" }}
+
+The database is the CloudNativePG cluster "{{ include "argent.cnpgName" . }}". Watch it come up with:
+  kubectl --namespace {{ .Release.Namespace }} get cluster {{ include "argent.cnpgName" . }}
+The first start of the API waits for it and applies the migrations.
+{{- end }}
+
+Check that everything works:
+  helm test {{ .Release.Name }} --namespace {{ .Release.Namespace }}

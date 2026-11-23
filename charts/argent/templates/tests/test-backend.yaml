@@ -1,0 +1,32 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: {{ include "argent.fullname" . }}-test-backend
+  labels:
+    {{- include "argent.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": test
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  restartPolicy: Never
+  automountServiceAccountToken: false
+  {{- with .Values.imagePullSecrets }}
+  imagePullSecrets:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  securityContext:
+    {{- toYaml .Values.podSecurityContext | nindent 4 }}
+  containers:
+    # the API answers its health check through the Service (the image has Bun and nothing else)
+    - name: health
+      image: {{ include "argent.image" (dict "image" .Values.backend.image "root" .) | quote }}
+      imagePullPolicy: {{ .Values.backend.image.pullPolicy }}
+      args:
+        - -e
+        - |
+          const r = await fetch("http://{{ include "argent.fullname" . }}-backend:{{ .Values.backend.port }}/health");
+          const body = await r.json();
+          if (!r.ok || body.status !== "ok") { console.error("unhealthy", r.status, body); process.exit(1) }
+          console.log("backend is healthy")
+      securityContext:
+        {{- toYaml .Values.containerSecurityContext | nindent 8 }}

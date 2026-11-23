@@ -5,8 +5,8 @@ Self-hosted personal finance app. Repo dir is `finance`, but the root package is
 ## Stack
 - Bun workspaces monorepo: `packages/shared` (`@argent/shared`: types + zod request schemas, also used by the frontend for validation), `packages/backend` (Hono + Drizzle + Postgres), `packages/frontend` (Vue 3 + Vite + Tailwind + vue-router + TanStack Query for Vue + oidc-client-ts).
 - Auth: Authentik OIDC. The SPA runs the auth code flow; the backend validates the Bearer JWT via JWKS (`jose`).
-- Deploy: Docker images (`docker/`), k8s manifests (`k8s/`) for k3s/RKE2 with Traefik IngressRoute, cert-manager, CloudNativePG. Migrations run as a k8s init container.
-- CI: `.github/workflows/ci.yml` runs `bun run check` and the frontend build.
+- Deploy: container images in `docker/` (built on SUSE BCI `bci-micro:15.7`: Bun runtime for the API, nginx for the SPA; non-root user 65532, read-only root file system, no shell tools beyond bash) and the Helm chart `charts/argent` (replaces the old `k8s/` manifests): Deployments with hardened security contexts, Traefik IngressRoute or a standard Ingress, cert-manager Certificate, a CloudNativePG `Cluster` (or an external database via a Secret), PDBs, optional HPA/NetworkPolicies, `values.schema.json`, a `helm test`. Migrations run as an init container of the API pods (`db/migrate.ts` waits for the database and holds an advisory lock).
+- CI: `.github/workflows/ci.yml` has three jobs: `check` (`bun run check` + frontend build), `chart` (`bun run check:chart` + kubeconform against the Kubernetes/CRD schemas) and `images` (build both images, `scripts/smoke-images.sh`, Trivy scan).
 
 ## Commands
 - `bun install && bun run db:generate`, then `bun run dev:backend` and `bun run dev:frontend`. No external services are needed locally.
@@ -16,6 +16,7 @@ Self-hosted personal finance app. Repo dir is `finance`, but the root package is
 - **`bun run check`**: the one command to run before finishing work. Type-checks all three packages (test files included), runs every test, and verifies migrations match `schema.ts`.
 - `bun run typecheck` / `bun run test`: the two halves separately. Per package: `bun run --cwd packages/<name> test|typecheck`.
 - `bun run build`: build all packages.
+- `bun run check:chart`: lints and renders the Helm chart with every `charts/argent/ci/*-values.yaml` and asserts hardening, wiring and required settings (needs `helm`). `scripts/smoke-images.sh` runs the two images hardened like Kubernetes runs them (`CONTAINER_CLI=podman` works).
 
 ## Local dev mode
 - The `.env.development` files are not committed: copy `packages/backend/.env.example` and `packages/frontend/.env.example` (they document every dev setting).
@@ -96,7 +97,9 @@ Vue 3 (`<script setup lang="ts">` SFCs). Pages are thin: they pick a feature and
 - Backend: `DATABASE_URL`, `AUTHENTIK_ISSUER`, `CORS_ORIGIN`, `AUTHENTIK_ADMIN_GROUP`, `AUTHENTIK_IMPORT_GROUP`, optional `COINGECKO_API_KEY`.
 - Frontend: `VITE_AUTHENTIK_AUTHORITY`, `VITE_AUTHENTIK_CLIENT_ID`, `VITE_AUTH_MODE=fake` (dev only).
 
-## Open deployment TODOs
-- Replace the `your-registry/finance-*` image refs and `finance.example.com` in `k8s/`.
-- Create the Authentik OIDC app with a public client and redirect URI `https://<domain>/auth/callback`.
-- The CloudNativePG operator, cert-manager and a `letsencrypt` ClusterIssuer must exist before applying `k8s/postgres.yaml` and `k8s/ingress.yaml`.
+## Deployment (Helm chart `charts/argent`)
+- Install: see `charts/argent/README.md`. `host`, `auth.issuer` and `auth.clientId` are required (the chart refuses to render without them). The CloudNativePG operator, cert-manager (+ a `letsencrypt` ClusterIssuer) and an ingress controller must exist; create the Authentik OIDC app as a public client with redirect URI `https://<host>/auth/callback`.
+- The API gets `DATABASE_URL` from the CloudNativePG-generated Secret `<release>-postgres-app` (key `uri`), so no database password lives in values; `database.mode=external` reads it from a Secret you provide. The cluster is kept on `helm uninstall` (`helm.sh/resource-policy: keep`).
+- The SPA's runtime settings are written by `docker/frontend-entrypoint.sh` to `/tmp/env-config.js` (served as `/env-config.js`) from `VITE_AUTHENTIK_*`, so the root file system stays read-only. The frontend listens on 8080 (`/healthz`), the API on 3000 (`/health`).
+- Images: the Bun binary is copied from the official `oven/bun` image (version `BUN_VERSION`, same as CI); nginx comes from the SLE BCI repository (1.21.x with SUSE's security patches) installed into a copy of the micro root. Swapping the base for another hardened source (Chainguard, Docker Hardened Images) only touches the Dockerfiles.
+- Open: replace the `your-registry/argent-*` image defaults, push images from CI, run the chart on a real cluster (it is only lint/render/schema-checked and the images smoke-tested), and try the real Authentik login.

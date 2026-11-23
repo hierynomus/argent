@@ -1,0 +1,5 @@
+.git
+*.swp
+*.bak
+ci/
+README.md.gotmpl

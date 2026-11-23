@@ -1,0 +1,75 @@
+{{- if and .Values.ingress.enabled (eq .Values.ingress.type "traefik") }}
+{{- $host := include "argent.host" . }}
+{{- $traefik := .Values.ingress.traefik }}
+{{- $backend := printf "%s-backend" (include "argent.fullname" .) }}
+{{- $frontend := printf "%s-frontend" (include "argent.fullname" .) }}
+# API requests go to the backend, everything else to the SPA
+apiVersion: {{ $traefik.apiVersion }}
+kind: IngressRoute
+metadata:
+  name: {{ include "argent.fullname" . }}
+  labels:
+    {{- include "argent.labels" . | nindent 4 }}
+  {{- with .Values.ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  entryPoints:
+    - {{ $traefik.entryPoints.websecure }}
+  {{- if .Values.ingress.tls.enabled }}
+  tls:
+    secretName: {{ include "argent.tlsSecretName" . }}
+  {{- end }}
+  routes:
+    - match: Host(`{{ $host }}`) && PathPrefix(`/api`)
+      kind: Rule
+      {{- with $traefik.middlewares }}
+      middlewares:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      services:
+        - name: {{ $backend }}
+          port: {{ .Values.backend.port }}
+    - match: Host(`{{ $host }}`)
+      kind: Rule
+      {{- with $traefik.middlewares }}
+      middlewares:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      services:
+        - name: {{ $frontend }}
+          port: {{ .Values.frontend.port }}
+{{- if and .Values.ingress.tls.enabled $traefik.redirectHttps }}
+---
+# HTTP → HTTPS
+apiVersion: {{ $traefik.apiVersion }}
+kind: IngressRoute
+metadata:
+  name: {{ include "argent.fullname" . }}-http
+  labels:
+    {{- include "argent.labels" . | nindent 4 }}
+spec:
+  entryPoints:
+    - {{ $traefik.entryPoints.web }}
+  routes:
+    - match: Host(`{{ $host }}`)
+      kind: Rule
+      middlewares:
+        - name: {{ include "argent.fullname" . }}-redirect-https
+      services:
+        - name: {{ $frontend }}
+          port: {{ .Values.frontend.port }}
+---
+apiVersion: {{ $traefik.apiVersion }}
+kind: Middleware
+metadata:
+  name: {{ include "argent.fullname" . }}-redirect-https
+  labels:
+    {{- include "argent.labels" . | nindent 4 }}
+spec:
+  redirectScheme:
+    scheme: https
+    permanent: true
+{{- end }}
+{{- end }}

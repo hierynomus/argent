@@ -1,0 +1,73 @@
+{{- if .Values.networkPolicy.enabled }}
+{{- $np := .Values.networkPolicy }}
+# The pods may only talk to what they need. The frontend serves static files and needs no egress at all.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "argent.fullname" . }}-frontend
+  labels:
+    {{- include "argent.componentLabels" (dict "root" . "component" "frontend") | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "argent.componentSelectorLabels" (dict "root" . "component" "frontend") | nindent 6 }}
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            {{- toYaml $np.ingressController.namespaceSelector | nindent 12 }}
+      ports:
+        - port: {{ .Values.frontend.port }}
+          protocol: TCP
+  egress: []
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "argent.fullname" . }}-backend
+  labels:
+    {{- include "argent.componentLabels" (dict "root" . "component" "backend") | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "argent.componentSelectorLabels" (dict "root" . "component" "backend") | nindent 6 }}
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            {{- toYaml $np.ingressController.namespaceSelector | nindent 12 }}
+      ports:
+        - port: {{ .Values.backend.port }}
+          protocol: TCP
+  egress:
+    # DNS
+    - to:
+        - namespaceSelector: {}
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+    {{- if eq .Values.database.mode "cnpg" }}
+    # the CloudNativePG cluster
+    - to:
+        - podSelector:
+            matchLabels:
+              cnpg.io/cluster: {{ include "argent.cnpgName" . }}
+      ports:
+        - port: 5432
+          protocol: TCP
+    {{- end }}
+    # the OIDC issuer (JWKS) and the price providers
+    - to:
+        {{- toYaml $np.egressHttpsTo | nindent 8 }}
+      ports:
+        - port: 443
+          protocol: TCP
+    {{- with $np.extraEgress }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+{{- end }}

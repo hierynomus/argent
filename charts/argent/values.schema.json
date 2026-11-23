@@ -1,0 +1,118 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "host": { "type": "string", "pattern": "^$|^[a-zA-Z0-9]([a-zA-Z0-9.-]*[a-zA-Z0-9])?$", "description": "Public host name, without scheme or path" },
+    "corsOrigin": { "type": "string", "pattern": "^$|^https?://[^/\\s]+$", "description": "Origin like https://argent.example.com (no trailing slash)" },
+    "auth": {
+      "type": "object",
+      "properties": {
+        "issuer": { "type": "string", "pattern": "^$|^https?://\\S+$" },
+        "authority": { "type": "string", "pattern": "^$|^https?://\\S+$" },
+        "clientId": { "type": "string" },
+        "adminGroup": { "type": "string", "minLength": 1 },
+        "importGroup": { "type": "string", "minLength": 1 }
+      }
+    },
+    "backend": { "$ref": "#/definitions/workload" },
+    "frontend": { "$ref": "#/definitions/workload" },
+    "database": {
+      "type": "object",
+      "properties": {
+        "mode": { "type": "string", "enum": ["cnpg", "external"] },
+        "cnpg": {
+          "type": "object",
+          "properties": {
+            "instances": { "type": "integer", "minimum": 1 },
+            "imageName": { "type": "string", "minLength": 1 },
+            "keepOnUninstall": { "type": "boolean" },
+            "storage": {
+              "type": "object",
+              "properties": {
+                "size": { "type": "string", "pattern": "^[0-9]+(\\.[0-9]+)?(Ki|Mi|Gi|Ti)$" },
+                "storageClass": { "type": "string" }
+              }
+            }
+          }
+        },
+        "external": {
+          "type": "object",
+          "properties": {
+            "existingSecret": { "type": "string" },
+            "existingSecretKey": { "type": "string", "minLength": 1 }
+          }
+        }
+      }
+    },
+    "ingress": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "type": { "type": "string", "enum": ["traefik", "ingress"] },
+        "className": { "type": "string" },
+        "annotations": { "type": "object" },
+        "tls": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "secretName": { "type": "string" },
+            "certManager": {
+              "type": "object",
+              "properties": {
+                "enabled": { "type": "boolean" },
+                "issuerRef": {
+                  "type": "object",
+                  "properties": {
+                    "name": { "type": "string", "minLength": 1 },
+                    "kind": { "type": "string", "enum": ["ClusterIssuer", "Issuer"] }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "networkPolicy": { "type": "object", "properties": { "enabled": { "type": "boolean" } } },
+    "imagePullSecrets": { "type": "array" },
+    "podSecurityContext": { "type": "object" },
+    "containerSecurityContext": { "type": "object" }
+  },
+  "definitions": {
+    "workload": {
+      "type": "object",
+      "properties": {
+        "image": {
+          "type": "object",
+          "properties": {
+            "repository": { "type": "string", "minLength": 1 },
+            "tag": { "type": "string" },
+            "digest": { "type": "string", "pattern": "^$|^sha256:[a-f0-9]{64}$" },
+            "pullPolicy": { "type": "string", "enum": ["Always", "IfNotPresent", "Never"] }
+          }
+        },
+        "replicaCount": { "type": "integer", "minimum": 1 },
+        "port": { "type": "integer", "minimum": 1, "maximum": 65535 },
+        "topologySpreadConstraints": {
+          "oneOf": [
+            { "type": "string", "enum": ["auto"] },
+            { "type": "array" }
+          ]
+        },
+        "podDisruptionBudget": {
+          "type": "object",
+          "properties": { "enabled": { "type": "boolean" }, "minAvailable": { "type": ["integer", "string"] } }
+        },
+        "autoscaling": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "minReplicas": { "type": "integer", "minimum": 1 },
+            "maxReplicas": { "type": "integer", "minimum": 1 },
+            "targetCPUUtilizationPercentage": { "type": "integer", "minimum": 1, "maximum": 100 }
+          }
+        }
+      }
+    }
+  }
+}

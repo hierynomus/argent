@@ -1,0 +1,18 @@
+apiVersion: v2
+name: argent
+description: Self-hosted personal finance app (Vue SPA + Bun/Hono API) with an optional CloudNativePG database
+type: application
+version: 0.1.0
+# the image tag used when `backend.image.tag` / `frontend.image.tag` are empty
+appVersion: "0.1.0"
+kubeVersion: ">=1.27.0-0"
+home: https://github.com/hierynomus/finance
+sources:
+  - https://github.com/hierynomus/finance
+keywords:
+  - finance
+  - authentik
+  - cloudnative-pg
+annotations:
+  # artifacthub.io / helm hints
+  category: Finance

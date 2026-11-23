@@ -1,0 +1,14 @@
+{{- if and .Values.ingress.enabled (eq .Values.ingress.type "traefik") .Values.ingress.tls.enabled .Values.ingress.tls.certManager.enabled }}
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ include "argent.fullname" . }}
+  labels:
+    {{- include "argent.labels" . | nindent 4 }}
+spec:
+  secretName: {{ include "argent.tlsSecretName" . }}
+  issuerRef:
+    {{- toYaml .Values.ingress.tls.certManager.issuerRef | nindent 4 }}
+  dnsNames:
+    - {{ include "argent.host" . | quote }}
+{{- end }}

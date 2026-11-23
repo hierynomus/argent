@@ -1,4 +1,12 @@
-# keep local development state out of the image build context
+# keep local development state and dependencies out of the image build context
 **/.data
 **/.env.development
+**/node_modules
+**/dist
 .git
+
+# not needed to build the images
+.github
+charts
+scripts
+**/*.test.ts
