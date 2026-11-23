@@ -10,6 +10,18 @@ updates:
     groups:
       npm-minor-and-patch:
         update-types: [minor, patch]
+    # Held back until we migrate on purpose (each breaks the build today, see the failing PRs):
+    ignore:
+      # 0.x: a minor is breaking. 0.5 changes the options/typing of `new PGlite()` and the layout of the wasm files
+      # that the standalone executable embeds (scripts/build-standalone.ts, db/pgliteAssets.ts)
+      - dependency-name: "@electric-sql/pglite"
+        update-types: ["version-update:semver-minor", "version-update:semver-major"]
+      # 4.x moves the PostCSS plugin to @tailwindcss/postcss and replaces tailwind.config.js with CSS-first config
+      - dependency-name: tailwindcss
+        update-types: ["version-update:semver-major"]
+      # 7.x (the native compiler) does not work with vue-tsc yet ("typescript/lib/tsc is not exported")
+      - dependency-name: typescript
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: cargo
     directory: /packages/desktop/src-tauri
