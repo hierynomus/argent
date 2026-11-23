@@ -4,6 +4,7 @@ import { useMutation } from "@tanstack/vue-query"
 import { localSettingsSchema, type SavedBackup } from "@argent/shared"
 import { saveBackupToFolder, setBackupDir, useInvalidate, useLocalSettings } from "../../api"
 import { Button, ErrorText, Field, Input } from "../../components/ui"
+import { isDesktopApp, pickFolder } from "../../lib/desktop"
 import { useFormErrors } from "../../lib/validate"
 
 /** Backup & Restore in the desktop app: a window has no download manager, so backups go to a folder you choose. */
@@ -14,11 +15,21 @@ const { errors, check } = useFormErrors()
 const folder = ref("")
 watch(() => settings.value?.backupDir, (dir) => { if (dir && !folder.value) folder.value = dir }, { immediate: true })
 
+const canBrowse = isDesktopApp()
 const saved = ref<SavedBackup | null>(null)
 const changeFolder = useMutation({ mutationFn: setBackupDir, onSuccess: (s) => { folder.value = s.backupDir; return invalidate.localSettings() } })
 const backUp = useMutation({ mutationFn: saveBackupToFolder, onSuccess: (r) => (saved.value = r) })
 
 const submitFolder = () => check(localSettingsSchema, { backupDir: folder.value }) && changeFolder.mutate(folder.value)
+// the native dialog; a chosen folder is used at once, nobody wants a second click after browsing
+const browse = useMutation({
+  mutationFn: () => pickFolder(settings.value?.backupDir),
+  onSuccess: (dir) => {
+    if (!dir) return // cancelled
+    folder.value = dir
+    changeFolder.mutate(dir)
+  },
+})
 const unchanged = () => folder.value.trim() === settings.value?.backupDir
 </script>
 
@@ -40,8 +51,10 @@ const unchanged = () => folder.value.trim() === settings.value?.backupDir
           <Input v-model="folder" placeholder="~/Backups/Argent" spellcheck="false" />
         </Field>
       </div>
+      <Button v-if="canBrowse" size="sm" variant="secondary" class="rounded-md px-4 py-1.5" :disabled="browse.isPending.value" @click="browse.mutate()">Browse…</Button>
       <Button type="submit" size="sm" variant="secondary" class="rounded-md px-4 py-1.5" :disabled="changeFolder.isPending.value || unchanged()">Use this folder</Button>
     </form>
+    <ErrorText :error="browse.error.value" />
     <ErrorText :error="changeFolder.error.value" />
     <p v-if="settings" class="text-xs text-gray-500 dark:text-gray-400">
       Default: <span class="font-mono">{{ settings.defaultBackupDir }}</span>. The choice is kept in <span class="font-mono">{{ settings.configFile }}</span>.

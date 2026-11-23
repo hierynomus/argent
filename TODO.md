@@ -149,3 +149,4 @@ Vue 3 (rewritten from React; merged). `api/`, `lib/`, the shared zod schemas and
 - macOS/Windows installers and code signing / notarization; auto-update; release workflow publishing the installers.
 - A settings screen in the app for `config.json` (port, data directory, external Postgres); today the file is edited by hand.
 - Local mode has one user, so sharing/groups UI is meaningless there: hide it when `VITE_AUTH_MODE=local`.
+- Verify the Browse… button in the real desktop window (the capability for the remote 127.0.0.1 origin is untested; the UI shows the error if the call is refused).

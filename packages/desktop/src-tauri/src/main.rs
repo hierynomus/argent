@@ -7,6 +7,7 @@ use std::time::{Duration, Instant};
 
 use tauri::webview::DownloadEvent;
 use tauri::{Manager, RunEvent, Url, WebviewUrl, WebviewWindowBuilder};
+use tauri_plugin_dialog::DialogExt;
 use tauri_plugin_shell::process::{CommandChild, CommandEvent};
 use tauri_plugin_shell::ShellExt;
 
@@ -48,9 +49,25 @@ fn js_string(text: &str) -> String {
     out
 }
 
+/// The native "choose a folder" dialog, starting in `start` when that is given. None when cancelled.
+/// (An async command runs off the main thread, which the blocking dialog call needs.)
+#[tauri::command]
+async fn pick_folder(app: tauri::AppHandle, start: Option<String>) -> Option<String> {
+    let mut dialog = app.dialog().file().set_title("Choose the backup folder");
+    if let Some(dir) = start.filter(|d| std::path::Path::new(d).is_dir()) {
+        dialog = dialog.set_directory(dir);
+    }
+    dialog
+        .blocking_pick_folder()
+        .and_then(|path| path.into_path().ok())
+        .map(|path| path.display().to_string())
+}
+
 fn main() {
     let app = tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_dialog::init())
+        .invoke_handler(tauri::generate_handler![pick_folder])
         .setup(|app| {
             // The window is built here (not in tauri.conf.json) because only the builder can handle downloads.
             // Without a handler the webview never saves a file: clicking "Download backup" would do nothing.

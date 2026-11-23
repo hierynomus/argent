@@ -1,11 +1,11 @@
-import { afterEach, describe, expect, test } from "vitest"
+import { afterEach, describe, expect, test, vi } from "vitest"
 import { mockApi, respond } from "../../../test/fakeApi"
 import { renderApp, screen, waitFor } from "../../../test/render"
 import BackupRestoreSection from "./BackupRestoreSection.vue"
 
 const settings = { backupDir: "/data/backups", defaultBackupDir: "/data/backups", configFile: "/cfg/config.json", dataDir: "/data" }
 
-afterEach(() => { delete (window as any).__ENV__ })
+afterEach(() => { delete (window as any).__ENV__; delete (window as any).__TAURI_INTERNALS__ })
 
 describe("Backup & Restore in the desktop app", () => {
   test("a browser still gets the download button, not the folder", async () => {
@@ -63,5 +63,53 @@ describe("Backup & Restore in the desktop app", () => {
     await user.click(screen.getByRole("button", { name: "Use this folder" }))
     expect(await screen.findByText("Enter a folder")).toBeInTheDocument()
     expect(api.calls("PUT", "/local/settings")).toHaveLength(0)
+  })
+
+  describe("Browse…", () => {
+    const desktop = (invoke: (cmd: string, args?: any) => Promise<string | null>) => {
+      ;(window as any).__ENV__ = { VITE_AUTH_MODE: "local" }
+      ;(window as any).__TAURI_INTERNALS__ = { invoke: vi.fn(invoke) }
+      return (window as any).__TAURI_INTERNALS__.invoke as ReturnType<typeof vi.fn>
+    }
+
+    test("is not offered in a browser, where the folder cannot be picked natively", async () => {
+      ;(window as any).__ENV__ = { VITE_AUTH_MODE: "local" }
+      mockApi({ "GET /local/settings": settings })
+      await renderApp(BackupRestoreSection)
+      await screen.findByLabelText("Backup folder")
+      expect(screen.queryByRole("button", { name: "Browse…" })).toBeNull()
+    })
+
+    test("opens the native dialog in the current folder and uses the chosen one at once", async () => {
+      const invoke = desktop(async () => "/home/me/Documents/Argent backups")
+      const api = mockApi({ "GET /local/settings": settings, "PUT /local/settings": ({ body }: any) => ({ ...settings, backupDir: body.backupDir }) })
+      const { user } = await renderApp(BackupRestoreSection)
+      await waitFor(() => expect(screen.getByLabelText("Backup folder")).toHaveValue("/data/backups"))
+      await user.click(screen.getByRole("button", { name: "Browse…" }))
+      await waitFor(() => expect(api.calls("PUT", "/local/settings")).toHaveLength(1))
+      expect(invoke).toHaveBeenCalledWith("pick_folder", { start: "/data/backups" })
+      expect(api.calls("PUT", "/local/settings")[0].body).toEqual({ backupDir: "/home/me/Documents/Argent backups" })
+      expect(screen.getByLabelText("Backup folder")).toHaveValue("/home/me/Documents/Argent backups")
+    })
+
+    test("cancelling the dialog changes nothing", async () => {
+      desktop(async () => null)
+      const api = mockApi({ "GET /local/settings": settings })
+      const { user } = await renderApp(BackupRestoreSection)
+      await waitFor(() => expect(screen.getByLabelText("Backup folder")).toHaveValue("/data/backups"))
+      await user.click(screen.getByRole("button", { name: "Browse…" }))
+      await waitFor(() => expect(screen.getByRole("button", { name: "Browse…" })).toBeEnabled())
+      expect(api.calls("PUT", "/local/settings")).toHaveLength(0)
+      expect(screen.getByLabelText("Backup folder")).toHaveValue("/data/backups")
+    })
+
+    test("a dialog that cannot open says why", async () => {
+      desktop(async () => { throw new Error("command pick_folder not allowed by ACL") })
+      mockApi({ "GET /local/settings": settings })
+      const { user } = await renderApp(BackupRestoreSection)
+      await waitFor(() => expect(screen.getByLabelText("Backup folder")).toHaveValue("/data/backups"))
+      await user.click(screen.getByRole("button", { name: "Browse…" }))
+      expect(await screen.findByText(/not allowed by ACL/)).toBeInTheDocument()
+    })
   })
 })
