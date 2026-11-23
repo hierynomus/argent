@@ -1,3 +1,4 @@
+import Decimal from "decimal.js"
 import { describe, expect, test } from "bun:test"
 import { computePartState, monthlyRate, type PartInput } from "./amortization"
 
@@ -231,13 +232,20 @@ describe("a payout before the first installment (interest of the partial month i
   const mortgage = { type: "annuity", principal: "250000", annualInterestRate: "0.0315", startDate: "2018-10-09", endDate: "2048-11-01", firstPaymentDate: "2018-12-01" }
   const today = utc(2026, 10, 19)
 
-  test("matches a mortgage: payment 1076.43 and a balance within a few euros of the reference 204,819.22", () => {
+  test("matches the textbook annuity formula: the payment, and the balance after 96 installments", () => {
     const s = computePartState(mortgage, [], today)
     expect(s.originalMonthlyPayment).toBe(1076.43) // without the partial month it would be 1074.34
     expect(s.totalMonths).toBe(360)
     expect(s.monthsElapsed).toBe(96)
-    expect(Math.abs(s.currentBalance - 204819.22)).toBeLessThan(3)
     expect(s.projectedEndDate).toBe("2048-11-01")
+
+    // independent of the month-by-month simulation: the loan is 250,000 plus the partial month's interest
+    // (9 Oct to 1 Nov: 23 days of the 31 in October), repaid with the rounded payment
+    const r = new Decimal("0.0315").div(12)
+    const loan = new Decimal("250000").plus(s.capitalizedInterest)
+    const grown = new Decimal(1).plus(r).pow(96)
+    const balance = loan.mul(grown).minus(new Decimal(s.originalMonthlyPayment).mul(grown.minus(1)).div(r))
+    expect(Math.abs(s.currentBalance - balance.toNumber())).toBeLessThan(0.5) // cents rounding of each month
   })
 
   test("without a first payment date nothing changes", () => {
