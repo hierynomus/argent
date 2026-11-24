@@ -546,6 +546,7 @@ export interface AdminSharingResponse {
   loans: AdminSharingEntry[]
   properties: AdminSharingEntry[]
   equity: AdminSharingEntry[]
+  pensions: AdminSharingEntry[]
 }
 
 // ─── Property ───────────────────────────────────────────────────────────────
@@ -670,6 +671,77 @@ export interface EquityPlanWithDetails {
   canEdit: boolean
 }
 
+// ─── Pensions ───────────────────────────────────────────────────────────────
+
+export type PensionKind = "state" | "occupational_db" | "occupational_dc" | "personal"
+/** `closed` is derived from `closedOn` being today or earlier */
+export type PensionState = "active" | "frozen" | "closed"
+
+export interface PensionStatement {
+  id: string
+  planId: string
+  statementDate: string
+  capital: string | null
+  accruedIncome: string | null
+  projectedLow: string | null
+  projectedExpected: string | null
+  projectedHigh: string | null
+  partnerIncome: string | null
+  inTodaysMoney: boolean
+  note: string | null
+  createdAt: string
+}
+
+export interface PensionTransfer {
+  id: string
+  fromPlanId: string
+  toPlanId: string
+  /** names of the plans on either side, null when the user cannot see (or no longer has) that plan */
+  fromPlanName: string | null
+  toPlanName: string | null
+  transferDate: string
+  kind: "transfer" | "conversion"
+  capital: string | null
+  incomeGivenUp: string | null
+  note: string | null
+  createdAt: string
+}
+
+export interface PensionPlanWithDetails {
+  id: string
+  name: string
+  provider: string | null
+  kind: PensionKind
+  /** stored status, active or frozen; see `state` for what it is today */
+  status: "active" | "frozen"
+  state: PensionState
+  closedOn: string | null
+  ownerSub: string | null
+  currency: string
+  retirementDate: string | null
+  countInNetWorth: boolean
+  createdAt: string
+  /** oldest first */
+  statements: PensionStatement[]
+  /** the latest statement dated today or earlier; the figures below come from it */
+  latestStatement: PensionStatement | null
+  capital: number | null
+  accruedIncome: number | null
+  /** yearly income at retirement: the expected scenario, else what is accrued */
+  expectedIncome: number | null
+  incomeLow: number | null
+  incomeHigh: number | null
+  partnerIncome: number | null
+  /** whether the income figures are in today's euros (false: nominal) */
+  incomeInTodaysMoney: boolean
+  /** what this plan adds to net worth: its capital when it counts and is not closed, else 0 */
+  netWorthValue: number
+  transfers: PensionTransfer[]
+  members: PortfolioMember[]
+  isOwner: boolean
+  canEdit: boolean
+}
+
 // ─── Request bodies ─────────────────────────────────────────────────────────
 // Derived from the runtime schemas in `schemas.ts` (the single source of truth
 // the backend validates against). `z.input` = what a client is allowed to send.
@@ -712,6 +784,10 @@ export type UpdateEquityPlanBody = Body<typeof S.updateEquityPlanSchema>
 export type CreateEquityGrantBody = Body<typeof S.createEquityGrantSchema>
 export type UpdateEquityGrantBody = Body<typeof S.updateEquityGrantSchema>
 export type CreateEquityPriceBody = Body<typeof S.createEquityPriceSchema>
+export type CreatePensionPlanBody = Body<typeof S.createPensionPlanSchema>
+export type UpdatePensionPlanBody = Body<typeof S.updatePensionPlanSchema>
+export type CreatePensionStatementBody = Body<typeof S.createPensionStatementSchema>
+export type CreatePensionTransferBody = Body<typeof S.createPensionTransferSchema>
 export type CreatePropertyBody = Body<typeof S.createPropertySchema>
 export type UpdatePropertyBody = Body<typeof S.updatePropertySchema>
 export type CreatePropertyValuationBody = Body<typeof S.createPropertyValuationSchema>

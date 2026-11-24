@@ -6,6 +6,7 @@ import { getAdminAccounts, getAdminSharing } from "./admin"
 import { getCategories } from "./categories"
 import { debtApis, type Debt } from "./debts"
 import { equityApi } from "./equity"
+import { pensionsApi } from "./pensions"
 import { queryKeys, type DebtKind, type PortfolioKind } from "./keys"
 import { getLocalSettings, getLockStatus } from "./local"
 import { getMe } from "./me"
@@ -112,6 +113,7 @@ export function useAssetHistory(kind: "crypto" | "stocks", symbol: MaybeRefOrGet
 }
 
 export const useEquityPlans = () => useQuery({ queryKey: queryKeys.equity, queryFn: equityApi.list })
+export const usePensionPlans = () => useQuery({ queryKey: queryKeys.pensions, queryFn: pensionsApi.list })
 export const useProperties = () => useQuery({ queryKey: queryKeys.properties, queryFn: propertiesApi.list })
 
 export const useDebts = (kind: DebtKind) => useQuery<Debt[]>({ queryKey: queryKeys.debts(kind), queryFn: debtApis[kind].list })
@@ -156,6 +158,7 @@ export function useInvalidate() {
     debts: (kind: DebtKind) => Promise.all([qc.invalidateQueries({ queryKey: queryKeys.debts(kind) }), qc.invalidateQueries({ queryKey: queryKeys.properties })]),
     properties: () => qc.invalidateQueries({ queryKey: queryKeys.properties }),
     equity: () => qc.invalidateQueries({ queryKey: queryKeys.equity }),
+    pensions: () => qc.invalidateQueries({ queryKey: queryKeys.pensions }),
     admin: () => qc.invalidateQueries({ queryKey: ["admin"] }),
     /** the lock state changed (unlocked, locked, password set or removed): remember it */
     lockStatus: (status: LockStatus) => qc.setQueryData(queryKeys.lockStatus, status),

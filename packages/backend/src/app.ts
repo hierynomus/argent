@@ -22,6 +22,7 @@ import mortgagesRoute from "./routes/mortgages"
 import loansRoute from "./routes/loans"
 import propertiesRoute from "./routes/properties"
 import equityRoute from "./routes/equity"
+import pensionsRoute from "./routes/pensions"
 import { localRoutes } from "./routes/localRoutes"
 import type { LocalSettingsStore } from "./services/localSettings"
 
@@ -90,6 +91,7 @@ export function createApp({
   api.route("/loans", loansRoute)
   api.route("/properties", propertiesRoute)
   api.route("/equity", equityRoute)
+  api.route("/pensions", pensionsRoute)
   if (local) api.route("/local", localRoutes(local))
 
   // Consistent JSON errors: the frontend reads `{ error }` from every failure.

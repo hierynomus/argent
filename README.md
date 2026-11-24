@@ -13,7 +13,7 @@ desktop app with no accounts and no server.
   enter a part.
 - **Investments**: crypto and stocks/ETFs as an immutable trade ledger with FIFO cost basis, realized and unrealized
   P&L, dividends, a cash account per portfolio and price charts; physical metals per lot; property valuations;
-  stock options with vesting schedules.
+  stock options with vesting schedules; pensions (state, employer pot or rights, personal) from the statements you enter, with transfers between plans.
 - **Net worth** dashboard across everything, per currency (EUR and USD are never summed).
 - **Sharing**: share accounts, portfolios and debts with groups as viewer or editor (server deployment).
 - **Password lock** for the desktop app (set it in Profile, lock from the top-right menu).

@@ -1,5 +1,5 @@
 import { sumCents } from "../../lib/money"
-import type { Account, EquityPlanWithDetails, PortfolioWithAccess, PropertyWithDetails, TransactionWithDetails } from "@argent/shared"
+import type { Account, EquityPlanWithDetails, PensionPlanWithDetails, PortfolioWithAccess, PropertyWithDetails, TransactionWithDetails } from "@argent/shared"
 import type { Debt } from "../../api"
 
 /** An investment portfolio reduced to what the dashboard needs (its value is positions + cash). `null` = no value yet (still loading, or no live price). */
@@ -42,6 +42,9 @@ export interface DashboardInput {
   /** stock options: the vested value counts, the rest is only shown */
   equity?: EquityPlanWithDetails[]
   equityLoading?: boolean
+  /** pension plans: the pot of an open plan that counts adds to net worth; rights and state pension are income only */
+  pensions?: PensionPlanWithDetails[]
+  pensionsLoading?: boolean
 }
 
 export interface AssetClassSummary {
@@ -62,6 +65,8 @@ export interface DashboardSummary {
   properties: { value: number; debt: number; equity: number; count: number; loading: boolean }
   /** EUR option plans: `vestedValue` counts in net worth; `unvestedValue` (still vesting) and `onExitValue` do not */
   equity: { vestedValue: number; unvestedValue: number; onExitValue: number; count: number; loading: boolean }
+  /** EUR pensions: `value` is what counts in net worth (pots), `count` the plans that are not closed */
+  pensions: { value: number; count: number; loading: boolean }
   mortgages: { balance: number; monthly: number; count: number }
   loans: { balance: number; monthly: number; count: number }
   totalAssets: number
@@ -122,11 +127,14 @@ export function summarize(input: DashboardInput): DashboardSummary {
     loading: input.equityLoading ?? false,
   }
 
+  const eurPensions = (input.pensions ?? []).filter((p) => p.currency === EUR)
+  const pensions = { value: sum(eurPensions, (p) => p.netWorthValue), count: (input.pensions ?? []).filter((p) => p.state !== "closed").length, loading: input.pensionsLoading ?? false }
+
   // a linked mortgage stays in the liabilities below: the property is the asset on the other side of it
-  const totalAssets = accountsTotal + crypto.total + metals.total + stocks.total + propertyValue + equity.vestedValue
+  const totalAssets = accountsTotal + crypto.total + metals.total + stocks.total + propertyValue + equity.vestedValue + pensions.value
   const totalLiabilities = mortgages.balance + loans.balance
 
-  const anyNonEur = [...input.accounts, ...input.crypto, ...input.metals, ...input.stocks, ...input.mortgages, ...input.loans, ...(input.properties ?? []), ...(input.equity ?? [])].some(
+  const anyNonEur = [...input.accounts, ...input.crypto, ...input.metals, ...input.stocks, ...input.mortgages, ...input.loans, ...(input.properties ?? []), ...(input.equity ?? []), ...(input.pensions ?? [])].some(
     (x) => x.currency !== EUR,
   )
 
@@ -141,12 +149,13 @@ export function summarize(input: DashboardInput): DashboardSummary {
     stocks,
     properties,
     equity,
+    pensions,
     mortgages,
     loans,
     totalAssets,
     totalLiabilities,
     netWorth: totalAssets - totalLiabilities,
-    netWorthLoading: crypto.loading || metals.loading || stocks.loading || properties.loading || equity.loading,
+    netWorthLoading: crypto.loading || metals.loading || stocks.loading || properties.loading || equity.loading || pensions.loading,
     hasExcludedNonEur: anyNonEur,
     cashFlow: { income, expenses, net: income - expenses },
   }

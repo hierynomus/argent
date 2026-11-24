@@ -2,7 +2,7 @@ import { eq, type SQL } from "drizzle-orm"
 import type { PgColumn, PgTable } from "drizzle-orm/pg-core"
 import {
   accountMembers, accounts, equityPlanMembers, equityPlans, loanMembers, loans, mortgageMembers, mortgages, portfolioMembers, portfolios,
-  propertyMembers, properties,
+  propertyMembers, properties, pensionPlanMembers, pensionPlans,
 } from "../db/schema"
 
 /**
@@ -84,14 +84,25 @@ export const equityResource: SharedResource = {
   memberRole: equityPlanMembers.role,
 }
 
+export const pensionResource: SharedResource = {
+  table: pensionPlans,
+  id: pensionPlans.id,
+  ownerSub: pensionPlans.ownerSub,
+  members: pensionPlanMembers,
+  memberResourceId: pensionPlanMembers.planId,
+  memberGroup: pensionPlanMembers.groupName,
+  memberRole: pensionPlanMembers.role,
+}
+
 /**
  * What the admin "sharing overview" lists: the response key, the resource, which column is its display name,
  * and optionally a column to show as `type`. Accounts are managed on their own admin screen.
  */
-export const SHARING_OVERVIEW: Array<{ key: "portfolios" | "mortgages" | "loans" | "properties" | "equity"; resource: SharedResource; name: PgColumn; type?: PgColumn }> = [
+export const SHARING_OVERVIEW: Array<{ key: "portfolios" | "mortgages" | "loans" | "properties" | "equity" | "pensions"; resource: SharedResource; name: PgColumn; type?: PgColumn }> = [
   { key: "portfolios", resource: portfolioResource(), name: portfolios.name, type: portfolios.type },
   { key: "mortgages", resource: mortgageResource, name: mortgages.name },
   { key: "loans", resource: loanResource, name: loans.name },
   { key: "properties", resource: propertyResource, name: properties.name },
   { key: "equity", resource: equityResource, name: equityPlans.name },
+  { key: "pensions", resource: pensionResource, name: pensionPlans.name },
 ]

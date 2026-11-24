@@ -183,6 +183,7 @@ const resources = [
   { name: "loans", base: "/loans", create: (c: typeof owner) => c.post("/loans", { name: unique("lo") }), child: (id: string) => ({ path: `/loans/${id}/parts`, body: { name: "p", type: "linear", principal: "1000", annualInterestRate: "0.05", startDate: "2024-01-01", endDate: "2034-01-01" } }) },
   { name: "properties", base: "/properties", create: (c: typeof owner) => c.post("/properties", { name: unique("pr") }), child: (id: string) => ({ path: `/properties/${id}/valuations`, body: { valuationDate: "2024-01-01", value: "100000" } }) },
   { name: "equity plans", base: "/equity", create: (c: typeof owner) => c.post("/equity", { name: unique("co") }), child: (id: string) => ({ path: `/equity/${id}/prices`, body: { priceDate: "2024-01-01", price: "10" } }) },
+  { name: "pension plans", base: "/pensions", create: (c: typeof owner) => c.post("/pensions", { name: unique("pe"), kind: "personal" }), child: (id: string) => ({ path: `/pensions/${id}/statements`, body: { statementDate: "2024-01-01", capital: "1000" } }) },
 ]
 
 for (const r of resources) {

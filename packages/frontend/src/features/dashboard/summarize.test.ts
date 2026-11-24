@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest"
-import { account, debt, equityPlan, portfolio, property, transaction } from "../../../test/fixtures"
+import { account, debt, equityPlan, pensionPlan, portfolio, property, transaction } from "../../../test/fixtures"
 import { bankingLabel, summarize, toHoldings, unrealizedLabel, type DashboardInput, type Holding } from "./summarize"
 
 const empty: DashboardInput = { accounts: [], mortgages: [], loans: [], crypto: [], metals: [], stocks: [], monthTransactions: [] }
@@ -237,5 +237,28 @@ describe("summarize: cash in investment accounts", () => {
     expect(withCash[0].cash).toBe(75)
     const metals = toHoldings([{ currency: "EUR" }], [{ data: { totalUnrealizedPnL: null } as any, isLoading: false }], () => 10)
     expect(metals[0].cash).toBe(0)
+  })
+})
+
+describe("summarize: pensions", () => {
+  test("the pot of an open plan that counts is an asset", () => {
+    const s = summarize({ ...empty, pensions: [pensionPlan({ netWorthValue: 42_000 })] })
+    expect(s.pensions).toEqual({ value: 42_000, count: 1, loading: false })
+    expect(s.totalAssets).toBe(42_000)
+    expect(s.netWorth).toBe(42_000)
+  })
+
+  test("rights, the state pension and closed plans add nothing (the plan says what counts)", () => {
+    const s = summarize({
+      ...empty,
+      pensions: [pensionPlan({ id: "a", netWorthValue: 0, kind: "occupational_db", capital: null }), pensionPlan({ id: "b", netWorthValue: 0, state: "closed" }), pensionPlan({ id: "c", netWorthValue: 5_000 })],
+    })
+    expect(s.pensions).toMatchObject({ value: 5_000, count: 2 }) // closed ones are not counted as plans
+  })
+
+  test("a pension in another currency is left out, and the page says so", () => {
+    const s = summarize({ ...empty, pensions: [pensionPlan({ currency: "USD", netWorthValue: 9_999 })] })
+    expect(s.pensions.value).toBe(0)
+    expect(s.hasExcludedNonEur).toBe(true)
   })
 })

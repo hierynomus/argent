@@ -20,6 +20,7 @@ export const BACKUP_ORDER = [
   "loans", "loanParts", "loanExtraPayments", "loanPartRates", "loanMembers",
   "properties", "propertyValuations", "propertyMembers", "propertyMortgages", "propertyLoans",
   "equityPlans", "equityGrants", "equityPrices", "equityPlanMembers",
+  "pensionPlans", "pensionStatements", "pensionTransfers", "pensionPlanMembers",
   "transactions", // last: it references accounts, categories and subscriptions (and itself)
 ] as const satisfies readonly (keyof typeof schema)[]
 

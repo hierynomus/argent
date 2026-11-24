@@ -88,6 +88,7 @@ Vue 3 (rewritten from React; merged). `api/`, `lib/`, the shared zod schemas and
 - [x] Investment **overview tab** (all visible portfolios, per currency) and per-asset **price chart** with trade markers. Not built: metals history (no free source), historical FX for stock charts, portfolio-value-over-time
 - [x] **Property** as an asset: manual dated valuations (flat until the next), linked mortgages/loans, equity, counted in net worth. Not built: equity-over-time chart (needs the debt's balance history), automatic valuation (WOZ), repayments-vs-appreciation split
 - [x] **Stock options**: plans per company, time/exit grants, manual share prices, vested value in net worth. Not built: quarterly/yearly or accelerated vesting, tax estimate, exit-scenario calculator, expiry dates
+- [x] **Pensions**: plans (state, employer rights or pot, personal) that are active, frozen or closed, dated manual statements (pot, accrued income, three projection scenarios, real vs nominal), transfers/conversions linking an old plan to a new one, pots counted in net worth. Not built: contributions (growth vs deposits), a retirement-income projection against a target, annuitising a pot, the AOW date (needs a birth date)
 - [x] **Loans/mortgages**: nominal or effective rate, day-aware payment dates, extra payments shorten the term, term entered in months
 - [x] **Crypto**: any ticker via CoinGecko search, sub-cent prices, rate-limit resilience (backoff, Yahoo fallback, stale data)
 

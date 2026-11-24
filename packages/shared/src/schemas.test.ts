@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import {
+  createPensionPlanSchema, createPensionStatementSchema, createPensionTransferSchema,
   addMemberSchema, createCategorySchema, createCryptoTradeSchema, createDebtPartSchema, createDebtSchema,
   createDebtExtraPaymentSchema, createMetalLotSchema, createMetalSaleSchema, createPortfolioSchema,
   createStockDividendSchema, createStockTradeSchema, createSubscriptionSchema, decimalString, isoDate,
@@ -346,5 +347,28 @@ describe("transactionFiltersSchema", () => {
     bad(transactionFiltersSchema, { page: "0" }, "at least 1")
     bad(transactionFiltersSchema, { page: "1.5" }, "whole number")
     bad(transactionFiltersSchema, { pageSize: "abc" }, "must be a number")
+  })
+})
+
+describe("pension schemas", () => {
+  const id = "11111111-1111-4111-8111-111111111111"
+  test("a plan needs a name and a known kind", () => {
+    expect(createPensionPlanSchema.safeParse({ name: "Fund", kind: "occupational_dc" }).success).toBe(true)
+    expect(createPensionPlanSchema.safeParse({ name: "Fund" }).success).toBe(false)
+    expect(createPensionPlanSchema.safeParse({ name: "Fund", kind: "other" }).success).toBe(false)
+    expect(createPensionPlanSchema.safeParse({ name: "Fund", kind: "personal", status: "closed" }).success).toBe(false)
+  })
+  test("a statement needs a figure, and the scenarios must be in order", () => {
+    expect(createPensionStatementSchema.safeParse({ statementDate: "2024-01-01" }).success).toBe(false)
+    expect(createPensionStatementSchema.safeParse({ statementDate: "2024-01-01", capital: "100" }).success).toBe(true)
+    expect(createPensionStatementSchema.safeParse({ statementDate: "2024-01-01", projectedLow: "1", projectedExpected: "2", projectedHigh: "3" }).success).toBe(true)
+    expect(createPensionStatementSchema.safeParse({ statementDate: "2024-01-01", projectedLow: "3", projectedHigh: "2" }).success).toBe(false)
+    expect(createPensionStatementSchema.safeParse({ statementDate: "2024-01-01", capital: "-1" }).success).toBe(false)
+  })
+  test("a transfer goes between two different plans", () => {
+    const other = "22222222-2222-4222-8222-222222222222"
+    expect(createPensionTransferSchema.safeParse({ fromPlanId: id, toPlanId: other, transferDate: "2024-01-01", kind: "conversion" }).success).toBe(true)
+    expect(createPensionTransferSchema.safeParse({ fromPlanId: id, toPlanId: id, transferDate: "2024-01-01", kind: "transfer" }).success).toBe(false)
+    expect(createPensionTransferSchema.safeParse({ fromPlanId: id, toPlanId: other, transferDate: "2024-01-01", kind: "swap" }).success).toBe(false)
   })
 })

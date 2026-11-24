@@ -2,7 +2,7 @@ import { and, eq, inArray, or, type SQL } from "drizzle-orm"
 import type { PgColumn, PgTable } from "drizzle-orm/pg-core"
 import { db } from "../db"
 import {
-  accountResource, equityResource, loanResource, mortgageResource, portfolioResource, propertyResource, type SharedResource,
+  accountResource, equityResource, loanResource, mortgageResource, pensionResource, portfolioResource, propertyResource, type SharedResource,
 } from "./sharedResources"
 
 export interface AccessContext {
@@ -106,3 +106,10 @@ export const getViewableEquityPlanIds = (ctx: AccessContext) => resolveIds(equit
 export const getEditableEquityPlanIds = (ctx: AccessContext) => resolveIds(equityResource, ctx, "edit")
 export const canViewEquityPlan = (ctx: AccessContext, id: string) => hasAccess(equityResource, ctx, "view", id)
 export const canEditEquityPlan = (ctx: AccessContext, id: string) => hasAccess(equityResource, ctx, "edit", id)
+
+// ── Pensions ─────────────────────────────────────────────────────────────────
+
+export const getViewablePensionPlanIds = (ctx: AccessContext) => resolveIds(pensionResource, ctx, "view")
+export const getEditablePensionPlanIds = (ctx: AccessContext) => resolveIds(pensionResource, ctx, "edit")
+export const canViewPensionPlan = (ctx: AccessContext, id: string) => hasAccess(pensionResource, ctx, "view", id)
+export const canEditPensionPlan = (ctx: AccessContext, id: string) => hasAccess(pensionResource, ctx, "edit", id)

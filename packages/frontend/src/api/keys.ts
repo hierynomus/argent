@@ -36,6 +36,9 @@ export const queryKeys = {
   /** every equity plan with its grants (and their vesting state) and share prices */
   equity: ["equity"] as const,
 
+  /** every pension plan with its statements, state and transfers */
+  pensions: ["pensions"] as const,
+
   /** every property with its valuations, linked liabilities, debt and equity */
   properties: ["properties"] as const,
 

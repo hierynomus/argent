@@ -425,6 +425,72 @@ export const createEquityPriceSchema = z.object({
   note: optionalText(200),
 })
 
+// ─── Pensions ───────────────────────────────────────────────────────────────
+
+export const PENSION_KINDS = ["state", "occupational_db", "occupational_dc", "personal"] as const
+export const pensionKindSchema = z.enum(PENSION_KINDS, { error: "kind must be state, occupational_db, occupational_dc or personal" })
+export const pensionStatusSchema = z.enum(["active", "frozen"], { error: "status must be active or frozen" })
+export const pensionTransferKindSchema = z.enum(["transfer", "conversion"], { error: "kind must be transfer or conversion" })
+
+export const createPensionPlanSchema = z.object({
+  name: requiredString("name"),
+  kind: pensionKindSchema,
+  provider: optionalText(200),
+  currency: currencySchema.optional(),
+  status: pensionStatusSchema.optional(),
+  retirementDate: isoDate("retirementDate").optional(),
+  /** default: capital-based plans (a pot) count, rights and the state pension do not */
+  countInNetWorth: z.boolean().optional(),
+})
+
+export const updatePensionPlanSchema = z.object({
+  name: z.string().trim().min(1, "name must not be empty").max(200).optional(),
+  kind: pensionKindSchema.optional(),
+  provider: z.string().trim().max(200).nullable().optional(),
+  status: pensionStatusSchema.optional(),
+  /** a date closes the plan from that day (converted, transferred out, paid out); null reopens it */
+  closedOn: isoDate("closedOn").nullable().optional(),
+  retirementDate: isoDate("retirementDate").nullable().optional(),
+  countInNetWorth: z.boolean().optional(),
+})
+
+const yearlyAmount = (what: string) => nonNegativeDecimalString(what)
+
+/** A statement from the provider: it needs at least one figure. Projections must be in order (low ≤ expected ≤ high). */
+export const createPensionStatementSchema = z
+  .object({
+    statementDate: isoDate("statementDate"),
+    capital: nonNegativeDecimalString("capital").optional(),
+    accruedIncome: yearlyAmount("accruedIncome").optional(),
+    projectedLow: yearlyAmount("projectedLow").optional(),
+    projectedExpected: yearlyAmount("projectedExpected").optional(),
+    projectedHigh: yearlyAmount("projectedHigh").optional(),
+    partnerIncome: yearlyAmount("partnerIncome").optional(),
+    inTodaysMoney: z.boolean().optional(),
+    note: optionalText(200),
+  })
+  .superRefine((s, ctx) => {
+    const figures = [s.capital, s.accruedIncome, s.projectedLow, s.projectedExpected, s.projectedHigh, s.partnerIncome]
+    if (figures.every((f) => f === undefined)) ctx.addIssue({ code: "custom", path: ["capital"], message: "Enter at least one figure from the statement" })
+    const given = ([s.projectedLow, s.projectedExpected, s.projectedHigh] as Array<string | undefined>).filter((v): v is string => v !== undefined).map(parseFloat)
+    if (given.some((v, i) => i > 0 && v < given[i - 1])) ctx.addIssue({ code: "custom", path: ["projectedHigh"], message: "The scenarios must go from low to expected to high" })
+  })
+
+/** Value or rights moving between two plans. Closing the old plan on the same day is the usual case. */
+export const createPensionTransferSchema = z
+  .object({
+    fromPlanId: z.uuid("fromPlanId must be an id"),
+    toPlanId: z.uuid("toPlanId must be an id"),
+    transferDate: isoDate("transferDate"),
+    kind: pensionTransferKindSchema,
+    capital: nonNegativeDecimalString("capital").optional(),
+    incomeGivenUp: nonNegativeDecimalString("incomeGivenUp").optional(),
+    note: optionalText(200),
+    /** also close the old plan on the transfer date (default true) */
+    closeFrom: z.boolean().optional(),
+  })
+  .refine((t) => t.fromPlanId !== t.toPlanId, { path: ["toPlanId"], message: "Choose a different plan to transfer to" })
+
 // ─── Transaction list filters (GET /transactions?…) ─────────────────────────────
 
 /** Query strings give "" for an unset field: treat it as absent. */

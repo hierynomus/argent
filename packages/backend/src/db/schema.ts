@@ -421,6 +421,60 @@ export const equityPlanMembers = pgTable("equity_plan_members", {
   role: text("role").notNull().default("viewer"), // "viewer" | "editor"
 }, (t) => ({ pk: primaryKey({ columns: [t.planId, t.groupName] }), equity_plan_members_group_idx: index("equity_plan_members_group_idx").on(t.groupName) }))
 
+// ─── Pensions ──────────────────────────────────────────────────────────────
+// A plan is one pension arrangement: state pension, an employer's defined-benefit (rights) or
+// defined-contribution (pot) scheme, or a personal product. What it is worth comes from dated statements
+// entered by hand (providers have no export): a capital balance and/or accrued yearly income. A plan is
+// active (still building up), frozen (no new accrual) or closed (`closedOn`: converted, transferred out,
+// paid out). Moves between plans (a job change, the Dutch Wtp conversion) are `pension_transfers`.
+export const pensionPlans = pgTable("pension_plans", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  name: text("name").notNull(),
+  provider: text("provider"),
+  kind: text("kind").notNull(), // "state" | "occupational_db" | "occupational_dc" | "personal"
+  status: text("status").notNull().default("active"), // "active" | "frozen" (closed is `closedOn`)
+  closedOn: date("closed_on"),
+  ownerSub: text("owner_sub"),
+  currency: text("currency").notNull().default("EUR"),
+  retirementDate: date("retirement_date"),
+  countInNetWorth: boolean("count_in_net_worth").notNull().default(false),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (t) => ({ pension_plans_owner_idx: index("pension_plans_owner_idx").on(t.ownerSub) }))
+
+export const pensionStatements = pgTable("pension_statements", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  planId: uuid("plan_id").notNull().references(() => pensionPlans.id, { onDelete: "cascade" }),
+  statementDate: date("statement_date").notNull(),
+  capital: numeric("capital", { precision: 15, scale: 2 }), // the pot today (DC, personal)
+  accruedIncome: numeric("accrued_income", { precision: 15, scale: 2 }), // yearly income built up so far, payable from retirement (DB, state)
+  projectedLow: numeric("projected_low", { precision: 15, scale: 2 }), // yearly income at retirement, three scenarios
+  projectedExpected: numeric("projected_expected", { precision: 15, scale: 2 }),
+  projectedHigh: numeric("projected_high", { precision: 15, scale: 2 }),
+  partnerIncome: numeric("partner_income", { precision: 15, scale: 2 }), // yearly survivor's pension
+  inTodaysMoney: boolean("in_todays_money").notNull().default(true), // the incomes are in today's euros (not nominal)
+  note: text("note"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (t) => ({ pension_statements_plan_idx: index("pension_statements_plan_idx").on(t.planId, t.statementDate) }))
+
+/** Value or rights moving from one plan to another. No foreign keys (like `continuesPartId`): restore inserts in any order. */
+export const pensionTransfers = pgTable("pension_transfers", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  fromPlanId: uuid("from_plan_id").notNull(),
+  toPlanId: uuid("to_plan_id").notNull(),
+  transferDate: date("transfer_date").notNull(),
+  kind: text("kind").notNull(), // "transfer" (waardeoverdracht) | "conversion" (rights became a pot)
+  capital: numeric("capital", { precision: 15, scale: 2 }), // what arrived in the new plan
+  incomeGivenUp: numeric("income_given_up", { precision: 15, scale: 2 }), // yearly income the old plan stopped promising
+  note: text("note"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (t) => ({ pension_transfers_from_idx: index("pension_transfers_from_idx").on(t.fromPlanId), pension_transfers_to_idx: index("pension_transfers_to_idx").on(t.toPlanId) }))
+
+export const pensionPlanMembers = pgTable("pension_plan_members", {
+  planId: uuid("plan_id").notNull().references(() => pensionPlans.id, { onDelete: "cascade" }),
+  groupName: text("group_name").notNull(),
+  role: text("role").notNull().default("viewer"), // "viewer" | "editor"
+}, (t) => ({ pk: primaryKey({ columns: [t.planId, t.groupName] }), pension_plan_members_group_idx: index("pension_plan_members_group_idx").on(t.groupName) }))
+
 // Relations for Drizzle query builder
 export const accountRelations = relations(accounts, ({ many }) => ({
   transactions: many(transactions),

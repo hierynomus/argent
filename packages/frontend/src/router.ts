@@ -24,6 +24,7 @@ export const routes = [
   { path: "/stocks", component: () => import("./pages/Stocks.vue") },
   { path: "/property", component: () => import("./pages/Property.vue") },
   { path: "/equity", component: () => import("./pages/Equity.vue") },
+  { path: "/pensions", component: () => import("./pages/Pensions.vue") },
 ]
 
 /** The app's router. Every page except the sign-in callback needs a session: without one, go sign in. */

@@ -1,7 +1,7 @@
 /** Typed API fixtures — checked against @argent/shared, so test data can't silently drift from the real shapes. */
 import type {
   Account, Category, LoanPart, LoanWithParts, MetalLot, MetalPortfolioDetail, MortgagePart, MortgageWithParts,
-  EquityPlanWithDetails, PortfolioDetail, PortfolioWithAccess, PropertyWithDetails, StockPortfolioDetail, StockPosition, Subscription,
+  EquityPlanWithDetails, PensionPlanWithDetails, PensionStatement, PortfolioDetail, PortfolioWithAccess, PropertyWithDetails, StockPortfolioDetail, StockPosition, Subscription,
 } from "@argent/shared"
 
 /** A mortgage part or a loan part (identical shapes apart from the parent's foreign key). */
@@ -109,3 +109,19 @@ export const equityPlan = (over: Partial<EquityPlanWithDetails> = {}): EquityPla
   totals: { granted: 5800, vested: 2400, unvested: 2400, onExit: 1000, vestedValue: 24000, unvestedValue: 24000, onExitValue: 10000 },
   members: [], isOwner: true, canEdit: true, ...over,
 })
+
+export const pensionStatement = (over: Partial<PensionStatement> = {}): PensionStatement => ({
+  id: "st1", planId: "pn1", statementDate: "2024-06-01", capital: "42000.00", accruedIncome: null, projectedLow: null, projectedExpected: null, projectedHigh: null,
+  partnerIncome: null, inTodaysMoney: true, note: null, createdAt: "2024-06-01T00:00:00Z", ...over,
+})
+
+/** An employer pot (DC) of 42.000 that counts in net worth, with a three-scenario projection. */
+export const pensionPlan = (over: Partial<PensionPlanWithDetails> = {}): PensionPlanWithDetails => {
+  const latest = pensionStatement({ projectedLow: "18000.00", projectedExpected: "22000.00", projectedHigh: "27000.00" })
+  return {
+    id: "pn1", name: "Employer pension", provider: "Fund X", kind: "occupational_dc", status: "active", state: "active", closedOn: null, ownerSub: "dev-user",
+    currency: "EUR", retirementDate: "2050-01-01", countInNetWorth: true, createdAt: "2023-01-01T00:00:00Z",
+    statements: [latest], latestStatement: latest, capital: 42000, accruedIncome: null, expectedIncome: 22000, incomeLow: 18000, incomeHigh: 27000, partnerIncome: null,
+    incomeInTodaysMoney: true, netWorthValue: 42000, transfers: [], members: [], isOwner: true, canEdit: true, ...over,
+  }
+}

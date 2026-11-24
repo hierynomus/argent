@@ -9,5 +9,5 @@ const { data: sharing, isLoading } = useAdminSharing()
 
 <template>
   <LoadingText v-if="isLoading" />
-  <SharingOverview v-else :sharing="sharing ?? { portfolios: [], mortgages: [], loans: [], properties: [], equity: [] }" />
+  <SharingOverview v-else :sharing="sharing ?? { portfolios: [], mortgages: [], loans: [], properties: [], equity: [], pensions: [] }" />
 </template>
