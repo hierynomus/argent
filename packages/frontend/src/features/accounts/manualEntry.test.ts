@@ -71,10 +71,10 @@ describe("accounts and transactions entered by hand", () => {
     await waitFor(() => expect(api.calls("POST", "/transactions")[0].body).toMatchObject({ direction: "CRDT", amount: "10" }))
   })
 
-  test("an empty manual account can be deleted", async () => {
+  test("an account can be deleted after confirming", async () => {
     const { api, user } = await setup()
     await user.click(await screen.findByRole("button", { name: "Delete account" }))
-    await user.click(screen.getByRole("button", { name: "Yes" }))
+    await user.click(screen.getByRole("button", { name: "Yes, delete" }))
     await waitFor(() => expect(api.calls("DELETE", `/accounts/${CASH_ID}`)).toHaveLength(1))
   })
 })

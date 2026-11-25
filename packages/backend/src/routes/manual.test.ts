@@ -27,20 +27,35 @@ describe("accounts entered by hand", () => {
     expect((await post("/accounts", { name: "  " })).status).toBe(400)
   })
 
-  test("an empty manual account can be deleted, one with transactions cannot", async () => {
-    const empty = await newAccount()
-    expect((await del(`/accounts/${empty.id}`)).status).toBe(204)
-    const used = await newAccount()
-    await tx(used.id, "DBIT", "5")
-    expect((await del(`/accounts/${used.id}`)).status).toBe(409)
+  test("an account can be deleted with its transactions, and re-importing brings them back", async () => {
+    const iban = uniqueIban()
+    await upload("/import", "a.xml", camt({ iban, entries: [{ amount: "12.50", ind: "DBIT", date: "2026-02-01" }] }))
+    const id = ((await get("/accounts")).body as any[]).find((a) => a.iban === iban).id
+    expect(((await get(`/transactions?accountId=${id}`)).body as any).total).toBeGreaterThan(0)
+    expect((await del(`/accounts/${id}`)).status).toBe(204)
+    expect(((await get("/accounts")).body as any[]).some((a) => a.id === id)).toBe(false)
+    await upload("/import", "a.xml", camt({ iban, entries: [{ amount: "12.50", ind: "DBIT", date: "2026-02-01" }] }))
+    const again = ((await get("/accounts")).body as any[]).find((a) => a.iban === iban)
+    expect(again).toBeTruthy()
+    expect(((await get(`/transactions?accountId=${again.id}`)).body as any).total).toBeGreaterThan(0)
   })
 
-  test("an imported account cannot be deleted", async () => {
-    const iban = uniqueIban()
-    await upload("/import", "a.xml", camt({ iban }))
-    const list = (await get("/accounts")).body as any[]
-    const id = list.find((a) => a.iban === iban).id
-    expect((await del(`/accounts/${id}`)).status).toBe(409)
+  test("deleting an account unlinks the transfer on the other side and keeps that account's transaction", async () => {
+    const a = await newAccount()
+    const b = await newAccount()
+    const out = (await tx(a.id, "DBIT", "5")).body
+    const inn = (await tx(b.id, "CRDT", "5")).body
+    expect((await post(`/transactions/${out.id}/transfer`, { peerId: inn.id })).status).toBe(200)
+    expect((await del(`/accounts/${a.id}`)).status).toBe(204)
+    const rest = ((await get(`/transactions?accountId=${b.id}`)).body as any).data
+    expect(rest).toHaveLength(1)
+    expect(rest[0].transferPeerId).toBeNull()
+  })
+
+  test("a stranger cannot delete someone else's account", async () => {
+    const a = await newAccount()
+    const stranger = clientAs(user(unique("stranger-")))
+    expect((await stranger.del(`/accounts/${a.id}`)).status).toBe(404)
   })
 
   test("someone without edit access cannot add transactions", async () => {

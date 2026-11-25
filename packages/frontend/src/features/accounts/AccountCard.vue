@@ -54,8 +54,9 @@ const remove = useMutation({ mutationFn: () => deleteAccount(props.account.id), 
           </tr>
         </tbody>
       </table>
-      <div v-if="account.source === 'manual' && txs.length === 0 && !adding" class="mt-3">
-        <ConfirmButton label="Delete account" prompt="Delete this account?" confirm-label="Yes" @confirm="remove.mutate()" />
+      <div v-if="!adding" class="mt-3">
+        <!-- imported accounts too: delete, then import the statements again for a clean start -->
+        <ConfirmButton label="Delete account" prompt="Delete this account and all its transactions?" confirm-label="Yes, delete" @confirm="remove.mutate()" />
         <ErrorText :error="remove.error.value" />
       </div>
     </div>

@@ -2,7 +2,7 @@ import { Decimal } from "../services/money"
 import { Hono } from "hono"
 import { and, eq, gte, inArray, sql } from "drizzle-orm"
 import { db } from "../db"
-import { accountMembers, accounts, transactions } from "../db/schema"
+import { accountMembers, accounts, subscriptions, transactions } from "../db/schema"
 import { getViewableAccountIds, toAccessContext, canEditAccount, canViewAccount } from "../services/accessControl"
 import type { AuthUser } from "../middleware/auth"
 import { validateJson } from "../middleware/validate"
@@ -66,18 +66,25 @@ app.post("/", validateJson(createAccountSchema), async (c) => {
   return c.json({ ...created, balance: new Decimal(created!.openingBalance).toFixed(2) }, 201)
 })
 
-/** Remove an account that was entered by hand and has no transactions (a typo, a duplicate). */
+/**
+ * Delete an account with everything on it (its transactions, subscriptions and sharing), e.g. to import it afresh.
+ * Transfers to it from other accounts stay, just unlinked; categories and everything outside banking are untouched.
+ */
 app.delete("/:id", async (c) => {
   const user = c.get("user")
   const id = c.req.param("id")
   const account = await db.query.accounts.findFirst({ where: (a, { eq }) => eq(a.id, id) })
   if (!account || !(await canViewAccount(toAccessContext(user), id))) return c.json({ error: "Not found" }, 404)
   if (!isOwnerOrAdmin(account, user)) return c.json({ error: "Forbidden" }, 403)
-  if (account.source !== "manual") return c.json({ error: "Imported accounts cannot be deleted" }, 409)
-  const [used] = await db.select({ n: sql<number>`count(*)` }).from(transactions).where(eq(transactions.accountId, id))
-  if (Number(used?.n ?? 0) > 0) return c.json({ error: "Delete the account's transactions first" }, 409)
-  await db.delete(accountMembers).where(eq(accountMembers.accountId, id))
-  await db.delete(accounts).where(eq(accounts.id, id))
+  await db.transaction(async (tx) => {
+    const own = tx.select({ id: transactions.id }).from(transactions).where(eq(transactions.accountId, id))
+    await tx.update(transactions).set({ transferPeerId: null }).where(inArray(transactions.transferPeerId, own))
+    await tx.update(transactions).set({ transferPeerId: null, subscriptionId: null }).where(eq(transactions.accountId, id))
+    await tx.delete(subscriptions).where(eq(subscriptions.accountId, id))
+    await tx.delete(transactions).where(eq(transactions.accountId, id))
+    await tx.delete(accountMembers).where(eq(accountMembers.accountId, id))
+    await tx.delete(accounts).where(eq(accounts.id, id))
+  })
   return c.body(null, 204)
 })
 
