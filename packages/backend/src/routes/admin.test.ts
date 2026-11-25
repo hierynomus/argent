@@ -237,7 +237,7 @@ describe("backup & restore", () => {
 describe("restore cleans up duplicates", () => {
   test("a backup holding the same entry twice comes back with one, and says how many it removed", async () => {
     const iban = uniqueIban()
-    await upload("/import", "a.xml", camt({ iban, entries: [{ amount: "0.71", ind: "CRDT", date: "2026-01-05" }] }))
+    await upload("/import", "a.xml", camt({ iban, entries: [{ amount: "1.23", ind: "CRDT", date: "2026-02-03" }] }))
     const accountId = (await get("/accounts")).body.find((a: any) => a.iban === iban).id
     const backup = await (await app.request("/api/admin/backup")).json() as any
     const original = backup.transactions.find((t: any) => t.accountId === accountId)

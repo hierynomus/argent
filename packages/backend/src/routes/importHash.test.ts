@@ -55,7 +55,7 @@ describe("migration 0019 (recompute import hashes)", () => {
 describe("stale hashes on import", () => {
   test("importing a statement again recognises entries stored with an older hash instead of adding them twice", async () => {
     const iban = uniqueIban()
-    const file = camt({ iban, entries: [{ amount: "0.71", ind: "CRDT", date: "2026-01-05" }, { amount: "9.00", ind: "DBIT", date: "2026-01-06" }] })
+    const file = camt({ iban, entries: [{ amount: "1.23", ind: "CRDT", date: "2026-02-03" }, { amount: "9.00", ind: "DBIT", date: "2026-01-06" }] })
     await upload("/import", "a.xml", file)
     const accountId = ((await get("/accounts")).body as any[]).find((a) => a.iban === iban).id
     for (const r of await db.select().from(transactions).where(eq(transactions.accountId, accountId))) {
@@ -69,7 +69,7 @@ describe("stale hashes on import", () => {
 
   test("an existing duplicate is left alone rather than failing the import", async () => {
     const iban = uniqueIban()
-    const file = camt({ iban, entries: [{ amount: "0.71", ind: "CRDT", date: "2026-01-05" }] })
+    const file = camt({ iban, entries: [{ amount: "1.23", ind: "CRDT", date: "2026-02-03" }] })
     await upload("/import", "a.xml", file)
     const accountId = ((await get("/accounts")).body as any[]).find((a) => a.iban === iban).id
     const [row] = await db.select().from(transactions).where(eq(transactions.accountId, accountId))
@@ -85,10 +85,10 @@ describe("stale hashes on import", () => {
 describe("removing duplicates", () => {
   test("the same entry stored twice under different hashes is cleaned up, keeping the work done on either copy", async () => {
     const iban = uniqueIban()
-    await upload("/import", "a.xml", camt({ iban, entries: [{ amount: "0.71", ind: "CRDT", date: "2026-01-05" }, { amount: "3.00", ind: "DBIT", date: "2026-01-06" }] }))
+    await upload("/import", "a.xml", camt({ iban, entries: [{ amount: "1.23", ind: "CRDT", date: "2026-02-03" }, { amount: "3.00", ind: "DBIT", date: "2026-01-06" }] }))
     const accountId = ((await get("/accounts")).body as any[]).find((a) => a.iban === iban).id
     const rows = await db.select().from(transactions).where(eq(transactions.accountId, accountId))
-    const original = rows.find((r) => r.amount === "0.71")!
+    const original = rows.find((r) => r.amount === "1.23")!
     // an older copy, stored under a stale hash, that carries a category
     const category = (await post("/categories", { name: unique("dup-") })).body
     await db.insert(transactions).values({ ...original, id: undefined, importHash: unique("stale-"), categoryId: category.id, createdAt: new Date("2026-03-03") })
@@ -99,7 +99,7 @@ describe("removing duplicates", () => {
 
     const after = await db.select().from(transactions).where(eq(transactions.accountId, accountId))
     expect(after).toHaveLength(2)
-    expect(after.find((r) => r.amount === "0.71")!.categoryId).toBe(category.id)
+    expect(after.find((r) => r.amount === "1.23")!.categoryId).toBe(category.id)
     // and a second run finds nothing more
     expect((await post("/admin/duplicates")).body.removed).toBe(0)
   })
