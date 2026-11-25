@@ -6,6 +6,8 @@ import type { AuthUser } from "../middleware/auth"
 import { requireAdmin } from "../middleware/guards"
 import { validateJson } from "../middleware/validate"
 import { clearAllData, createBackup, restoreBackup, restoreSchema } from "../services/backup"
+import { removeDuplicateTransactions } from "../services/importHash"
+import { runBackgroundJobs } from "../services/backgroundJobs"
 import { SHARING_OVERVIEW } from "../services/sharedResources"
 import { groupBy } from "../lib/groupBy"
 import { setAccountOwnerSchema, addMemberSchema, clearAllDataSchema } from "@argent/shared"
@@ -125,6 +127,13 @@ app.post("/restore", validateJson(restoreSchema), async (c) => {
 app.post("/clear", validateJson(clearAllDataSchema), async (c) => {
   await clearAllData()
   return c.json({ ok: true })
+})
+
+// POST /api/admin/duplicates — remove bank entries stored twice and refresh the stored import hashes
+app.post("/duplicates", async (c) => {
+  const result = await removeDuplicateTransactions()
+  void runBackgroundJobs("duplicates") // partners of removed copies get linked again
+  return c.json(result)
 })
 
 export default app

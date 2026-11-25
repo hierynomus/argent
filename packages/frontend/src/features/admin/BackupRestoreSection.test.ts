@@ -172,3 +172,22 @@ describe("BackupRestoreSection: erase all data", () => {
     expect(screen.queryByText("All data was erased.")).not.toBeInTheDocument()
   })
 })
+
+describe("BackupRestoreSection: remove duplicates", () => {
+  test("reports how many were removed and refreshes everything", async () => {
+    const api = mockApi({ "POST /admin/duplicates": { removed: 226, rehashed: 1300 } })
+    const { user, client } = await renderApp(BackupRestoreSection)
+    const spy = vi.spyOn(client, "invalidateQueries")
+    await user.click(screen.getByRole("button", { name: "Remove duplicates" }))
+    expect(await screen.findByText("Removed 226 duplicate transactions.")).toBeInTheDocument()
+    expect(api.calls("POST", "/admin/duplicates")).toHaveLength(1)
+    expect(spy).toHaveBeenCalledWith()
+  })
+
+  test("says so when there were none", async () => {
+    mockApi({ "POST /admin/duplicates": { removed: 0, rehashed: 0 } })
+    const { user } = await renderApp(BackupRestoreSection)
+    await user.click(screen.getByRole("button", { name: "Remove duplicates" }))
+    expect(await screen.findByText("No duplicates found.")).toBeInTheDocument()
+  })
+})

@@ -26,6 +26,7 @@ describe("admin routes are admin-only", () => {
     ["GET", "/backup", undefined],
     ["POST", "/restore", { version: 1 }],
     ["POST", "/clear", { confirm: "erase all data" }],
+    ["POST", "/duplicates", {}],
   ] as const)("%s %s → 403 for a regular user", async (method, path, body) => {
     const res = await wrapped.request(path, body === undefined ? { method } : json(method, body))
     expect(res.status).toBe(403)

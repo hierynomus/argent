@@ -31,3 +31,6 @@ export const restoreBackup = (data: unknown) =>
 
 /** Erase every table. The server insists on the confirmation text. */
 export const clearAllData = () => http.post<{ ok: boolean }>("/admin/clear", { confirm: "erase all data" })
+
+/** Remove bank entries that are stored twice, and refresh the stored import hashes. */
+export const removeDuplicates = () => http.post<{ removed: number; rehashed: number }>("/admin/duplicates", {})

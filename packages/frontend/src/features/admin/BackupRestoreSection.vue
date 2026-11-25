@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from "vue"
 import { useMutation } from "@tanstack/vue-query"
-import { clearAllData, downloadBackup, restoreBackup, useInvalidate } from "../../api"
+import { clearAllData, downloadBackup, removeDuplicates, restoreBackup, useInvalidate } from "../../api"
 import { isLocalMode } from "../../auth"
 import LocalBackupFolder from "./LocalBackupFolder.vue"
 import { Button, Card, ErrorText } from "../../components/ui"
@@ -46,6 +46,11 @@ function confirmRestore() {
 }
 // the server reports every table; only the ones that had rows are interesting
 const restoredTables = computed(() => Object.entries(restore.data.value?.restored ?? {}).filter(([, count]) => count > 0))
+
+const dedupe = useMutation({
+  mutationFn: removeDuplicates,
+  onSuccess: () => invalidate.everything(),
+})
 
 const erasing = ref(false)
 const erase = useMutation({
@@ -109,6 +114,22 @@ const DANGER = "px-3 py-1 text-sm bg-red-600 text-white rounded-md hover:bg-red-
         <ul class="text-xs text-green-600 dark:text-green-400 space-y-0.5">
           <li v-for="[k, v] in restoredTables" :key="k">{{ k }}: {{ v }}</li>
         </ul>
+      </div>
+    </div>
+
+    <div class="px-5 py-4">
+      <div class="flex items-start justify-between gap-4">
+        <div>
+          <p class="text-sm font-medium text-gray-900 dark:text-gray-100">Remove duplicate transactions</p>
+          <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+            Finds bank entries that are stored more than once (for instance from an old backup), keeps one of each, with its category and transfer link, and removes the rest.
+          </p>
+          <ErrorText :error="dedupe.error.value" />
+          <p v-if="dedupe.data.value" class="mt-2 text-sm text-green-700 dark:text-green-300">
+            {{ dedupe.data.value.removed === 0 ? "No duplicates found." : `Removed ${dedupe.data.value.removed} duplicate ${dedupe.data.value.removed === 1 ? "transaction" : "transactions"}.` }}
+          </p>
+        </div>
+        <Button size="sm" class="shrink-0 rounded-md px-4 py-1.5" :disabled="dedupe.isPending.value" @click="dedupe.mutate()">{{ dedupe.isPending.value ? "Checking…" : "Remove duplicates" }}</Button>
       </div>
     </div>
 

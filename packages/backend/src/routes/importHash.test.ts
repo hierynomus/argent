@@ -3,7 +3,7 @@ import { readFileSync } from "fs"
 import { eq, inArray } from "drizzle-orm"
 import { db } from "../db"
 import { accounts, transactions } from "../db/schema"
-import { camt, get, uniqueIban, upload } from "../../test/helpers"
+import { camt, get, post, uniqueIban, unique, upload } from "../../test/helpers"
 
 const entry = { amount: "12.5", ind: "DBIT" as const, date: "2024-03-05", ref: "E2E-SAME", description: "Same entry", counterpartyIban: "NL02SHOP0000000001" }
 
@@ -79,5 +79,28 @@ describe("stale hashes on import", () => {
     const again = await upload("/import", "a.xml", file)
     expect(again.status).toBe(201)
     expect(((await get(`/transactions?accountId=${accountId}`)).body as any).total).toBe(2)
+  })
+})
+
+describe("removing duplicates", () => {
+  test("the same entry stored twice under different hashes is cleaned up, keeping the work done on either copy", async () => {
+    const iban = uniqueIban()
+    await upload("/import", "a.xml", camt({ iban, entries: [{ amount: "0.71", ind: "CRDT", date: "2026-01-05" }, { amount: "3.00", ind: "DBIT", date: "2026-01-06" }] }))
+    const accountId = ((await get("/accounts")).body as any[]).find((a) => a.iban === iban).id
+    const rows = await db.select().from(transactions).where(eq(transactions.accountId, accountId))
+    const original = rows.find((r) => r.amount === "0.71")!
+    // an older copy, stored under a stale hash, that carries a category
+    const category = (await post("/categories", { name: unique("dup-") })).body
+    await db.insert(transactions).values({ ...original, id: undefined, importHash: unique("stale-"), categoryId: category.id, createdAt: new Date("2026-03-03") })
+
+    const res = await post("/admin/duplicates")
+    expect(res.status).toBe(200)
+    expect(res.body.removed).toBeGreaterThanOrEqual(1)
+
+    const after = await db.select().from(transactions).where(eq(transactions.accountId, accountId))
+    expect(after).toHaveLength(2)
+    expect(after.find((r) => r.amount === "0.71")!.categoryId).toBe(category.id)
+    // and a second run finds nothing more
+    expect((await post("/admin/duplicates")).body.removed).toBe(0)
   })
 })
