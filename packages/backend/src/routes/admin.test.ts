@@ -92,6 +92,9 @@ describe("account administration", () => {
 })
 
 describe("backup & restore", () => {
+  // the shared test database may hold deliberate duplicates from other files; a restore cleans those up
+  beforeAll(async () => { await post("/admin/duplicates") })
+
   let catName: string
 
   beforeAll(async () => {
@@ -228,5 +231,22 @@ describe("backup & restore", () => {
         expect(await accountCount()).toBe(before) // old data untouched
       } finally { spy.mockRestore() }
     })
+  })
+})
+
+describe("restore cleans up duplicates", () => {
+  test("a backup holding the same entry twice comes back with one, and says how many it removed", async () => {
+    const iban = uniqueIban()
+    await upload("/import", "a.xml", camt({ iban, entries: [{ amount: "0.71", ind: "CRDT", date: "2026-01-05" }] }))
+    const accountId = (await get("/accounts")).body.find((a: any) => a.iban === iban).id
+    const backup = await (await app.request("/api/admin/backup")).json() as any
+    const original = backup.transactions.find((t: any) => t.accountId === accountId)
+    backup.transactions.push({ ...original, id: crypto.randomUUID(), importHash: "stale-" + crypto.randomUUID(), createdAt: "2026-03-03T00:00:00.000Z" })
+
+    const res = await app.request("/api/admin/restore", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(backup) })
+    const out = await res.json() as any
+    expect(out.cleaned.removed).toBe(1)
+    const after = await (await app.request("/api/admin/backup")).json() as any
+    expect(after.transactions.filter((t: any) => t.accountId === accountId)).toHaveLength(1)
   })
 })

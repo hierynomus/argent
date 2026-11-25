@@ -88,6 +88,14 @@ describe("BackupRestoreSection: restore", () => {
     expect(screen.queryByRole("button", { name: "Restore" })).not.toBeInTheDocument() // the file was consumed
   })
 
+  test("tells how many duplicates the backup contained", async () => {
+    const { user } = await setup({ "POST /admin/restore": { ok: true, restored: { transactions: 5 }, cleaned: { removed: 2, rehashed: 0 } } })
+    await user.upload(fileInput(), backupFile('{"version":1}'))
+    await user.click(screen.getByRole("button", { name: "Restore" }))
+    await user.click(screen.getByRole("button", { name: "Yes, replace all data" }))
+    expect(await screen.findByText(/Removed 2 duplicate transactions/)).toBeInTheDocument()
+  })
+
   test("tables that had no rows are not listed in the result", async () => {
     const { user } = await setup({ "POST /admin/restore": { ok: true, restored: { accounts: 2, cryptoTrades: 0, equityGrants: 0, transactions: 7 } } })
     await user.upload(fileInput(), backupFile('{"version":1}'))

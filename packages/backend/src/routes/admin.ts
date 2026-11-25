@@ -120,7 +120,10 @@ app.get("/backup", async (c) => {
 // POST /api/admin/restore — wipe all data and restore from a backup JSON (one transaction: a bad row rolls everything back)
 app.post("/restore", validateJson(restoreSchema), async (c) => {
   const restored = await restoreBackup(c.req.valid("json") as Parameters<typeof restoreBackup>[0])
-  return c.json({ ok: true, restored })
+  // backups made before the import hash changed carry stale hashes and the duplicates they let through
+  const cleaned = await removeDuplicateTransactions()
+  if (cleaned.removed > 0) void runBackgroundJobs("restore")
+  return c.json({ ok: true, restored, cleaned })
 })
 
 // POST /api/admin/clear — erase ALL data (every table, in one transaction); the body must say { confirm: "erase all data" }

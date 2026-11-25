@@ -111,6 +111,9 @@ const DANGER = "px-3 py-1 text-sm bg-red-600 text-white rounded-md hover:bg-red-
 
       <div v-if="restore.data.value" class="mt-3 p-3 bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800 rounded-lg">
         <p class="text-sm font-medium text-green-700 dark:text-green-300 mb-1">Restore complete</p>
+        <p v-if="restore.data.value.cleaned?.removed" class="text-xs text-green-600 dark:text-green-400 mb-1">
+          Removed {{ restore.data.value.cleaned.removed }} duplicate {{ restore.data.value.cleaned.removed === 1 ? "transaction" : "transactions" }} that the backup contained.
+        </p>
         <ul class="text-xs text-green-600 dark:text-green-400 space-y-0.5">
           <li v-for="[k, v] in restoredTables" :key="k">{{ k }}: {{ v }}</li>
         </ul>
