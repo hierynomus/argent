@@ -25,6 +25,7 @@ describe("admin routes are admin-only", () => {
     ["GET", "/sharing", undefined],
     ["GET", "/backup", undefined],
     ["POST", "/restore", { version: 1 }],
+    ["POST", "/clear", { confirm: "erase all data" }],
   ] as const)("%s %s → 403 for a regular user", async (method, path, body) => {
     const res = await wrapped.request(path, body === undefined ? { method } : json(method, body))
     expect(res.status).toBe(403)
@@ -153,6 +154,23 @@ describe("backup & restore", () => {
     // ...and the post-backup changes are gone
     expect(after.categories.map((c: any) => c.id)).not.toContain(junk.id)
     expect(after.accounts.find((a: any) => a.id === someAccount.id).name).toBe(someAccount.name)
+  })
+
+  test("clear empties every table, but only when asked in so many words", async () => {
+    const backup = await (await app.request("/api/admin/backup")).json() as any
+    const clear = (body: unknown) => app.request("/api/admin/clear", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
+    try {
+      expect((await clear({})).status).toBe(400)
+      expect((await clear({ confirm: true })).status).toBe(400)
+      expect((await get("/accounts")).body.length).toBeGreaterThan(0) // nothing was touched
+
+      expect((await clear({ confirm: "erase all data" })).status).toBe(200)
+      const after = await (await app.request("/api/admin/backup")).json() as any
+      for (const [table, rows] of Object.entries(after)) if (Array.isArray(rows)) expect(rows).toHaveLength(0)
+    } finally {
+      // the other test files share this database
+      await app.request("/api/admin/restore", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(backup) })
+    }
   })
 
   test("restore keeps transfer and subscription links intact (self-referencing foreign keys)", async () => {

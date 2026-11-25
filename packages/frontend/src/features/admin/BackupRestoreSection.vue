@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from "vue"
 import { useMutation } from "@tanstack/vue-query"
-import { downloadBackup, restoreBackup, useInvalidate } from "../../api"
+import { clearAllData, downloadBackup, restoreBackup, useInvalidate } from "../../api"
 import { isLocalMode } from "../../auth"
 import LocalBackupFolder from "./LocalBackupFolder.vue"
 import { Button, Card, ErrorText } from "../../components/ui"
@@ -46,6 +46,16 @@ function confirmRestore() {
 }
 // the server reports every table; only the ones that had rows are interesting
 const restoredTables = computed(() => Object.entries(restore.data.value?.restored ?? {}).filter(([, count]) => count > 0))
+
+const erasing = ref(false)
+const erase = useMutation({
+  mutationFn: clearAllData,
+  onSuccess: () => {
+    erasing.value = false
+    restore.reset()
+    invalidate.everything()
+  },
+})
 const DANGER = "px-3 py-1 text-sm bg-red-600 text-white rounded-md hover:bg-red-700"
 </script>
 
@@ -100,6 +110,23 @@ const DANGER = "px-3 py-1 text-sm bg-red-600 text-white rounded-md hover:bg-red-
           <li v-for="[k, v] in restoredTables" :key="k">{{ k }}: {{ v }}</li>
         </ul>
       </div>
+    </div>
+
+    <div class="px-5 py-4">
+      <p class="text-sm font-medium text-gray-900 dark:text-gray-100">Erase all data</p>
+      <p class="text-xs text-gray-500 dark:text-gray-400 mt-0.5 mb-3">
+        Empty the database completely: accounts, transactions, portfolios, debts, everything. <span class="text-red-500 dark:text-red-400 font-medium">This cannot be undone</span>, so download a backup first.
+      </p>
+      <button v-if="!erasing" type="button" :class="DANGER" @click="erasing = true">Erase all data…</button>
+      <div v-else role="alertdialog" aria-label="Confirm erase" class="p-3 bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 rounded-lg">
+        <p class="text-sm text-red-700 dark:text-red-300 font-medium mb-2">Are you sure? Everything in the database will be deleted for good.</p>
+        <div class="flex gap-2">
+          <button type="button" :class="DANGER" :disabled="erase.isPending.value" @click="erase.mutate()">{{ erase.isPending.value ? "Erasing…" : "Yes, erase everything" }}</button>
+          <Button variant="muted-link" size="sm" class="py-1!" @click="erasing = false">Cancel</Button>
+        </div>
+      </div>
+      <ErrorText :error="erase.error.value" />
+      <p v-if="erase.isSuccess.value" class="mt-2 text-sm text-green-700 dark:text-green-300">All data was erased.</p>
     </div>
   </Card>
 </template>

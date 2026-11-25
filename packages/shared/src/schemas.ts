@@ -518,3 +518,6 @@ export const transactionFiltersSchema = z
     ),
   })
   .refine((f) => !f.from || !f.to || f.from <= f.to, { message: "from must not be after to", path: ["from"] })
+
+/** Erasing every table is a one-way street: the request has to say so in so many words. */
+export const clearAllDataSchema = z.object({ confirm: z.literal("erase all data") })

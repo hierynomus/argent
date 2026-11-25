@@ -101,3 +101,8 @@ export async function restoreBackup(data: Partial<Record<BackupKey, Row[]>>): Pr
   })
   return Object.fromEntries(BACKUP_ORDER.map((key) => [key, data[key]?.length ?? 0])) as Record<BackupKey, number>
 }
+
+/** Empties every table (the backup order, reversed, in one transaction). Irreversible: the caller must have confirmed. */
+export async function clearAllData(): Promise<void> {
+  await restoreBackup({})
+}

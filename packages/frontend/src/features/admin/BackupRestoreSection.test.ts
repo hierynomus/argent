@@ -137,3 +137,38 @@ describe("BackupRestoreSection: restore", () => {
     expect(screen.queryByText("Unsupported backup version")).not.toBeInTheDocument()
   })
 })
+
+describe("BackupRestoreSection: erase all data", () => {
+  const setup = async (extra: Record<string, any> = {}) => {
+    const api = mockApi({ "POST /admin/clear": { ok: true }, ...extra })
+    return { api, ...await renderApp(BackupRestoreSection) }
+  }
+
+  test("needs a confirmation, and Cancel sends nothing", async () => {
+    const { api, user } = await setup()
+    await user.click(screen.getByRole("button", { name: "Erase all data…" }))
+    expect(screen.getByRole("alertdialog", { name: "Confirm erase" })).toBeInTheDocument()
+    expect(api.calls("POST")).toHaveLength(0)
+    await user.click(screen.getByRole("button", { name: "Cancel" }))
+    expect(screen.queryByRole("alertdialog", { name: "Confirm erase" })).not.toBeInTheDocument()
+    expect(api.calls("POST")).toHaveLength(0)
+  })
+
+  test("confirming sends the confirmation text and refreshes everything", async () => {
+    const { api, user, client } = await setup()
+    const spy = vi.spyOn(client, "invalidateQueries")
+    await user.click(screen.getByRole("button", { name: "Erase all data…" }))
+    await user.click(screen.getByRole("button", { name: "Yes, erase everything" }))
+    await screen.findByText("All data was erased.")
+    expect(api.calls("POST", "/admin/clear")[0].body).toEqual({ confirm: "erase all data" })
+    expect(spy).toHaveBeenCalledWith()
+  })
+
+  test("a failure is shown", async () => {
+    const { user } = await setup({ "POST /admin/clear": respond(500, { error: "boom" }) })
+    await user.click(screen.getByRole("button", { name: "Erase all data…" }))
+    await user.click(screen.getByRole("button", { name: "Yes, erase everything" }))
+    expect(await screen.findByText("boom")).toBeInTheDocument()
+    expect(screen.queryByText("All data was erased.")).not.toBeInTheDocument()
+  })
+})

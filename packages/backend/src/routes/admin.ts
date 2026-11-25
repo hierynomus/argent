@@ -5,10 +5,10 @@ import { accounts, accountMembers } from "../db/schema"
 import type { AuthUser } from "../middleware/auth"
 import { requireAdmin } from "../middleware/guards"
 import { validateJson } from "../middleware/validate"
-import { createBackup, restoreBackup, restoreSchema } from "../services/backup"
+import { clearAllData, createBackup, restoreBackup, restoreSchema } from "../services/backup"
 import { SHARING_OVERVIEW } from "../services/sharedResources"
 import { groupBy } from "../lib/groupBy"
-import { setAccountOwnerSchema, addMemberSchema } from "@argent/shared"
+import { setAccountOwnerSchema, addMemberSchema, clearAllDataSchema } from "@argent/shared"
 
 const app = new Hono<{ Variables: { user: AuthUser } }>()
 
@@ -119,6 +119,12 @@ app.get("/backup", async (c) => {
 app.post("/restore", validateJson(restoreSchema), async (c) => {
   const restored = await restoreBackup(c.req.valid("json") as Parameters<typeof restoreBackup>[0])
   return c.json({ ok: true, restored })
+})
+
+// POST /api/admin/clear — erase ALL data (every table, in one transaction); the body must say { confirm: "erase all data" }
+app.post("/clear", validateJson(clearAllDataSchema), async (c) => {
+  await clearAllData()
+  return c.json({ ok: true })
 })
 
 export default app

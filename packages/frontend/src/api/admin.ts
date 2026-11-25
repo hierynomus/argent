@@ -28,3 +28,6 @@ export async function downloadBackup(): Promise<void> {
 
 export const restoreBackup = (data: unknown) =>
   http.post<{ ok: boolean; restored: Record<string, number> }>("/admin/restore", data)
+
+/** Erase every table. The server insists on the confirmation text. */
+export const clearAllData = () => http.post<{ ok: boolean }>("/admin/clear", { confirm: "erase all data" })
