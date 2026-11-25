@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test"
 import { camt, clientAs, del, get, post, put, unique, uniqueIban, upload, user } from "../../test/helpers"
 
 async function newAccount(body: Record<string, unknown> = {}) {
-  const res = await post("/accounts", { name: unique("Buut "), type: "checking", currency: "EUR", ...body })
+  const res = await post("/accounts", { name: unique("Manual "), type: "checking", currency: "EUR", ...body })
   expect(res.status).toBe(201)
   return res.body
 }
