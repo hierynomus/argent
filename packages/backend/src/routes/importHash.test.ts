@@ -3,7 +3,7 @@ import { readFileSync } from "fs"
 import { eq, inArray } from "drizzle-orm"
 import { db } from "../db"
 import { accounts, transactions } from "../db/schema"
-import { camt, uniqueIban, upload } from "../../test/helpers"
+import { camt, get, uniqueIban, upload } from "../../test/helpers"
 
 const entry = { amount: "12.5", ind: "DBIT" as const, date: "2024-03-05", ref: "E2E-SAME", description: "Same entry", counterpartyIban: "NL02SHOP0000000001" }
 
@@ -49,5 +49,35 @@ describe("migration 0019 (recompute import hashes)", () => {
     const after = await db.select({ id: transactions.id, hash: transactions.importHash }).from(transactions).where(inArray(transactions.id, before.map((r) => r.id)))
     const byId = new Map(after.map((r) => [r.id, r.hash]))
     for (const row of before) expect(byId.get(row.id)).toBe(row.hash)
+  })
+})
+
+describe("stale hashes on import", () => {
+  test("importing a statement again recognises entries stored with an older hash instead of adding them twice", async () => {
+    const iban = uniqueIban()
+    const file = camt({ iban, entries: [{ amount: "0.71", ind: "CRDT", date: "2026-01-05" }, { amount: "9.00", ind: "DBIT", date: "2026-01-06" }] })
+    await upload("/import", "a.xml", file)
+    const accountId = ((await get("/accounts")).body as any[]).find((a) => a.iban === iban).id
+    for (const r of await db.select().from(transactions).where(eq(transactions.accountId, accountId))) {
+      await db.update(transactions).set({ importHash: `stale-${r.id}` }).where(eq(transactions.id, r.id))
+    }
+
+    const again = await upload("/import", "a.xml", file)
+    expect(again.body).toMatchObject({ imported: 0, skipped: 2 })
+    expect(((await get(`/transactions?accountId=${accountId}`)).body as any).total).toBe(2)
+  })
+
+  test("an existing duplicate is left alone rather than failing the import", async () => {
+    const iban = uniqueIban()
+    const file = camt({ iban, entries: [{ amount: "0.71", ind: "CRDT", date: "2026-01-05" }] })
+    await upload("/import", "a.xml", file)
+    const accountId = ((await get("/accounts")).body as any[]).find((a) => a.iban === iban).id
+    const [row] = await db.select().from(transactions).where(eq(transactions.accountId, accountId))
+    await db.insert(transactions).values({ ...row!, id: undefined, importHash: "stale-hash" })
+    expect(((await get(`/transactions?accountId=${accountId}`)).body as any).total).toBe(2)
+
+    const again = await upload("/import", "a.xml", file)
+    expect(again.status).toBe(201)
+    expect(((await get(`/transactions?accountId=${accountId}`)).body as any).total).toBe(2)
   })
 })

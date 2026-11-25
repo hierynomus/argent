@@ -5,6 +5,7 @@ import { eq } from "drizzle-orm"
 import { db } from "../db"
 import { accounts, transactions } from "../db/schema"
 import { parseCamt053 } from "../services/camt053"
+import { refreshImportHashes } from "../services/importHash"
 import { linkTransfers } from "../services/transferLinker"
 import { runBackgroundJobs } from "../services/backgroundJobs"
 import { getEditableAccountIds } from "../services/accessControl"
@@ -95,6 +96,9 @@ async function importXml(
       account = updated
     }
   }
+
+  // entries that came in with an older hash would not be recognised below and would be added a second time
+  await refreshImportHashes(account.id)
 
   let imported = 0
   let skipped = 0
