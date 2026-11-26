@@ -28,7 +28,9 @@ const active = ref(-1)
 function read() {
   const sel = native.value
   if (!sel) return
-  items.value = Array.from(sel.options).map((o) => ({ value: o.value, text: o.text, disabled: o.disabled }))
+  const next = Array.from(sel.options).map((o) => ({ value: o.value, text: o.text, disabled: o.disabled }))
+  // only when something changed: this runs after every render, and a new array each time would render again
+  if (JSON.stringify(next) !== JSON.stringify(items.value)) items.value = next
   label.value = (sel.options[sel.selectedIndex] ?? sel.options[0])?.text ?? ""
 }
 onMounted(read)
