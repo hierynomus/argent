@@ -26,7 +26,28 @@ const invalidate = useInvalidate()
 
 const initialAccountId = props.accountId ?? (typeof route.query.account === "string" ? route.query.account : undefined)
 const selectedAccounts = ref<Set<string>>(initialAccountId ? new Set([initialAccountId]) : new Set())
-const filters = ref<TransactionFilters>({ page: 1, pageSize: PAGE_SIZE })
+// a link from elsewhere can ask for a ready-made selection (the spending card: these labels, this month, money out)
+const asked = (key: string) => (typeof route.query[key] === "string" && route.query[key] ? (route.query[key] as string) : undefined)
+const preset = (): Partial<TransactionFilters> => {
+  const categories = asked("categories")
+  if (!categories) return {}
+  return {
+    categoryIds: categories.split(",").filter(Boolean),
+    from: asked("from"),
+    to: asked("to"),
+    direction: asked("direction") === "DBIT" ? "DBIT" : asked("direction") === "CRDT" ? "CRDT" : undefined,
+    excludeTransfers: asked("excludeTransfers") ? true : undefined,
+    currency: asked("currency"),
+  }
+}
+const presetLabel = ref<string | null>(asked("categories") ? asked("label") ?? "the selected labels" : null)
+const filters = ref<TransactionFilters>({ page: 1, pageSize: PAGE_SIZE, ...preset() })
+function clearPreset() {
+  const { categoryIds: _c, direction: _d, excludeTransfers: _e, currency: _u, from: _f, to: _t, ...rest } = filters.value
+  filters.value = { ...rest, page: 1 }
+  presetLabel.value = null
+  router.replace({ query: {} })
+}
 const openTx = ref<TransactionWithDetails | null>(null)
 const selectedIds = ref<Set<string>>(new Set())
 
@@ -49,7 +70,16 @@ async function handleLabel(id: string, categoryId: string | null) {
   }
 }
 
-const changeFilters = (patch: Partial<TransactionFilters>) => (filters.value = { ...filters.value, ...patch, page: 1 })
+function changeFilters(patch: Partial<TransactionFilters>) {
+  // choosing a label by hand replaces the selection that came with the link
+  if ("categoryId" in patch && presetLabel.value) {
+    const { categoryIds: _c, ...rest } = filters.value
+    filters.value = { ...rest, ...patch, page: 1 }
+    presetLabel.value = null
+    return
+  }
+  filters.value = { ...filters.value, ...patch, page: 1 }
+}
 function toggleRow(id: string) {
   const next = new Set(selectedIds.value)
   if (!next.delete(id)) next.add(id)
@@ -68,6 +98,11 @@ const goSubscriptions = () => router.push("/subscriptions")
       :selected="selectedAccounts"
       @change="(ids) => { selectedAccounts = ids; filters = { ...filters, page: 1 } }"
     />
+
+    <div v-if="presetLabel" class="mb-3 inline-flex flex-wrap items-center gap-x-2 gap-y-1 rounded-full bg-indigo-50 dark:bg-indigo-950/50 border border-indigo-200 dark:border-indigo-900 pl-3 pr-1.5 py-1 text-sm text-indigo-800 dark:text-indigo-200" aria-label="Selection from the dashboard">
+      <span>Showing <span class="font-medium">{{ presetLabel }}</span><template v-if="filters.direction === 'DBIT'"> · money out</template><template v-if="filters.from && filters.to"> · {{ filters.from }} to {{ filters.to }}</template></span>
+      <button type="button" class="rounded-full px-2 py-0.5 text-xs font-medium hover:bg-indigo-100 dark:hover:bg-indigo-900" @click="clearPreset">Clear ✕</button>
+    </div>
 
     <TransactionFiltersBar :labels="labels" @change="changeFilters" />
 

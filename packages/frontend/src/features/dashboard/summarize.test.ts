@@ -1,8 +1,8 @@
 import { describe, expect, test } from "vitest"
-import { account, debt, equityPlan, pensionPlan, portfolio, property, transaction } from "../../../test/fixtures"
+import { account, debt, equityPlan, pensionPlan, portfolio, property } from "../../../test/fixtures"
 import { assetMix, bankingLabel, summarize, toHoldings, unrealizedLabel, type DashboardInput, type Holding } from "./summarize"
 
-const empty: DashboardInput = { accounts: [], mortgages: [], loans: [], crypto: [], metals: [], stocks: [], monthTransactions: [] }
+const empty: DashboardInput = { accounts: [], mortgages: [], loans: [], crypto: [], metals: [], stocks: [] }
 const holding = (over: Partial<Holding> = {}): Holding => ({ currency: "EUR", value: 1000, unrealizedPnL: 100, cash: 0, loading: false, ...over })
 const fmt = (n: number) => `€${n.toFixed(2)}`
 
@@ -91,25 +91,6 @@ describe("summarize: loading state", () => {
     expect(summarize({ ...empty, metals: [holding({ loading: true })] }).netWorthLoading).toBe(true)
     expect(summarize({ ...empty, crypto: [holding({ loading: true }), holding()] }).crypto.loading).toBe(true)
     expect(summarize({ ...empty, crypto: [holding()] }).netWorthLoading).toBe(false)
-  })
-})
-
-describe("summarize: monthly cash flow", () => {
-  const tx = (id: string, ind: "CRDT" | "DBIT", amount: string, transferPeerId: string | null = null) =>
-    transaction({ id, creditDebitIndicator: ind, amount, transferPeerId })
-
-  test("income, expenses and net", () => {
-    const s = summarize({ ...empty, monthTransactions: [tx("1", "CRDT", "2000.00"), tx("2", "DBIT", "300.50"), tx("3", "DBIT", "99.50")] })
-    expect(s.cashFlow).toEqual({ income: 2000, expenses: 400, net: 1600 })
-  })
-
-  test("transfers between own accounts are neither income nor expense", () => {
-    const s = summarize({ ...empty, monthTransactions: [tx("1", "CRDT", "500.00", "peer"), tx("2", "DBIT", "500.00", "peer"), tx("3", "DBIT", "10.00")] })
-    expect(s.cashFlow).toEqual({ income: 0, expenses: 10, net: -10 })
-  })
-
-  test("no transactions → zeros", () => {
-    expect(summarize(empty).cashFlow).toEqual({ income: 0, expenses: 0, net: 0 })
   })
 })
 
@@ -217,7 +198,7 @@ describe("summarize: stock options", () => {
 })
 
 describe("summarize: cash in investment accounts", () => {
-  const base = { accounts: [], mortgages: [], loans: [], crypto: [], metals: [], stocks: [], monthTransactions: [] } as DashboardInput
+  const base = { accounts: [], mortgages: [], loans: [], crypto: [], metals: [], stocks: [] } as DashboardInput
 
   test("cash counts in net worth with the positions, also when a position has no price", () => {
     const s = summarize({ ...base, crypto: [holding({ value: null, unrealizedPnL: null, cash: 250 })], stocks: [holding({ value: 1000, cash: 100.1 }), holding({ value: 0, cash: 0.2 })] })

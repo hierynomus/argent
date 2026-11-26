@@ -15,7 +15,7 @@ describe("queryKeys", () => {
     expect(queryKeys.transactionList({ page: 1 })[0]).toBe(prefix)
     expect(queryKeys.transactionsRecent()[0]).toBe(prefix)
     expect(queryKeys.transactionsRecent("a1")[0]).toBe(prefix)
-    expect(queryKeys.transactionsMonth("2024-06")[0]).toBe(prefix)
+    expect(queryKeys.transactionSummary("2024-06-01", "2024-06-30")[0]).toBe(prefix)
   })
 
   test("a portfolio's detail lives under its list key", () => {
@@ -140,13 +140,13 @@ describe("useInvalidate", () => {
 
   const all = [
     queryKeys.me, queryKeys.accounts, queryKeys.categories, queryKeys.subscriptions, queryKeys.subscriptionTransactions("s1"),
-    queryKeys.transactionList({ page: 1 }), queryKeys.transactionsRecent(), queryKeys.transactionsRecent("a1"), queryKeys.transactionsMonth("2024-06"),
+    queryKeys.transactionList({ page: 1 }), queryKeys.transactionsRecent(), queryKeys.transactionsRecent("a1"), queryKeys.transactionSummary("2024-06-01", "2024-06-30"),
     queryKeys.portfolios("crypto"), queryKeys.portfolio("crypto", "p1"), queryKeys.portfolios("stocks"), queryKeys.portfolio("stocks", "s1"),
     queryKeys.debts("mortgages"), queryKeys.debts("loans"), queryKeys.adminAccounts, queryKeys.adminSharing,
   ] as const
 
   test("transactions: refreshes every transaction view — the list, the dashboard's recent and monthly summaries", async () => {
-    expect(await refreshed((i) => i.transactions(), all)).toEqual([queryKeys.transactionList({ page: 1 }), queryKeys.transactionsRecent(), queryKeys.transactionsRecent("a1"), queryKeys.transactionsMonth("2024-06")])
+    expect(await refreshed((i) => i.transactions(), all)).toEqual([queryKeys.transactionList({ page: 1 }), queryKeys.transactionsRecent(), queryKeys.transactionsRecent("a1"), queryKeys.transactionSummary("2024-06-01", "2024-06-30")])
   })
 
   test("portfolios(kind): the list and every detail of that kind, nothing of other kinds", async () => {

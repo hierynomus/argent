@@ -21,7 +21,7 @@ describe("Dashboard", () => {
       "GET /crypto": [portfolio({ id: "c1" })],
       "GET /crypto/:id": cryptoDetail({ id: "c1", totalCurrentValue: 500 }),
       "GET /metals": [], "GET /stocks": [], "GET /properties": [], "GET /equity": [], "GET /pensions": [],
-      "GET /transactions": page([transaction()]), "GET /net-worth/history": { currency: "EUR", points: [] }, "GET /categories": [],
+      "GET /transactions": page([transaction()]), "GET /net-worth/history": { currency: "EUR", points: [] }, "GET /transactions/summary": { from: "", to: "", currency: "EUR", income: 0, expenses: 0, byCategory: [] }, "GET /categories": [],
     })
     await renderApp(DashboardPage)
     expect(await screen.findByRole("heading", { name: "Dashboard" })).toBeInTheDocument()
@@ -32,7 +32,7 @@ describe("Dashboard", () => {
   })
 
   test("copes with a brand new, empty account", async () => {
-    const api = mockApi({ "GET /accounts": [], "GET /mortgages": [], "GET /loans": [], "GET /crypto": [], "GET /metals": [], "GET /stocks": [], "GET /properties": [], "GET /equity": [], "GET /pensions": [], "GET /transactions": page([]), "GET /net-worth/history": { currency: "EUR", points: [] }, "GET /categories": [] })
+    const api = mockApi({ "GET /accounts": [], "GET /mortgages": [], "GET /loans": [], "GET /crypto": [], "GET /metals": [], "GET /stocks": [], "GET /properties": [], "GET /equity": [], "GET /pensions": [], "GET /transactions": page([]), "GET /net-worth/history": { currency: "EUR", points: [] }, "GET /transactions/summary": { from: "", to: "", currency: "EUR", income: 0, expenses: 0, byCategory: [] }, "GET /categories": [] })
     await renderApp(DashboardPage)
     expect(await screen.findByRole("heading", { name: "Dashboard" })).toBeInTheDocument()
     expect(api.unmatched).toEqual([])
@@ -188,7 +188,7 @@ describe("Dashboard: non-EUR items", () => {
   })
 
   test("no note when everything is in euros", async () => {
-    mockApi({ "GET /accounts": [account()], "GET /mortgages": [], "GET /loans": [], "GET /crypto": [], "GET /metals": [], "GET /stocks": [], "GET /properties": [], "GET /equity": [], "GET /pensions": [], "GET /transactions": page([]), "GET /net-worth/history": { currency: "EUR", points: [] }, "GET /categories": [] })
+    mockApi({ "GET /accounts": [account()], "GET /mortgages": [], "GET /loans": [], "GET /crypto": [], "GET /metals": [], "GET /stocks": [], "GET /properties": [], "GET /equity": [], "GET /pensions": [], "GET /transactions": page([]), "GET /net-worth/history": { currency: "EUR", points: [] }, "GET /transactions/summary": { from: "", to: "", currency: "EUR", income: 0, expenses: 0, byCategory: [] }, "GET /categories": [] })
     await renderApp(DashboardPage)
     await screen.findByText("Net Worth")
     await waitFor(() => expect(screen.queryByText(/Non-EUR portfolios are excluded/)).not.toBeInTheDocument())

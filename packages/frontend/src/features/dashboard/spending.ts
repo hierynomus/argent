@@ -1,54 +1,58 @@
-import type { Category, TransactionWithDetails } from "@argent/shared"
+import type { Category, TransactionSummary } from "@argent/shared"
 
 export interface SpendingRow {
   key: string
   name: string
   color: string | null
   amount: number
-  /** the same category the month before */
+  /** the same category in the comparison period (an average when it spans several months) */
   previous: number
-  /** share of this month's spending, 0-100 */
+  /** share of the spending, 0-100 */
   percent: number
+  /** the labels to filter the transactions by to see what is behind this row ("uncategorized" for the unlabeled) */
+  categoryIds: string[]
 }
 
-const UNCATEGORISED = { key: "none", name: "Uncategorised" }
+const UNCATEGORISED = "none"
 const cents = (n: number) => Math.round(n * 100)
 
-/** What was spent per category in a list of transactions: EUR payments out, transfers between own accounts left out. */
-function totals(transactions: TransactionWithDetails[], byId: Map<string, Category>) {
-  const out = new Map<string, { name: string; color: string | null; cents: number }>()
-  for (const t of transactions) {
-    if (t.creditDebitIndicator !== "DBIT" || t.transferPeerId || t.currency !== "EUR") continue
-    const own = t.category
-    // subcategories count with their parent, so the list stays short enough to read
+/** Expenses per top-level category of one summary, in cents. Subcategories count with their parent. */
+function totals(summary: TransactionSummary, byId: Map<string, Category>) {
+  const out = new Map<string, { name: string; color: string | null; cents: number; top: Category | null }>()
+  for (const r of summary.byCategory) {
+    if (r.expenses <= 0) continue
+    const own = r.categoryId ? byId.get(r.categoryId) ?? null : null
     const top = own ? (own.parentId ? byId.get(own.parentId) ?? own : own) : null
-    const key = top?.id ?? UNCATEGORISED.key
-    const entry = out.get(key) ?? { name: top?.name ?? UNCATEGORISED.name, color: top?.color ?? null, cents: 0 }
-    entry.cents += cents(parseFloat(t.amount))
+    const key = top?.id ?? UNCATEGORISED
+    const entry = out.get(key) ?? { name: top?.name ?? "Uncategorised", color: top?.color ?? null, cents: 0, top }
+    entry.cents += cents(r.expenses)
     out.set(key, entry)
   }
   return out
 }
 
 /**
- * The biggest spending categories of this month next to last month's, largest first. Beyond `top` rows the rest
- * is one "Other" row. Returns the total as well.
+ * The biggest spending categories of a period next to a comparison (last month, or the average of the months
+ * before), largest first. Beyond `top` rows the rest is one "Other" row.
  */
-export function spendingByCategory(current: TransactionWithDetails[], previous: TransactionWithDetails[], categories: Category[], top = 6): { rows: SpendingRow[]; total: number; previousTotal: number } {
+export function spendingByCategory(current: TransactionSummary, comparison: TransactionSummary[], categories: Category[], top = 6): { rows: SpendingRow[]; total: number; previousTotal: number } {
   const byId = new Map(categories.map((c) => [c.id, c]))
   const now = totals(current, byId)
-  const before = totals(previous, byId)
-  const total = [...now.values()].reduce((n, e) => n + e.cents, 0)
-  const previousTotal = [...before.values()].reduce((n, e) => n + e.cents, 0)
+  const before = comparison.map((s) => totals(s, byId))
+  const average = (n: number) => (before.length === 0 ? 0 : Math.round(n / before.length))
+  const previousOf = (key: string) => average(before.reduce((n, m) => n + (m.get(key)?.cents ?? 0), 0))
+  const idsOf = (key: string, top: Category | null) => (top ? [top.id, ...categories.filter((c) => c.parentId === top.id).map((c) => c.id)] : key === UNCATEGORISED ? ["uncategorized"] : [])
+
   const all = [...now.entries()]
-    .map(([key, e]) => ({ key, name: e.name, color: e.color, cents: e.cents, previous: before.get(key)?.cents ?? 0 }))
+    .map(([key, e]) => ({ key, name: e.name, color: e.color, cents: e.cents, previous: previousOf(key), ids: idsOf(key, e.top) }))
     .sort((a, b) => b.cents - a.cents)
   const shown = all.slice(0, top)
   const rest = all.slice(top)
-  if (rest.length > 0) shown.push({ key: "other", name: "Other", color: null, cents: rest.reduce((n, r) => n + r.cents, 0), previous: rest.reduce((n, r) => n + r.previous, 0) })
+  if (rest.length > 0) shown.push({ key: "other", name: "Other", color: null, cents: rest.reduce((n, r) => n + r.cents, 0), previous: rest.reduce((n, r) => n + r.previous, 0), ids: rest.flatMap((r) => r.ids) })
+  const total = cents(current.expenses)
   return {
-    rows: shown.map((r) => ({ key: r.key, name: r.name, color: r.color, amount: r.cents / 100, previous: r.previous / 100, percent: total > 0 ? (r.cents / total) * 100 : 0 })),
+    rows: shown.map((r) => ({ key: r.key, name: r.name, color: r.color, amount: r.cents / 100, previous: r.previous / 100, percent: total > 0 ? (r.cents / total) * 100 : 0, categoryIds: r.ids })),
     total: total / 100,
-    previousTotal: previousTotal / 100,
+    previousTotal: average(comparison.reduce((n, s) => n + cents(s.expenses), 0)) / 100,
   }
 }

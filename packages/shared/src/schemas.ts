@@ -514,6 +514,18 @@ export const transactionFiltersSchema = z
     categoryId: emptyAsUndefined(
       z.string().refine((v) => v === "uncategorized" || z.uuid().safeParse(v).success, { message: 'categoryId must be an id or "uncategorized"' }).optional(),
     ),
+    /** several labels: comma-separated ids and/or "uncategorized" */
+    categoryIds: emptyAsUndefined(
+      z.string()
+        .transform((s) => s.split(",").map((x) => x.trim()).filter(Boolean))
+        .pipe(z.array(z.string().refine((v) => v === "uncategorized" || z.uuid().safeParse(v).success, { message: 'categoryIds must be ids or "uncategorized"' })).max(200, "categoryIds has too many ids"))
+        .optional(),
+    ),
+    /** money in (CRDT) or out (DBIT) only */
+    direction: emptyAsUndefined(z.enum(["CRDT", "DBIT"], { error: "direction must be CRDT or DBIT" }).optional()),
+    /** leave out transfers between own accounts (what the spending figures do) */
+    excludeTransfers: emptyAsUndefined(z.enum(["true", "1"]).transform(() => true).optional()),
+    currency: emptyAsUndefined(z.string().trim().length(3, "currency must be a 3-letter code").transform((c) => c.toUpperCase()).optional()),
     from: emptyAsUndefined(isoDate("from").optional()),
     to: emptyAsUndefined(isoDate("to").optional()),
     search: emptyAsUndefined(z.string().trim().max(200, "search is too long").optional()),
@@ -524,6 +536,11 @@ export const transactionFiltersSchema = z
     ),
   })
   .refine((f) => !f.from || !f.to || f.from <= f.to, { message: "from must not be after to", path: ["from"] })
+
+/** Totals over a period (both days included) for the spending figures. */
+export const transactionSummaryQuerySchema = z
+  .object({ from: isoDate("from"), to: isoDate("to") })
+  .refine((f) => f.from <= f.to, { message: "from must not be after to", path: ["from"] })
 
 /** Erasing every table is a one-way street: the request has to say so in so many words. */
 export const clearAllDataSchema = z.object({ confirm: z.literal("erase all data") })

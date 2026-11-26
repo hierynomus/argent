@@ -29,7 +29,8 @@ export const queryKeys = {
   transferSuggestions: (id: string) => ["transactions", "suggestions", id] as const,
   /** nested under `transactions`: any import, edit or delete refreshes the chart */
   balanceHistory: (accountId: string) => ["transactions", "balance-history", accountId] as const,
-  transactionsMonth: (yearMonth: string) => ["transactions", "month", yearMonth] as const,
+  /** money in and out over a period (nested under `transactions`: any change refreshes it) */
+  transactionSummary: (from: string, to: string) => ["transactions", "summary", from, to] as const,
 
   portfolios: (kind: PortfolioKind) => ["portfolios", kind] as const,
   portfolio: (kind: PortfolioKind, id: string | null) => ["portfolios", kind, id] as const,

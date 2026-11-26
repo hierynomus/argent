@@ -96,11 +96,28 @@ export interface PaginatedResponse<T> {
 export interface TransactionFilters {
   accountId?: string
   categoryId?: string | "uncategorized"
+  /** several labels at once (ids and/or "uncategorized") */
+  categoryIds?: string[]
+  direction?: "CRDT" | "DBIT"
+  /** leave out transfers between own accounts */
+  excludeTransfers?: boolean
+  currency?: string
   from?: string
   to?: string
   search?: string
   page?: number
   pageSize?: number
+}
+
+/** Money in and out over a period, EUR by default, without transfers between own accounts (computed on request). */
+export interface TransactionSummary {
+  from: string
+  to: string
+  currency: string
+  income: number
+  expenses: number
+  /** per label (null = unlabeled), largest expense first */
+  byCategory: Array<{ categoryId: string | null; expenses: number; income: number }>
 }
 
 export interface Subscription {

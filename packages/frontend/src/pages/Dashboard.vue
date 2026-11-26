@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue"
-import { useAccounts, useCategories, useDebts, usePortfolioDetails, usePortfolios, useEquityPlans, usePensionPlans, useProperties, useTransactionsBetween } from "../api"
+import { useAccounts, useDebts, usePortfolioDetails, usePortfolios, useEquityPlans, usePensionPlans, useProperties, useTransactionSummary } from "../api"
 import { fmtCur, fmtMonthLabel, pnlColor } from "../lib/format"
 import CashFlowCard from "../features/dashboard/CashFlowCard.vue"
 import LiabilitiesCard from "../features/dashboard/LiabilitiesCard.vue"
@@ -15,10 +15,6 @@ const yearMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2,
 const monthStart = `${yearMonth}-01`
 const today = now.toISOString().slice(0, 10)
 const monthLabel = fmtMonthLabel(now)
-// last month, for the spending comparison
-const previousStart = new Date(Date.UTC(now.getFullYear(), now.getMonth() - 1, 1, 12))
-const previousEnd = new Date(Date.UTC(now.getFullYear(), now.getMonth(), 0, 12))
-const previousMonth = previousStart.toISOString().slice(0, 7)
 
 const { data: accountsData } = useAccounts()
 const { data: mortgagesData } = useDebts("mortgages")
@@ -39,9 +35,8 @@ const cryptoDetails = usePortfolioDetails("crypto", cryptoList)
 const metalDetails = usePortfolioDetails("metals", metalList)
 const stockDetails = usePortfolioDetails("stocks", stockList)
 
-const { data: monthlyData, isLoading: monthlyLoading } = useTransactionsBetween(yearMonth, monthStart, today)
-const { data: previousData } = useTransactionsBetween(previousMonth, `${previousMonth}-01`, previousEnd.toISOString().slice(0, 10))
-const { data: categoriesData } = useCategories()
+// this month so far: money in and out, summed by the server (transfers between own accounts left out)
+const { data: monthSummary, isLoading: monthlyLoading } = useTransactionSummary(monthStart, today)
 
 const summary = computed(() =>
   summarize({
@@ -51,7 +46,6 @@ const summary = computed(() =>
     crypto: toHoldings(cryptoList.value, cryptoDetails.value, (d) => d.totalCurrentValue),
     metals: toHoldings(metalList.value, metalDetails.value, (d) => d.totalCurrentValueOpen),
     stocks: toHoldings(stockList.value, stockDetails.value, (d) => d.totalCurrentValue),
-    monthTransactions: monthlyData.value?.data ?? [],
     properties: propertyData.value ?? [],
     propertiesLoading: propertiesLoading.value,
     equity: equityData.value ?? [],
@@ -60,7 +54,11 @@ const summary = computed(() =>
     pensionsLoading: pensionsLoading.value,
   }),
 )
-const cashFlow = computed(() => summary.value.cashFlow)
+const cashFlow = computed(() => {
+  const income = monthSummary.value?.income ?? 0
+  const expenses = monthSummary.value?.expenses ?? 0
+  return { income, expenses, net: Math.round((income - expenses) * 100) / 100 }
+})
 const mix = computed(() => assetMix(summary.value))
 
 const tile = (list: unknown[], s: { total: number }) => (list.length === 0 ? "â€”" : fmtCur(s.total))
@@ -116,7 +114,7 @@ const tile = (list: unknown[], s: { total: number }) => (list.length === 0 ? "â€
     </div>
 
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
-      <SpendingCard :current="monthlyData?.data ?? []" :previous="previousData?.data ?? []" :categories="categoriesData ?? []" :loading="monthlyLoading" :month-label="monthLabel" />
+      <SpendingCard />
       <div class="space-y-6">
         <CashFlowCard :income="cashFlow.income" :expenses="cashFlow.expenses" :loading="monthlyLoading" :month-label="monthLabel" />
         <LiabilitiesCard

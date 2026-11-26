@@ -1,10 +1,10 @@
 import { Hono } from "hono"
 import { db } from "../db"
 import { transactions } from "../db/schema"
-import { and, eq, gte, ilike, inArray, isNull, lte, sql } from "drizzle-orm"
+import { and, eq, gte, ilike, inArray, isNull, lte, or, sql } from "drizzle-orm"
 import type { AuthUser } from "../middleware/auth"
 import { validateJson, validateQuery } from "../middleware/validate"
-import { updateTransactionSchema, linkTransferSchema, transactionFiltersSchema, createTransactionSchema, updateManualTransactionSchema } from "@argent/shared"
+import { updateTransactionSchema, linkTransferSchema, transactionFiltersSchema, transactionSummaryQuerySchema, createTransactionSchema, updateManualTransactionSchema } from "@argent/shared"
 import { runBackgroundJobs } from "../services/backgroundJobs"
 import { getViewableAccountIds, toAccessContext, canEditAccount } from "../services/accessControl"
 
@@ -35,6 +35,15 @@ app.get("/", validateQuery(transactionFiltersSchema), async (c) => {
   } else if (query.categoryId) {
     conditions.push(eq(transactions.categoryId, query.categoryId))
   }
+  if (query.categoryIds && query.categoryIds.length > 0) {
+    const ids = query.categoryIds.filter((id) => id !== "uncategorized")
+    const withNone = query.categoryIds.includes("uncategorized")
+    const any = [...(ids.length > 0 ? [inArray(transactions.categoryId, ids)] : []), ...(withNone ? [isNull(transactions.categoryId)] : [])]
+    conditions.push(any.length === 1 ? any[0]! : or(...any)!)
+  }
+  if (query.direction) conditions.push(eq(transactions.creditDebitIndicator, query.direction))
+  if (query.excludeTransfers) conditions.push(isNull(transactions.transferPeerId))
+  if (query.currency) conditions.push(eq(transactions.currency, query.currency))
   if (query.from) conditions.push(gte(transactions.bookingDate, query.from))
   if (query.to) conditions.push(lte(transactions.bookingDate, query.to))
   if (query.search) {
@@ -69,6 +78,38 @@ app.get("/", validateQuery(transactionFiltersSchema), async (c) => {
     page,
     pageSize,
   })
+})
+
+/**
+ * Money in and out over a period, EUR, without transfers between own accounts, in total and per label: the
+ * dashboard's cash flow and spending. Summed in the database, so a busy month is never cut off by a page size.
+ */
+app.get("/summary", validateQuery(transactionSummaryQuerySchema), async (c) => {
+  const { from, to } = c.req.valid("query")
+  const accessibleIds = await getViewableAccountIds(toAccessContext(c.get("user")))
+  const empty = { from, to, currency: "EUR", income: 0, expenses: 0, byCategory: [] }
+  if (accessibleIds.length === 0) return c.json(empty)
+  const amount = sql`${transactions.amount}::numeric`
+  const rows = await db
+    .select({
+      categoryId: transactions.categoryId,
+      expenses: sql<string>`COALESCE(SUM(CASE WHEN ${transactions.creditDebitIndicator} = 'DBIT' THEN ${amount} ELSE 0 END), 0)`,
+      income: sql<string>`COALESCE(SUM(CASE WHEN ${transactions.creditDebitIndicator} = 'CRDT' THEN ${amount} ELSE 0 END), 0)`,
+    })
+    .from(transactions)
+    .where(and(
+      inArray(transactions.accountId, accessibleIds),
+      eq(transactions.currency, "EUR"),
+      isNull(transactions.transferPeerId),
+      gte(transactions.bookingDate, from),
+      lte(transactions.bookingDate, to),
+    ))
+    .groupBy(transactions.categoryId)
+  const byCategory = rows
+    .map((r) => ({ categoryId: r.categoryId, expenses: Math.round(parseFloat(r.expenses) * 100) / 100, income: Math.round(parseFloat(r.income) * 100) / 100 }))
+    .sort((a, b) => b.expenses - a.expenses)
+  const cents = (pick: (r: { expenses: number; income: number }) => number) => byCategory.reduce((n, r) => n + Math.round(pick(r) * 100), 0) / 100
+  return c.json({ ...empty, income: cents((r) => r.income), expenses: cents((r) => r.expenses), byCategory })
 })
 
 /** Enter a transaction by hand (a bank without an export, cash). It links to transfers like any other. */

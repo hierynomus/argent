@@ -1,17 +1,19 @@
 import type {
-  CreateTransactionBody, LinkTransferBody, Transaction, UpdateManualTransactionBody, PaginatedResponse, TransactionFilters, TransactionWithDetails, TransferPeerSummary, UpdateTransactionBody,
+  CreateTransactionBody, LinkTransferBody, Transaction, UpdateManualTransactionBody, PaginatedResponse, TransactionFilters, TransactionSummary, TransactionWithDetails, TransferPeerSummary, UpdateTransactionBody,
 } from "@argent/shared"
 import { http } from "./client"
 
 export type TransactionQuery = TransactionFilters & { accountIds?: string[] }
 
 export function getTransactions(filters: TransactionQuery) {
-  const { accountIds, ...rest } = filters
+  const { accountIds, categoryIds, excludeTransfers, ...rest } = filters
   const params = new URLSearchParams()
   for (const [k, v] of Object.entries(rest)) {
     if (v !== undefined && v !== null && v !== "") params.set(k, String(v))
   }
   if (accountIds?.length) params.set("accountIds", accountIds.join(","))
+  if (categoryIds?.length) params.set("categoryIds", categoryIds.join(","))
+  if (excludeTransfers) params.set("excludeTransfers", "true")
   return http.get<PaginatedResponse<TransactionWithDetails>>(`/transactions?${params}`)
 }
 
@@ -33,3 +35,6 @@ export const createTransaction = (body: CreateTransactionBody) => http.post<Tran
 export const editTransaction = (id: string, body: UpdateManualTransactionBody) => http.put<Transaction>(`/transactions/${id}`, body)
 
 export const deleteTransaction = (id: string) => http.delete(`/transactions/${id}`)
+
+/** Money in and out over a period (EUR, without transfers between own accounts), in total and per label. Summed by the server. */
+export const getTransactionSummary = (from: string, to: string) => http.get<TransactionSummary>(`/transactions/summary?${new URLSearchParams({ from, to })}`)

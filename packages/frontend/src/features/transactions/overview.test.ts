@@ -230,3 +230,38 @@ describe("legacy ?account= link", () => {
     expect(api.calls("GET", "/transactions")[0].query.accountIds).toBe("a1")
   })
 })
+
+describe("a selection from the spending card", () => {
+  const link = "/overview?categories=c1,c2&from=2026-11-01&to=2026-11-30&direction=DBIT&excludeTransfers=1&currency=EUR&label=Food"
+
+  test("asks for exactly those transactions and says so, and the chip clears it", async () => {
+    const api = mockApi({ "GET /accounts": [account()], "GET /categories": [category({ id: "c1", name: "Groceries" })], "GET /transactions": page(TXS) })
+    const { user } = await renderApp(OverviewPage, { route: link })
+    await screen.findAllByText("Roastery")
+    expect(api.calls("GET", "/transactions")[0].query).toMatchObject({ categoryIds: "c1,c2", from: "2026-11-01", to: "2026-11-30", direction: "DBIT", excludeTransfers: "true", currency: "EUR" })
+    const chip = screen.getByLabelText("Selection from the dashboard")
+    expect(chip).toHaveTextContent("Food")
+    expect(chip).toHaveTextContent("money out")
+
+    await user.click(screen.getByRole("button", { name: /Clear/ }))
+    expect(screen.queryByLabelText("Selection from the dashboard")).toBeNull()
+    await waitFor(() => {
+      const last = api.calls("GET", "/transactions").at(-1)!.query
+      expect(last.categoryIds).toBeUndefined()
+      expect(last.direction).toBeUndefined()
+    })
+  })
+
+  test("picking a label by hand replaces the selection", async () => {
+    const api = mockApi({ "GET /accounts": [account()], "GET /categories": [category({ id: "c1", name: "Groceries" })], "GET /transactions": page(TXS) })
+    const { user } = await renderApp(OverviewPage, { route: link })
+    await screen.findAllByText("Roastery")
+    await user.selectOptions(screen.getByLabelText("Label"), "c1")
+    expect(screen.queryByLabelText("Selection from the dashboard")).toBeNull()
+    await waitFor(() => {
+      const last = api.calls("GET", "/transactions").at(-1)!.query
+      expect(last.categoryId).toBe("c1")
+      expect(last.categoryIds).toBeUndefined()
+    })
+  })
+})

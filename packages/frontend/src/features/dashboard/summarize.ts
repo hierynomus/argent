@@ -1,5 +1,5 @@
 import { sumCents } from "../../lib/money"
-import type { Account, EquityPlanWithDetails, PensionPlanWithDetails, PortfolioWithAccess, PropertyWithDetails, TransactionWithDetails } from "@argent/shared"
+import type { Account, EquityPlanWithDetails, PensionPlanWithDetails, PortfolioWithAccess, PropertyWithDetails } from "@argent/shared"
 import type { Debt } from "../../api"
 
 /** An investment portfolio reduced to what the dashboard needs (its value is positions + cash). `null` = no value yet (still loading, or no live price). */
@@ -34,8 +34,6 @@ export interface DashboardInput {
   crypto: Holding[]
   metals: Holding[]
   stocks: Holding[]
-  /** this month's transactions */
-  monthTransactions: TransactionWithDetails[]
   /** houses, cars, …: counted at their latest valuation */
   properties?: PropertyWithDetails[]
   propertiesLoading?: boolean
@@ -75,7 +73,6 @@ export interface DashboardSummary {
   netWorthLoading: boolean
   /** true when something was left out because it is not in EUR (the UI says so) */
   hasExcludedNonEur: boolean
-  cashFlow: { income: number; expenses: number; net: number }
 }
 
 const EUR = "EUR"
@@ -138,10 +135,6 @@ export function summarize(input: DashboardInput): DashboardSummary {
     (x) => x.currency !== EUR,
   )
 
-  const flow = input.monthTransactions.filter((t) => !t.transferPeerId)
-  const income = sum(flow.filter((t) => t.creditDebitIndicator === "CRDT"), (t) => parseFloat(t.amount))
-  const expenses = sum(flow.filter((t) => t.creditDebitIndicator === "DBIT"), (t) => parseFloat(t.amount))
-
   return {
     accountsTotal,
     crypto,
@@ -157,7 +150,6 @@ export function summarize(input: DashboardInput): DashboardSummary {
     netWorth: totalAssets - totalLiabilities,
     netWorthLoading: crypto.loading || metals.loading || stocks.loading || properties.loading || equity.loading || pensions.loading,
     hasExcludedNonEur: anyNonEur,
-    cashFlow: { income, expenses, net: income - expenses },
   }
 }
 

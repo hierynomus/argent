@@ -14,7 +14,7 @@ import { getNetWorthHistory } from "./netWorth"
 import { portfolioApis, type HistoryParams, type PortfolioDetailByKind } from "./portfolios"
 import { propertiesApi } from "./properties"
 import { getSubscriptions, getSubscriptionTransactions } from "./subscriptions"
-import { getTransactions, getTransferSuggestions, type TransactionQuery } from "./transactions"
+import { getTransactionSummary, getTransactions, getTransferSuggestions, type TransactionQuery } from "./transactions"
 
 /**
  * Read composables. Components never write `useQuery({ queryKey, queryFn })` themselves, so a resource
@@ -84,9 +84,13 @@ export const useRecentTransactions = (pageSize: number, accountId?: MaybeRefOrGe
     },
   })
 
-/** Every transaction in a date range (used for monthly summaries). */
-export const useTransactionsBetween = (yearMonth: string, from: string, to: string) =>
-  useQuery({ queryKey: queryKeys.transactionsMonth(yearMonth), queryFn: () => getTransactions({ from, to, pageSize: 500 }) })
+/** Money in and out over a period (summed by the server): the dashboard's cash flow and spending. */
+export const useTransactionSummary = (from: MaybeRefOrGetter<string>, to: MaybeRefOrGetter<string>) =>
+  useQuery({
+    queryKey: computed(() => queryKeys.transactionSummary(toValue(from), toValue(to))),
+    // parameters come from the key (see the note at the top of this file)
+    queryFn: ({ queryKey }) => getTransactionSummary(queryKey[2] as string, queryKey[3] as string),
+  })
 
 export const usePortfolios = (kind: PortfolioKind) => useQuery({ queryKey: queryKeys.portfolios(kind), queryFn: portfolioApis[kind].list })
 
