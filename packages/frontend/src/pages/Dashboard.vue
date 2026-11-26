@@ -67,10 +67,15 @@ const tile = (list: unknown[], s: { total: number }) => (list.length === 0 ? "�
       <SummaryTile
         label="This month"
         :value="`${cashFlow.net >= 0 ? '+' : ''}${fmtCur(cashFlow.net)}`"
-        :sub="monthlyLoading ? undefined : `↑ ${fmtCur(cashFlow.income)} income · ↓ ${fmtCur(cashFlow.expenses)} expenses`"
+        :value-color="pnlColor(cashFlow.net)"
         :loading="monthlyLoading"
         class="justify-center"
-      />
+      >
+        <template #sub>
+          <span :class="pnlColor(1)">↑ {{ fmtCur(cashFlow.income) }}</span> income ·
+          <span :class="pnlColor(-1)">↓ {{ fmtCur(cashFlow.expenses) }}</span> expenses
+        </template>
+      </SummaryTile>
     </div>
 
     <!-- as many as fit at 15rem or wider, so larger amounts keep their room -->
