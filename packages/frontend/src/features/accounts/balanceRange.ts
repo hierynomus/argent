@@ -21,11 +21,11 @@ function minusMonths(iso: string, months: number): string {
  * The part of a balance history inside a range ending at the last point. The line starts on the first day of
  * the range at the balance it had then (the latest point before it), so a short range doesn't begin mid-air.
  */
-export function sliceRange(points: DayBalance[], range: HistoryRange): DayBalance[] {
+export function sliceRange<T extends { date: string }>(points: T[], range: HistoryRange): T[] {
   const last = points[points.length - 1]
   if (range === "max" || !last) return points
   const from = minusMonths(last.date, MONTHS[range])
   const before = [...points].reverse().find((p) => p.date < from)
   const inside = points.filter((p) => p.date >= from)
-  return before ? [{ date: from, balance: before.balance }, ...inside] : inside
+  return before ? [{ ...before, date: from }, ...inside] : inside
 }

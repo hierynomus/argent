@@ -436,6 +436,22 @@ export interface MortgagePart {
   extraImpact?: ExtraPaymentImpact | null
 }
 
+/** Net worth on one day in EUR, split into what it is made of (computed on request). Investments are valued at cost. */
+export interface NetWorthPoint {
+  date: string
+  banking: number
+  investments: number
+  property: number
+  pensions: number
+  debts: number
+  netWorth: number
+}
+
+export interface NetWorthHistory {
+  currency: "EUR"
+  points: NetWorthPoint[]
+}
+
 /** The balance of a mortgage or loan over its life, month by month (computed on request). */
 export interface DebtSchedule {
   currency: string

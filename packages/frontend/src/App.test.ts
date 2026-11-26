@@ -12,6 +12,7 @@ const mockEverything = () =>
     "GET /me": me(), "GET /accounts": [account()], "GET /categories": [category()], "GET /subscriptions": [],
     "GET /transactions": page([transaction()]), "GET /mortgages": [], "GET /loans": [],
     "GET /crypto": [], "GET /metals": [], "GET /stocks": [], "GET /properties": [], "GET /equity": [], "GET /pensions": [],
+    "GET /net-worth/history": { currency: "EUR", points: [] },
   })
 
 /** Mounts the real app: real router (lazy pages), real shell. */

@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { computed } from "vue"
-import { useAccounts, useDebts, usePortfolioDetails, usePortfolios, useEquityPlans, usePensionPlans, useProperties, useTransactionsBetween } from "../api"
+import { useAccounts, useCategories, useDebts, usePortfolioDetails, usePortfolios, useEquityPlans, usePensionPlans, useProperties, useTransactionsBetween } from "../api"
 import { fmtCur, fmtMonthLabel, pnlColor } from "../lib/format"
 import CashFlowCard from "../features/dashboard/CashFlowCard.vue"
 import LiabilitiesCard from "../features/dashboard/LiabilitiesCard.vue"
+import NetWorthHistoryCard from "../features/dashboard/NetWorthHistoryCard.vue"
 import NetWorthCard from "../features/dashboard/NetWorthCard.vue"
+import SpendingCard from "../features/dashboard/SpendingCard.vue"
 import SummaryTile from "../features/dashboard/SummaryTile.vue"
 import { assetMix, bankingLabel, summarize, toHoldings, unrealizedLabel } from "../features/dashboard/summarize"
 
@@ -13,6 +15,10 @@ const yearMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2,
 const monthStart = `${yearMonth}-01`
 const today = now.toISOString().slice(0, 10)
 const monthLabel = fmtMonthLabel(now)
+// last month, for the spending comparison
+const previousStart = new Date(Date.UTC(now.getFullYear(), now.getMonth() - 1, 1, 12))
+const previousEnd = new Date(Date.UTC(now.getFullYear(), now.getMonth(), 0, 12))
+const previousMonth = previousStart.toISOString().slice(0, 7)
 
 const { data: accountsData } = useAccounts()
 const { data: mortgagesData } = useDebts("mortgages")
@@ -34,6 +40,8 @@ const metalDetails = usePortfolioDetails("metals", metalList)
 const stockDetails = usePortfolioDetails("stocks", stockList)
 
 const { data: monthlyData, isLoading: monthlyLoading } = useTransactionsBetween(yearMonth, monthStart, today)
+const { data: previousData } = useTransactionsBetween(previousMonth, `${previousMonth}-01`, previousEnd.toISOString().slice(0, 10))
+const { data: categoriesData } = useCategories()
 
 const summary = computed(() =>
   summarize({
@@ -79,6 +87,8 @@ const tile = (list: unknown[], s: { total: number }) => (list.length === 0 ? "â€
       </SummaryTile>
     </div>
 
+    <NetWorthHistoryCard />
+
     <!-- as many as fit at 15rem or wider, so larger amounts keep their room -->
     <div class="grid grid-cols-[repeat(auto-fit,minmax(15rem,1fr))] gap-4">
       <SummaryTile label="Banking" :value="fmtCur(summary.accountsTotal)" :sub="bankingLabel(accounts)" />
@@ -105,16 +115,19 @@ const tile = (list: unknown[], s: { total: number }) => (list.length === 0 ? "â€
       />
     </div>
 
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-      <CashFlowCard :income="cashFlow.income" :expenses="cashFlow.expenses" :loading="monthlyLoading" :month-label="monthLabel" />
-      <LiabilitiesCard
-        :mortgage-balance="summary.mortgages.balance"
-        :mortgage-monthly="summary.mortgages.monthly"
-        :mortgage-count="summary.mortgages.count"
-        :loan-balance="summary.loans.balance"
-        :loan-monthly="summary.loans.monthly"
-        :loan-count="summary.loans.count"
-      />
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
+      <SpendingCard :current="monthlyData?.data ?? []" :previous="previousData?.data ?? []" :categories="categoriesData ?? []" :loading="monthlyLoading" :month-label="monthLabel" />
+      <div class="space-y-6">
+        <CashFlowCard :income="cashFlow.income" :expenses="cashFlow.expenses" :loading="monthlyLoading" :month-label="monthLabel" />
+        <LiabilitiesCard
+          :mortgage-balance="summary.mortgages.balance"
+          :mortgage-monthly="summary.mortgages.monthly"
+          :mortgage-count="summary.mortgages.count"
+          :loan-balance="summary.loans.balance"
+          :loan-monthly="summary.loans.monthly"
+          :loan-count="summary.loans.count"
+        />
+      </div>
     </div>
   </div>
 </template>

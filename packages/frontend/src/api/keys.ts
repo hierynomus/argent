@@ -15,6 +15,8 @@ export const queryKeys = {
   localSettings: ["local", "settings"] as const,
   lockStatus: ["local", "lock"] as const,
   accounts: ["accounts"] as const,
+  /** net worth over time: every change to accounts, transactions, portfolios, debts, properties or pensions refreshes it (see `useInvalidate`) */
+  netWorth: ["net-worth"] as const,
   categories: ["categories"] as const,
   subscriptions: ["subscriptions"] as const,
   /** nested under `subscriptions`, so refreshing subscriptions refreshes these too */

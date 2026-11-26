@@ -74,7 +74,7 @@ describe("ImportPanel", () => {
     const spy = vi.spyOn(client, "invalidateQueries")
     await user.upload(fileInput(), xml("s.xml"))
     await screen.findByText("Done")
-    expect(invalidatedKeys(spy).sort()).toEqual(["accounts", "subscriptions", "transactions"])
+    expect(invalidatedKeys(spy).sort()).toEqual(["accounts", "net-worth", "subscriptions", "transactions"])
   })
 
   test("importing a file that only had duplicates does not refresh anything", async () => {

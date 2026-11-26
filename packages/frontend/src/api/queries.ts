@@ -10,6 +10,7 @@ import { pensionsApi } from "./pensions"
 import { queryKeys, type DebtKind, type PortfolioKind } from "./keys"
 import { getLocalSettings, getLockStatus } from "./local"
 import { getMe } from "./me"
+import { getNetWorthHistory } from "./netWorth"
 import { portfolioApis, type HistoryParams, type PortfolioDetailByKind } from "./portfolios"
 import { propertiesApi } from "./properties"
 import { getSubscriptions, getSubscriptionTransactions } from "./subscriptions"
@@ -43,6 +44,7 @@ export const useBalanceHistory = (id: MaybeRefOrGetter<string>) =>
     queryKey: computed(() => queryKeys.balanceHistory(toValue(id))),
     queryFn: ({ queryKey }) => getBalanceHistory(queryKey[2] as string),
   })
+export const useNetWorthHistory = () => useQuery({ queryKey: queryKeys.netWorth, queryFn: getNetWorthHistory })
 export const useCategories = () => useQuery({ queryKey: queryKeys.categories, queryFn: getCategories })
 export const useSubscriptions = () => useQuery({ queryKey: queryKeys.subscriptions, queryFn: getSubscriptions })
 
@@ -160,19 +162,22 @@ export const usePartCarryOver = (kind: DebtKind, debtId: MaybeRefOrGetter<string
 /** Cache refreshers, named for what changed. Prefix keys mean one call refreshes every dependent view. */
 export function useInvalidate() {
   const qc = useQueryClient()
+  // the net worth history is built from all of these, so each of them refreshes it too
+  const netWorth = () => qc.invalidateQueries({ queryKey: queryKeys.netWorth })
+  const and = <T,>(p: Promise<T>) => Promise.all([p, netWorth()]).then(([r]) => r)
   return {
-    accounts: () => qc.invalidateQueries({ queryKey: queryKeys.accounts }),
+    accounts: () => and(qc.invalidateQueries({ queryKey: queryKeys.accounts })),
     categories: () => qc.invalidateQueries({ queryKey: queryKeys.categories }),
     subscriptions: () => qc.invalidateQueries({ queryKey: queryKeys.subscriptions }),
-    transactions: () => qc.invalidateQueries({ queryKey: queryKeys.transactions }),
+    transactions: () => and(qc.invalidateQueries({ queryKey: queryKeys.transactions })),
     me: () => qc.invalidateQueries({ queryKey: queryKeys.me }),
     /** the portfolio list and every portfolio's detail of this kind */
-    portfolios: (kind: PortfolioKind) => qc.invalidateQueries({ queryKey: queryKeys.portfolios(kind) }),
+    portfolios: (kind: PortfolioKind) => and(qc.invalidateQueries({ queryKey: queryKeys.portfolios(kind) })),
     // a property's debt and equity come from its linked mortgages/loans, so those refresh with them
-    debts: (kind: DebtKind) => Promise.all([qc.invalidateQueries({ queryKey: queryKeys.debts(kind) }), qc.invalidateQueries({ queryKey: queryKeys.properties })]),
-    properties: () => qc.invalidateQueries({ queryKey: queryKeys.properties }),
+    debts: (kind: DebtKind) => Promise.all([qc.invalidateQueries({ queryKey: queryKeys.debts(kind) }), qc.invalidateQueries({ queryKey: queryKeys.properties }), netWorth()]),
+    properties: () => and(qc.invalidateQueries({ queryKey: queryKeys.properties })),
     equity: () => qc.invalidateQueries({ queryKey: queryKeys.equity }),
-    pensions: () => qc.invalidateQueries({ queryKey: queryKeys.pensions }),
+    pensions: () => and(qc.invalidateQueries({ queryKey: queryKeys.pensions })),
     admin: () => qc.invalidateQueries({ queryKey: ["admin"] }),
     /** the lock state changed (unlocked, locked, password set or removed): remember it */
     lockStatus: (status: LockStatus) => qc.setQueryData(queryKeys.lockStatus, status),
@@ -187,6 +192,7 @@ export function useInvalidate() {
         qc.invalidateQueries({ queryKey: queryKeys.accounts }),
         qc.invalidateQueries({ queryKey: queryKeys.transactions }),
         qc.invalidateQueries({ queryKey: queryKeys.subscriptions }),
+        netWorth(),
       ]),
     /** after an import: everything derived from transactions and accounts */
     afterImport: () =>
@@ -194,6 +200,7 @@ export function useInvalidate() {
         qc.invalidateQueries({ queryKey: queryKeys.accounts }),
         qc.invalidateQueries({ queryKey: queryKeys.transactions }),
         qc.invalidateQueries({ queryKey: queryKeys.subscriptions }),
+        netWorth(),
       ]),
   }
 }
