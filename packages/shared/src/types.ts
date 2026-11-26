@@ -430,6 +430,8 @@ export interface MortgagePart {
   nextRateChange?: { effectiveDate: string; annualInterestRate: string; rateType: "nominal" | "effective" } | null
   /** what was (or will be) left of a closed part on the day it was closed */
   carriedOver?: number | null
+  /** interest of a partial first month that was added to the loan */
+  capitalizedInterest?: number
   /** what the extra payments made so far saved (null without any, or on a closed part) */
   extraImpact?: ExtraPaymentImpact | null
 }
@@ -532,6 +534,8 @@ export interface LoanPart {
   nextRateChange?: { effectiveDate: string; annualInterestRate: string; rateType: "nominal" | "effective" } | null
   /** what was (or will be) left of a closed part on the day it was closed */
   carriedOver?: number | null
+  /** interest of a partial first month that was added to the loan */
+  capitalizedInterest?: number
   /** what the extra payments made so far saved (null without any, or on a closed part) */
   extraImpact?: ExtraPaymentImpact | null
 }

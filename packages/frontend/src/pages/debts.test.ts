@@ -427,6 +427,14 @@ for (const k of kinds) {
       expect(box).toHaveTextContent(/Last payment/)
     })
 
+    test("shows how much has been repaid so far", async () => {
+      await setup([debt({ parts: [part({ principal: "200000.00" })], totalCurrentBalance: 150000 })])
+      await screen.findByText("Part A")
+      const strip = screen.getByLabelText("Repaid so far")
+      expect(strip).toHaveTextContent("25%")
+      expect(screen.getByRole("img", { name: /25% repaid/ })).toBeInTheDocument()
+    })
+
     test("no savings box without extra payments", async () => {
       const { user } = await setup([debt()])
       await screen.findByText("Part A")

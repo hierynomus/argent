@@ -8,6 +8,8 @@ import { fmtCur } from "../../lib/format"
 import AddPartForm from "./AddPartForm.vue"
 import { DEBT_KINDS } from "./config"
 import ExtraSavings from "./ExtraSavings.vue"
+import RepaidStrip from "./RepaidStrip.vue"
+import { repaidSoFar } from "./repaid"
 import { sumImpacts } from "./extraSavings"
 import PartRow from "./PartRow.vue"
 
@@ -33,6 +35,7 @@ const showAccess = ref(false)
 
 const remove = useMutation({ mutationFn: () => debtApis[props.kind].remove(props.debt.id), onSuccess: () => invalidate.debts(props.kind) })
 const savings = computed(() => sumImpacts(props.debt.parts.map((p) => p.extraImpact)))
+const repaid = computed(() => repaidSoFar(props.debt, new Date().toISOString().slice(0, 10)))
 const refresh = () => invalidate.debts(props.kind)
 </script>
 
@@ -54,6 +57,7 @@ const refresh = () => invalidate.debts(props.kind)
       </div>
     </div>
 
+    <RepaidStrip v-if="repaid" :repaid="repaid" :currency="debt.currency" />
     <ExtraSavings v-if="savings" :impact="savings" :currency="debt.currency" />
 
     <div v-if="debt.parts.length > 0" class="overflow-x-auto">
