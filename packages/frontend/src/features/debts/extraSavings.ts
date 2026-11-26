@@ -9,14 +9,26 @@ export function fmtMonths(months: number): string {
   return [y, m].filter(Boolean).join(" ")
 }
 
-/** The totals over the parts of one mortgage/loan that have extra payments (one currency); null when none has. */
-export function sumImpacts(impacts: Array<ExtraPaymentImpact | null | undefined>): { count: number; totalExtra: number; interestSaved: number } | null {
+/**
+ * The savings of all parts of one mortgage/loan that have extra payments (one currency) as one figure; null when none has.
+ * The parts run side by side, so the debt is paid off when its last part is: the months saved are the most of any part,
+ * and the end dates the latest ones.
+ */
+export function sumImpacts(impacts: Array<ExtraPaymentImpact | null | undefined>): ExtraPaymentImpact | null {
   const found = impacts.filter((i): i is ExtraPaymentImpact => !!i)
   if (found.length === 0) return null
-  const cents = (n: number) => Math.round(n * 100)
+  const sum = (pick: (i: ExtraPaymentImpact) => number) => found.reduce((n, i) => n + Math.round(pick(i) * 100), 0) / 100
+  const latest = (pick: (i: ExtraPaymentImpact) => string) => found.map(pick).sort().at(-1)!
   return {
     count: found.reduce((n, i) => n + i.count, 0),
-    totalExtra: found.reduce((n, i) => n + cents(i.totalExtra), 0) / 100,
-    interestSaved: found.reduce((n, i) => n + cents(i.interestSaved), 0) / 100,
+    totalExtra: sum((i) => i.totalExtra),
+    interestWithExtra: sum((i) => i.interestWithExtra),
+    interestWithoutExtra: sum((i) => i.interestWithoutExtra),
+    interestPaidToDate: sum((i) => i.interestPaidToDate),
+    interestPaidToDateWithoutExtra: sum((i) => i.interestPaidToDateWithoutExtra),
+    interestSaved: sum((i) => i.interestSaved),
+    monthsSaved: Math.max(...found.map((i) => i.monthsSaved)),
+    endDate: latest((i) => i.endDate),
+    endDateWithoutExtra: latest((i) => i.endDateWithoutExtra),
   }
 }

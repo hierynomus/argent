@@ -359,6 +359,9 @@ export interface ExtraPaymentImpact {
   /** interest over the whole life of the part, as it goes now and had nothing extra been paid */
   interestWithExtra: number
   interestWithoutExtra: number
+  /** how much of each has been paid up to today (it differs: without the extras more interest would have been paid by now) */
+  interestPaidToDate: number
+  interestPaidToDateWithoutExtra: number
   interestSaved: number
   /** payments no longer needed, and the dates of the last payment with and without the extras */
   monthsSaved: number
@@ -387,6 +390,8 @@ export function extraPaymentImpact(part: PartInput, extraPayments: ExtraPayment[
     totalExtra: cents(made.reduce((sum, e) => sum.plus(e.amount), new Decimal(0))),
     interestWithExtra: withExtra.interestPaid,
     interestWithoutExtra: without.interestPaid,
+    interestPaidToDate: simulatePart(part, made, asOf, rateChanges).interestPaid,
+    interestPaidToDateWithoutExtra: simulatePart(part, [], asOf, rateChanges).interestPaid,
     interestSaved: cents(new Decimal(without.interestPaid).minus(withExtra.interestPaid)),
     monthsSaved: Math.max(0, without.paymentsMade - withExtra.paymentsMade),
     endDate: lastDate(withExtra.paymentsMade),

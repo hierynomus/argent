@@ -561,3 +561,18 @@ describe("extraPaymentImpact", () => {
     expect(extraPaymentImpact(part({ closedOn: "2023-01-01" }), extra, at(2024, 1))).toBeNull()
   })
 })
+
+describe("extraPaymentImpact: interest paid so far", () => {
+  test("splits the life-long interest into what is paid up to today and what is still to come", () => {
+    const extra = [{ paymentDate: "2021-03-10", amount: "10000" }]
+    const impact = extraPaymentImpact(part(), extra, at(2025, 1))!
+    expect(impact.interestPaidToDate).toBeGreaterThan(0)
+    expect(impact.interestPaidToDate).toBeLessThan(impact.interestWithExtra)
+    expect(impact.interestPaidToDateWithoutExtra).toBeLessThan(impact.interestWithoutExtra)
+    // by now the extra payment has already saved some interest
+    expect(impact.interestPaidToDate).toBeLessThan(impact.interestPaidToDateWithoutExtra)
+    // installments paid minus the principal repaid so far, from the state's own run
+    const state = computePartState(part(), [], at(2025, 1))
+    expect(impact.interestPaidToDateWithoutExtra).toBeCloseTo(state.monthsElapsed * state.originalMonthlyPayment - (120000 - state.currentBalance), 2)
+  })
+})

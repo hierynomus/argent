@@ -413,12 +413,13 @@ for (const k of kinds) {
     })
 
     test("shows what the extra payments saved, on the card and in the payments panel", async () => {
-      const extraImpact = { count: 2, totalExtra: 12500, interestWithExtra: 30000, interestWithoutExtra: 41234.5, interestSaved: 11234.5, monthsSaved: 26, endDate: "2046-11-01", endDateWithoutExtra: "2048-11-01" }
+      const extraImpact = { count: 2, totalExtra: 12500, interestWithExtra: 30000, interestWithoutExtra: 41234.5, interestPaidToDate: 9000, interestPaidToDateWithoutExtra: 12000, interestSaved: 11234.5, monthsSaved: 26, endDate: "2046-11-01", endDateWithoutExtra: "2048-11-01" }
       const { user } = await setup([debt({ parts: [part({ extraImpact })] })])
       await screen.findByText("Part A")
       const summary = screen.getAllByLabelText("Savings from extra payments")[0] // the card's headline
       expect(summary).toHaveTextContent(/11\.234,50/)
       expect(summary).toHaveTextContent("in 2 payments")
+      expect(summary).toHaveTextContent(/12\.000,00 paid so far/) // how much of the scheduled interest is behind you
       await user.click(screen.getByRole("button", { name: "Payments" }))
       const box = screen.getAllByLabelText("Savings from extra payments")[1]
       expect(box).toHaveTextContent("Paid off 2 years 2 months sooner")

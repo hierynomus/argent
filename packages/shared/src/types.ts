@@ -440,6 +440,9 @@ export interface ExtraPaymentImpact {
   totalExtra: number
   interestWithExtra: number
   interestWithoutExtra: number
+  /** how much of each has been paid up to today */
+  interestPaidToDate: number
+  interestPaidToDateWithoutExtra: number
   interestSaved: number
   monthsSaved: number
   /** date of the last payment with the extra payments, and without them */

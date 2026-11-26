@@ -7,6 +7,7 @@ import { Button, Card, ConfirmButton } from "../../components/ui"
 import { fmtCur } from "../../lib/format"
 import AddPartForm from "./AddPartForm.vue"
 import { DEBT_KINDS } from "./config"
+import ExtraSavings from "./ExtraSavings.vue"
 import { sumImpacts } from "./extraSavings"
 import PartRow from "./PartRow.vue"
 
@@ -53,20 +54,7 @@ const refresh = () => invalidate.debts(props.kind)
       </div>
     </div>
 
-    <div v-if="savings" class="px-6 py-3 flex flex-wrap items-center gap-x-8 gap-y-2 bg-green-50/70 dark:bg-green-950/30 border-b border-green-100 dark:border-green-900" aria-label="Savings from extra payments">
-      <span class="inline-flex items-center justify-center w-9 h-9 rounded-full bg-green-100 dark:bg-green-900/60 text-green-700 dark:text-green-300 shrink-0" aria-hidden="true">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 17 13.5 8.5 8.5 13.5 2 7" /><polyline points="16 17 22 17 22 11" /></svg>
-      </span>
-      <div>
-        <p class="text-xs text-gray-500 dark:text-gray-400">Interest saved by extra payments</p>
-        <p class="text-xl font-bold tabular-nums leading-tight text-green-700 dark:text-green-300">{{ fmtCur(savings.interestSaved, debt.currency) }}</p>
-      </div>
-      <div>
-        <p class="text-xs text-gray-500 dark:text-gray-400">Paid extra</p>
-        <p class="text-sm font-semibold tabular-nums text-gray-900 dark:text-gray-100">{{ fmtCur(savings.totalExtra, debt.currency) }}<span class="ml-1.5 text-xs font-normal text-gray-400 dark:text-gray-500">in {{ savings.count }} {{ savings.count === 1 ? "payment" : "payments" }}</span></p>
-      </div>
-      <p class="text-xs text-gray-400 dark:text-gray-500 sm:ml-auto">compared with paying as scheduled</p>
-    </div>
+    <ExtraSavings v-if="savings" :impact="savings" :currency="debt.currency" />
 
     <div v-if="debt.parts.length > 0" class="overflow-x-auto">
       <table class="w-full text-sm">
