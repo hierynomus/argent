@@ -430,6 +430,21 @@ export interface MortgagePart {
   nextRateChange?: { effectiveDate: string; annualInterestRate: string; rateType: "nominal" | "effective" } | null
   /** what was (or will be) left of a closed part on the day it was closed */
   carriedOver?: number | null
+  /** what the extra payments made so far saved (null without any, or on a closed part) */
+  extraImpact?: ExtraPaymentImpact | null
+}
+
+/** What the extra payments made so far are worth: the part run to its end with them and as if they had never been made. */
+export interface ExtraPaymentImpact {
+  count: number
+  totalExtra: number
+  interestWithExtra: number
+  interestWithoutExtra: number
+  interestSaved: number
+  monthsSaved: number
+  /** date of the last payment with the extra payments, and without them */
+  endDate: string
+  endDateWithoutExtra: string
 }
 
 /** A rate change of a part: from `effectiveDate` on (the end of a fixed-rate period) it runs at this rate. */
@@ -514,6 +529,8 @@ export interface LoanPart {
   nextRateChange?: { effectiveDate: string; annualInterestRate: string; rateType: "nominal" | "effective" } | null
   /** what was (or will be) left of a closed part on the day it was closed */
   carriedOver?: number | null
+  /** what the extra payments made so far saved (null without any, or on a closed part) */
+  extraImpact?: ExtraPaymentImpact | null
 }
 
 export interface LoanMember {

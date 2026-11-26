@@ -7,6 +7,7 @@ import { Button, ErrorText, Field, FieldGroup, Input, SegmentedControl } from ".
 import { fmtCur } from "../../lib/format"
 import { useFormErrors } from "../../lib/validate"
 import { DEBT_KINDS } from "./config"
+import ExtraSavings from "./ExtraSavings.vue"
 
 /** The extra (early) repayments of one part: list, remove, and a form to record another. */
 const props = defineProps<{ kind: DebtKind; debt: Debt; part: DebtPart; canEdit: boolean }>()
@@ -37,6 +38,7 @@ const remove = useMutation({
   <div class="px-4 py-3 bg-gray-50 dark:bg-gray-800/50 border-t border-gray-100 dark:border-gray-800">
     <p class="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-2">Extra payments</p>
 
+    <ExtraSavings v-if="part.extraImpact" :impact="part.extraImpact" :currency="debt.currency" />
     <p v-if="part.extraPayments.length === 0" class="text-xs text-gray-400 dark:text-gray-500 mb-3">No extra payments recorded.</p>
     <table v-else class="w-full text-sm mb-3">
       <tbody class="divide-y divide-gray-100 dark:divide-gray-700">

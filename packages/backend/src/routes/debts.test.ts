@@ -355,6 +355,19 @@ for (const kind of ["mortgages", "loans"] as const) {
       expect((await detail(d.id)).parts[0].currentBalance).toBe(120000)
     })
 
+    test("a part reports what its extra payments saved, and null without any", async () => {
+      const d = (await create()).body
+      const p = (await post(`${base}/${d.id}/parts`, part())).body
+      expect((await detail(d.id)).parts[0].extraImpact).toBeNull()
+
+      await post(`${base}/${d.id}/parts/${p.id}/payments`, { paymentDate: "2021-03-10", amount: "10000" })
+      const impact = (await detail(d.id)).parts[0].extraImpact
+      expect(impact).toMatchObject({ count: 1, totalExtra: 10000, endDateWithoutExtra: "2030-01-01" })
+      expect(impact.interestSaved).toBeGreaterThan(4000)
+      expect(impact.monthsSaved).toBeGreaterThan(10)
+      expect(impact.endDate < "2030-01-01").toBe(true)
+    })
+
     test("extra payment validation", async () => {
       const d = (await create()).body
       const p = (await post(`${base}/${d.id}/parts`, part())).body

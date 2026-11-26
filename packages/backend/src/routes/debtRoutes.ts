@@ -3,7 +3,7 @@ import { and, eq, inArray } from "drizzle-orm"
 import type { PgColumn } from "drizzle-orm/pg-core"
 import { db } from "../db"
 import { mortgages, mortgageParts, mortgageExtraPayments, mortgagePartRates, mortgageMembers } from "../db/schema"
-import { computePartState, instantOf } from "../services/amortization"
+import { computePartState, extraPaymentImpact, instantOf } from "../services/amortization"
 import { toAccessContext, type AccessContext } from "../services/accessControl"
 import { Decimal, cents } from "../services/money"
 import type { SharedResource } from "../services/sharedResources"
@@ -42,6 +42,7 @@ function enrichPart(
     ...part,
     extraPayments: payments.map((p) => ({ id: p.id, partId: p.partId, paymentDate: p.paymentDate, amount: p.amount, effect: p.effect, notes: p.notes, createdAt: p.createdAt })),
     rates: [...rates].sort((a, b) => a.effectiveDate.localeCompare(b.effectiveDate)).map((r) => ({ id: r.id, partId: r.partId, effectiveDate: r.effectiveDate, annualInterestRate: r.annualInterestRate, rateType: r.rateType, createdAt: r.createdAt })),
+    extraImpact: extraPaymentImpact(part, payments, new Date(), rates), // what the extra payments so far saved, or null
     ...computePartState(part, payments, new Date(), rates), // balance, payment components, term, projected end date and current rate
   }
 }

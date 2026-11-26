@@ -1,6 +1,6 @@
 import Decimal from "decimal.js"
 import { describe, expect, test } from "bun:test"
-import { computePartState, monthlyRate, type PartInput } from "./amortization"
+import { computePartState, extraPaymentImpact, monthlyRate, type PartInput } from "./amortization"
 
 const part = (over: Partial<PartInput> = {}): PartInput => ({
   type: "annuity",
@@ -511,5 +511,53 @@ describe("an extra payment either shortens the term or lowers the payment", () =
       expect(s.monthsRemaining).toBe(60)
       expect(s.monthlyPayment).toBeCloseTo(pmt(s.currentBalance, 0.005, 60), 1)
     })
+  })
+})
+
+describe("extraPaymentImpact", () => {
+  const extra = [{ paymentDate: "2021-03-10", amount: "10000" }]
+
+  test("is null without extra payments so far (a future one does not count yet)", () => {
+    expect(extraPaymentImpact(part(), [], at(2022, 1))).toBeNull()
+    expect(extraPaymentImpact(part(), [{ paymentDate: "2022-06-01", amount: "5000" }], at(2022, 1))).toBeNull()
+  })
+
+  test("an annuity: the extra payment saves interest and months, and the interest adds up", () => {
+    const impact = extraPaymentImpact(part(), extra, at(2022, 1))!
+    expect(impact.count).toBe(1)
+    expect(impact.totalExtra).toBe(10000)
+    expect(impact.monthsSaved).toBeGreaterThan(10)
+    expect(impact.endDate < impact.endDateWithoutExtra).toBe(true)
+    expect(impact.endDateWithoutExtra).toBe("2030-01-01")
+    expect(impact.interestSaved).toBeGreaterThan(0)
+    expect(impact.interestSaved).toBeCloseTo(impact.interestWithoutExtra - impact.interestWithExtra, 2)
+    // without extras the interest is installments minus principal: 120 x 1332.04 - 120000 (give or take the cents of rounding that pile up in the last installment)
+    expect(impact.interestWithoutExtra).toBeCloseTo(120 * 1332.04 - 120000, -2)
+    // paid in year 2 of 10, 10000 saves a good deal of interest, but not more than it is itself
+    expect(impact.interestSaved).toBeGreaterThan(4000)
+    expect(impact.interestSaved).toBeLessThan(10000)
+  })
+
+  test("consistent with the state: the projected end date is the one the impact reports", () => {
+    const state = computePartState(part(), extra, at(2022, 1))
+    expect(extraPaymentImpact(part(), extra, at(2022, 1))!.endDate).toBe(state.projectedEndDate)
+  })
+
+  test("lowering the payment saves interest but no months", () => {
+    const impact = extraPaymentImpact(part(), [{ paymentDate: "2021-03-10", amount: "10000", effect: "lower_payment" }], at(2022, 1))!
+    expect(impact.monthsSaved).toBe(0)
+    expect(impact.interestSaved).toBeGreaterThan(0)
+  })
+
+  test("an interest-only part saves exactly the interest on the extra payment", () => {
+    const impact = extraPaymentImpact(part({ type: "interest_only" }), [{ paymentDate: "2021-01-01", amount: "10000" }], at(2022, 1))!
+    expect(impact.monthsSaved).toBe(0)
+    // 10000 at 6% for the 108 months from 1 Jan 2021 to the end of the term, roughly 4 years of 12 months
+    expect(impact.interestSaved).toBeGreaterThan(5000)
+    expect(impact.interestSaved).toBeLessThan(5500)
+  })
+
+  test("a closed part has no impact figure", () => {
+    expect(extraPaymentImpact(part({ closedOn: "2023-01-01" }), extra, at(2024, 1))).toBeNull()
   })
 })

@@ -1,5 +1,5 @@
 import { addMonths, daysBetween, monthsBetween, todayIso } from "../lib/dates"
-import { cents } from "./money"
+import { cents, Decimal } from "./money"
 
 export interface ExtraPayment {
   paymentDate: string  // ISO date "YYYY-MM-DD"
@@ -114,7 +114,7 @@ function simulatePart(
   extraPayments: ExtraPayment[],
   asOf: Date,
   rateChanges: RateChange[],
-): Omit<PartState, "closedOn" | "carriedOver"> {
+): Omit<PartState, "closedOn" | "carriedOver"> & { interestPaid: number; paymentsMade: number } {
   const start = part.startDate
   const end = part.endDate
   const today = todayIso(asOf)
@@ -199,8 +199,11 @@ function simulatePart(
 
   // Payment-by-payment simulation — all amounts rounded to cents at each step
   let previous = anchor > start ? anchor : start
+  let interestPaid = new Decimal(0)
+  let paymentsMade = 0
   for (let m = 1; m <= monthsElapsed; m++) {
     const due = paymentDate(m)
+    const openingBalance = balance
     const periodDays = Math.max(1, daysBetween(previous, due))
     reprice(m, balance)
     let interest = cents(balance * r)
@@ -214,7 +217,12 @@ function simulatePart(
       balance = cents(balance - amount)
       ei++
     }
-    if (balance === 0) break
+    interestPaid = interestPaid.plus(interest)
+    if (balance === 0) {
+      paymentsMade = openingBalance > 0 ? m : m - 1 // an extra payment can be the last one; otherwise it was repaid before
+      break
+    }
+    paymentsMade = m
     // the installment that follows an extra payment is the lowered one (also the one due in this very period)
     if (lowered) lowerPayment(balance, m - 1)
 
@@ -293,6 +301,8 @@ function simulatePart(
     totalMonths,
     monthsElapsed,
     monthsRemaining,
+    interestPaid: cents(interestPaid),
+    paymentsMade,
     capitalizedInterest: stubInterest,
     projectedEndDate: monthsElapsed + monthsRemaining === 0 ? anchor : paymentDate(monthsElapsed + monthsRemaining),
     currentRate: { annualInterestRate: current.annualInterestRate, rateType: current.rateType },
@@ -320,10 +330,14 @@ export function computePartState(
   rateChanges: RateChange[] = [],
 ): PartState {
   const closedOn = part.closedOn ?? null
-  if (!closedOn) return { ...simulatePart(part, extraPayments, asOf, rateChanges), closedOn: null, carriedOver: null }
+  const state = (at: Date) => {
+    const { interestPaid: _i, paymentsMade: _p, ...rest } = simulatePart(part, extraPayments, at, rateChanges)
+    return rest
+  }
+  if (!closedOn) return { ...state(asOf), closedOn: null, carriedOver: null }
 
-  const atClose = simulatePart(part, extraPayments, instantOf(closedOn), rateChanges)
-  if (closedOn > todayIso(asOf)) return { ...simulatePart(part, extraPayments, asOf, rateChanges), closedOn, carriedOver: atClose.currentBalance }
+  const atClose = state(instantOf(closedOn))
+  if (closedOn > todayIso(asOf)) return { ...state(asOf), closedOn, carriedOver: atClose.currentBalance }
   return {
     ...atClose,
     currentBalance: 0,
@@ -335,5 +349,47 @@ export function computePartState(
     nextRateChange: null,
     closedOn,
     carriedOver: atClose.currentBalance,
+  }
+}
+
+export interface ExtraPaymentImpact {
+  /** extra payments made so far (dated today or earlier) and what they add up to */
+  count: number
+  totalExtra: number
+  /** interest over the whole life of the part, as it goes now and had nothing extra been paid */
+  interestWithExtra: number
+  interestWithoutExtra: number
+  interestSaved: number
+  /** payments no longer needed, and the dates of the last payment with and without the extras */
+  monthsSaved: number
+  endDate: string
+  endDateWithoutExtra: string
+}
+
+/**
+ * What the extra payments made so far are worth: the part is run to its end twice, once with them and once
+ * as if they had never been made, and the interest and the last payment date are compared. Later payments
+ * stay as scheduled (the installment, with any rate changes entered), and extra payments dated in the future
+ * are left out of both, so this is what has been achieved, not a forecast. Null for a part without extra
+ * payments so far, and for a closed one (its remainder went into other parts, which cannot be compared).
+ */
+export function extraPaymentImpact(part: PartInput, extraPayments: ExtraPayment[], asOf: Date = new Date(), rateChanges: RateChange[] = []): ExtraPaymentImpact | null {
+  const today = todayIso(asOf)
+  const made = extraPayments.filter((e) => e.paymentDate <= today)
+  if (part.closedOn || made.length === 0) return null
+  const horizon = instantOf(addMonths(part.endDate, 2)) // past the last scheduled payment
+  const full = (extras: ExtraPayment[]) => simulatePart(part, extras, horizon, rateChanges)
+  const withExtra = full(made)
+  const without = full([])
+  const lastDate = (paymentsMade: number) => (paymentsMade <= 0 ? part.startDate : part.firstPaymentDate ? addMonths(part.firstPaymentDate, paymentsMade - 1) : addMonths(part.startDate, paymentsMade))
+  return {
+    count: made.length,
+    totalExtra: cents(made.reduce((sum, e) => sum.plus(e.amount), new Decimal(0))),
+    interestWithExtra: withExtra.interestPaid,
+    interestWithoutExtra: without.interestPaid,
+    interestSaved: cents(new Decimal(without.interestPaid).minus(withExtra.interestPaid)),
+    monthsSaved: Math.max(0, without.paymentsMade - withExtra.paymentsMade),
+    endDate: lastDate(withExtra.paymentsMade),
+    endDateWithoutExtra: lastDate(without.paymentsMade),
   }
 }

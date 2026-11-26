@@ -412,6 +412,24 @@ for (const k of kinds) {
       expect(screen.getByText("Shortens the term")).toBeInTheDocument() // no effect stored: the default
     })
 
+    test("shows what the extra payments saved, on the card and in the payments panel", async () => {
+      const extraImpact = { count: 2, totalExtra: 12500, interestWithExtra: 30000, interestWithoutExtra: 41234.5, interestSaved: 11234.5, monthsSaved: 26, endDate: "2046-11-01", endDateWithoutExtra: "2048-11-01" }
+      const { user } = await setup([debt({ parts: [part({ extraImpact })] })])
+      await screen.findByText("Part A")
+      expect(screen.getByText(/paid in 2 payments/)).toBeInTheDocument() // the card's summary line
+      await user.click(screen.getByRole("button", { name: "Payments" }))
+      const box = screen.getByLabelText("Savings from extra payments")
+      expect(box).toHaveTextContent("2 years 2 months")
+      expect(box).toHaveTextContent("was")
+    })
+
+    test("no savings box without extra payments", async () => {
+      const { user } = await setup([debt()])
+      await screen.findByText("Part A")
+      await user.click(screen.getByRole("button", { name: "Payments" }))
+      expect(screen.queryByLabelText("Savings from extra payments")).toBeNull()
+    })
+
     test("records and removes extra payments", async () => {
       const withPayment = debt({ parts: [part({ extraPayments: [{ id: "ep1", partId: "part-1", paymentDate: "2023-05-01", amount: "5000.00", notes: "bonus", createdAt: "" }] })] })
       const { api, user } = await setup([withPayment])

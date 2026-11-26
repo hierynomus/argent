@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from "vue"
+import { computed, ref } from "vue"
 import { useMutation } from "@tanstack/vue-query"
 import { debtApis, useInvalidate, type Debt, type DebtKind } from "../../api"
 import SharingPanel from "../../components/SharingPanel.vue"
@@ -7,6 +7,7 @@ import { Button, Card, ConfirmButton } from "../../components/ui"
 import { fmtCur } from "../../lib/format"
 import AddPartForm from "./AddPartForm.vue"
 import { DEBT_KINDS } from "./config"
+import { sumImpacts } from "./extraSavings"
 import PartRow from "./PartRow.vue"
 
 /** One mortgage/loan: totals, its parts, sharing (owner only) and add/delete actions. */
@@ -30,6 +31,7 @@ const showAddPart = ref(false)
 const showAccess = ref(false)
 
 const remove = useMutation({ mutationFn: () => debtApis[props.kind].remove(props.debt.id), onSuccess: () => invalidate.debts(props.kind) })
+const savings = computed(() => sumImpacts(props.debt.parts.map((p) => p.extraImpact)))
 const refresh = () => invalidate.debts(props.kind)
 </script>
 
@@ -50,6 +52,11 @@ const refresh = () => invalidate.debts(props.kind)
         <p class="text-sm text-gray-500 dark:text-gray-400">{{ fmtCur(debt.totalMonthlyPayment, debt.currency) }}<span class="text-xs">/mo</span></p>
       </div>
     </div>
+
+    <p v-if="savings" class="px-6 py-2 text-sm text-gray-600 dark:text-gray-300 bg-green-50 dark:bg-green-950/40 border-b border-green-100 dark:border-green-900">
+      Extra payments: <span class="font-medium tabular-nums">{{ fmtCur(savings.totalExtra, debt.currency) }}</span> paid in {{ savings.count }} {{ savings.count === 1 ? "payment" : "payments" }},
+      saving <span class="font-medium tabular-nums text-green-700 dark:text-green-300">{{ fmtCur(savings.interestSaved, debt.currency) }}</span> in interest compared with paying as scheduled.
+    </p>
 
     <div v-if="debt.parts.length > 0" class="overflow-x-auto">
       <table class="w-full text-sm">
