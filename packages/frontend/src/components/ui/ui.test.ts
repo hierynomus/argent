@@ -1,6 +1,6 @@
 import { describe, expect, test, vi } from "vitest"
 import { ref } from "vue"
-import { renderTemplate, screen, waitFor } from "../../../test/render"
+import { renderTemplate, screen, waitFor, within } from "../../../test/render"
 import { Badge, Button, Card, ConfirmButton, EmptyState, ErrorText, Field, FieldGroup, Input, LoadingText, RoleBadge, SegmentedControl, Select, Td } from "."
 
 const components = { Badge, Button, Card, ConfirmButton, EmptyState, ErrorText, Field, FieldGroup, Input, LoadingText, RoleBadge, SegmentedControl, Select }
@@ -132,6 +132,16 @@ describe("Input / Select", () => {
     await user.selectOptions(screen.getByLabelText("m"), "b")
     expect(choice.value).toBe("b")
     expect((screen.getByLabelText("m") as HTMLSelectElement).value).toBe("b")
+  })
+
+  test("the themed list opens, shows the options and selects one", async () => {
+    const choice = ref("a")
+    const { user } = await renderTemplate(`<Select v-model="choice" aria-label="m"><option value="a">Alpha</option><option value="b">Beta</option></Select>`, { components, setup: () => ({ choice }) })
+    await user.click(screen.getByRole("button", { name: "Alpha" }))
+    await user.click(within(screen.getByRole("listbox")).getByRole("option", { name: "Beta" }))
+    expect(choice.value).toBe("b")
+    expect(screen.queryByRole("listbox")).toBeNull()
+    expect(await screen.findByRole("button", { name: "Beta" })).toBeTruthy()
   })
 })
 

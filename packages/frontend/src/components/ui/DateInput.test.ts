@@ -16,4 +16,14 @@ describe("date fields", () => {
     expect(d.value).toBe("2026-03-05")
     expect(input.value).toBe("2026-03-05")
   })
+
+  test("picks from a calendar", async () => {
+    const d = ref("2026-03-05")
+    const { user } = await renderTemplate(`<Input v-model="d" type="date" aria-label="When" />`, { components: { Input }, setup: () => ({ d }) })
+    await user.click(screen.getByRole("button", { name: "Pick a date" }))
+    await user.click(screen.getByRole("button", { name: "Next month" }))
+    await user.click(screen.getByRole("button", { name: "2026-04-17" }))
+    expect(d.value).toBe("2026-04-17")
+    expect(screen.queryByRole("dialog")).toBeNull()
+  })
 })
