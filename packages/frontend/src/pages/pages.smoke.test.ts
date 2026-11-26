@@ -8,8 +8,7 @@ import OverviewPage from "./Overview.vue"
 import SettingsPage from "./Settings.vue"
 import SubscriptionsPage from "./Subscriptions.vue"
 import ProfilePage from "./Profile.vue"
-import CheckingPage from "./Checking.vue"
-import SavingsPage from "./Savings.vue"
+import AccountsPage from "./Accounts.vue"
 
 /** Every screen renders real data from the (fake) API and talks only to endpoints that exist. */
 
@@ -63,26 +62,17 @@ describe("Overview", () => {
   })
 })
 
-describe("Checking / Savings", () => {
-  const accounts = [
-    account({ id: "a1", name: "Everyday", iban: "NL01CHEK0000000001", type: "checking", balance: "250.00" }),
-    account({ id: "a2", name: "Rainy day", iban: "NL02SAVE0000000002", type: "savings", balance: "9000.00" }),
-  ]
-  const mock = () => mockApi({ "GET /accounts": accounts, "GET /transactions": page([transaction()]) , "PATCH /accounts/:id": ({ body }: any) => ({ ...accounts[0], ...body }) })
-
-  test("Checking shows only checking accounts", async () => {
-    const a = mock()
-    await renderApp(CheckingPage)
+describe("Accounts", () => {
+  test("lists every account in one overview, talking only to endpoints that exist", async () => {
+    const a = mockApi({
+      "GET /accounts": [
+        account({ id: "a1", name: "Everyday", iban: "NL01CHEK0000000001", type: "checking", balance: "250.00" }),
+        account({ id: "a2", name: "Rainy day", iban: "NL02SAVE0000000002", type: "savings", balance: "9000.00" }),
+      ],
+    })
+    await renderApp(AccountsPage)
     expect(await screen.findByText("Everyday")).toBeInTheDocument()
-    expect(screen.queryByText("Rainy day")).not.toBeInTheDocument()
-    expect(a.unmatched).toEqual([])
-  })
-
-  test("Savings shows only savings accounts", async () => {
-    const a = mock()
-    await renderApp(SavingsPage)
-    expect(await screen.findByText("Rainy day")).toBeInTheDocument()
-    expect(screen.queryByText("Everyday")).not.toBeInTheDocument()
+    expect(screen.getByText("Rainy day")).toBeInTheDocument()
     expect(a.unmatched).toEqual([])
   })
 })
@@ -140,12 +130,12 @@ describe("Profile", () => {
 })
 
 describe("Settings", () => {
-  test("renders the account list for administration", async () => {
-    const api = mockApi({ "GET /me": me(), "GET /accounts": [account({ name: "Everyday" })], "GET /categories": [category()], "PATCH /accounts/:id": ({ body }: any) => ({ ...account(), ...body }) })
+  test("renders its first tab (the labels)", async () => {
+    const api = mockApi({ "GET /me": me(), "GET /categories": [category()] })
     await renderApp(SettingsPage)
     expect(await screen.findByRole("heading", { name: "Settings" })).toBeInTheDocument()
-    expect(await screen.findByText("Everyday")).toBeInTheDocument()
-    expect(api.unmatched.filter((u) => !u.startsWith("GET /categories"))).toEqual([])
+    expect(await screen.findByText("Groceries")).toBeInTheDocument()
+    expect(api.unmatched).toEqual([])
   })
 })
 

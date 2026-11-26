@@ -14,6 +14,10 @@ export interface Account {
   openingBalance: string
   openingBalanceDate: string | null
   balance: string
+  /** who it belongs to (a label for grouping a family's accounts), null when not set */
+  holder: string | null
+  /** closed or no longer followed: kept, but tucked away in the lists */
+  hidden: boolean
   ownerSub: string | null
   createdAt: string
 }

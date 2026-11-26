@@ -60,6 +60,7 @@ app.post("/", validateJson(createAccountSchema), async (c) => {
       source: "manual",
       openingBalance: body.openingBalance ?? "0",
       openingBalanceDate: body.openingBalanceDate ?? null,
+      holder: body.holder || null,
       ownerSub: user.sub,
     })
     .returning()
@@ -111,6 +112,8 @@ app.patch("/:id", validateJson(updateAccountSchema), async (c) => {
   if (body.type !== undefined) updates.type = body.type
   if (body.openingBalance !== undefined) updates.openingBalance = body.openingBalance
   if ("openingBalanceDate" in body) updates.openingBalanceDate = body.openingBalanceDate ?? null
+  if (body.holder !== undefined) updates.holder = body.holder || null
+  if (body.hidden !== undefined) updates.hidden = body.hidden
 
   if (Object.keys(updates).length === 0) return c.json({ error: "Nothing to update" }, 400)
 

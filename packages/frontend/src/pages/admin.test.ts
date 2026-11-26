@@ -21,15 +21,15 @@ const setup = async (profile = me({ isAdmin: true }), route = "/settings?tab=acc
 describe("Settings: admin tabs", () => {
   test("a non-admin gets no admin tabs and the admin endpoints are never called", async () => {
     const { api } = await setup(me({ isAdmin: false }))
-    expect(await screen.findByRole("button", { name: "Accounts" })).toBeInTheDocument()
+    expect(await screen.findByRole("button", { name: "Labels" })).toBeInTheDocument()
     for (const name of ["Access", "Sharing", "Backup & Restore"]) expect(screen.queryByRole("button", { name })).not.toBeInTheDocument()
     await new Promise((r) => setTimeout(r, 30))
     expect(api.calls().filter((c) => c.path.startsWith("/admin"))).toHaveLength(0)
   })
 
-  test("an admin gets Access, Sharing and Backup & Restore next to the account settings", async () => {
+  test("an admin gets Access, Sharing and Backup & Restore next to Labels", async () => {
     await setup()
-    for (const name of ["Accounts", "Labels", "Access", "Sharing", "Backup & Restore"]) expect(await screen.findByRole("button", { name })).toBeInTheDocument()
+    for (const name of ["Labels", "Access", "Sharing", "Backup & Restore"]) expect(await screen.findByRole("button", { name })).toBeInTheDocument()
   })
 
   test("the old /admin address lands on Access", async () => {

@@ -12,6 +12,10 @@ export const accounts = pgTable("accounts", {
   source: text("source").notNull().default("import"),
   openingBalance: numeric("opening_balance", { precision: 15, scale: 2 }).notNull().default("0"),
   openingBalanceDate: date("opening_balance_date"),   // date from which openingBalance is valid
+  // who the account belongs to, for grouping a family's accounts ("Jeroen", "Joint"); a label, not access (that is ownerSub + members)
+  holder: text("holder"),
+  // closed or no longer followed: kept with its history, tucked away in the lists
+  hidden: boolean("hidden").notNull().default(false),
   ownerSub: text("owner_sub"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 }, (t) => ({ accounts_owner_idx: index("accounts_owner_idx").on(t.ownerSub) }))

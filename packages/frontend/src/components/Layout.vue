@@ -121,7 +121,7 @@ const SECTION = "pt-5 pb-1"
 
           <!-- Section headers keep the same height in both modes so the items below don't shift. -->
           <template v-for="section in [
-            { label: 'Banking', items: [['/checking', 'credit-card', 'Checking'], ['/savings', 'piggy-bank', 'Savings'], ['/cash', 'wallet', 'Cash'], ['/overview', 'list', 'Transactions'], ['/subscriptions', 'repeat', 'Subscriptions']] },
+            { label: 'Banking', items: [['/accounts', 'credit-card', 'Accounts'], ['/overview', 'list', 'Transactions'], ['/subscriptions', 'repeat', 'Subscriptions']] },
             { label: 'Liabilities', items: [['/mortgages', 'building', 'Mortgages'], ['/loans', 'banknote', 'Loans']] },
             { label: 'Investments', items: [['/crypto', 'coin', 'Crypto'], ['/metals', 'gem', 'Metals'], ['/stocks', 'trending-up', 'Stocks'], ['/property', 'house', 'Property'], ['/equity', 'layers', 'Options'], ['/pensions', 'shield', 'Pensions']] },
           ]" :key="section.label">

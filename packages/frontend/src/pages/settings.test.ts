@@ -10,19 +10,17 @@ const setup = async (profile = me({ canImport: true }), route = "/settings") => 
 }
 
 describe("Settings: tabs", () => {
-  test("opens on Accounts", async () => {
+  test("opens on Labels; accounts are managed on the Accounts page, not here", async () => {
     await setup()
     expect(await screen.findByRole("heading", { name: "Settings" })).toBeInTheDocument()
-    expect(await screen.findByText("Everyday")).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: "Accounts" })).toHaveAttribute("aria-pressed", "true")
-  })
-
-  test("switches to Labels", async () => {
-    const { user } = await setup()
-    await user.click(await screen.findByRole("button", { name: "Labels" }))
     expect(await screen.findByText("Groceries")).toBeInTheDocument()
     expect(screen.getByRole("button", { name: "Labels" })).toHaveAttribute("aria-pressed", "true")
-    expect(screen.queryByText("Everyday")).not.toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Accounts" })).not.toBeInTheDocument()
+  })
+
+  test("an old ?tab=accounts address falls back to Labels", async () => {
+    await setup(me({ canImport: true }), "/settings?tab=accounts")
+    expect(await screen.findByText("Groceries")).toBeInTheDocument()
   })
 
   test("the chosen tab can be opened directly from the URL (?tab=)", async () => {
@@ -36,7 +34,7 @@ describe("Settings: tabs", () => {
     expect(await screen.findByText(/Drag & drop CAMT\.053/)).toBeInTheDocument()
     unmount()
     await setup(me({ canImport: false }))
-    await screen.findByText("Everyday")
+    await screen.findByText("Groceries")
     expect(screen.queryByRole("button", { name: "Import" })).not.toBeInTheDocument()
   })
 

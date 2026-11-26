@@ -12,9 +12,12 @@ export const routes = [
   // Admin was folded into Settings
   { path: "/admin", redirect: "/settings?tab=access" },
   { path: "/profile", component: () => import("./pages/Profile.vue") },
-  { path: "/checking", component: () => import("./pages/Checking.vue") },
-  { path: "/savings", component: () => import("./pages/Savings.vue") },
-  { path: "/cash", component: () => import("./pages/Cash.vue") },
+  { path: "/accounts", component: () => import("./pages/Accounts.vue") },
+  { path: "/accounts/:id", component: () => import("./pages/AccountDetail.vue") },
+  // the per-type pages became one overview with a type filter
+  { path: "/checking", redirect: "/accounts?type=checking" },
+  { path: "/savings", redirect: "/accounts?type=savings" },
+  { path: "/cash", redirect: "/accounts?type=cash" },
   { path: "/subscriptions", component: () => import("./pages/Subscriptions.vue") },
   { path: "/settings", component: () => import("./pages/Settings.vue") },
   { path: "/mortgages", component: () => import("./pages/Mortgages.vue") },

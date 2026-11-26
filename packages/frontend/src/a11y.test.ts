@@ -46,10 +46,10 @@ describe("accessibility (axe)", () => {
   test.each([
     ["/dashboard", "Dashboard"],
     ["/overview", "Roastery"],
-    ["/checking", "Everyday"],
-    ["/savings", "Rainy day"],
+    ["/accounts", "Everyday"],
+    ["/accounts/a1", "Everyday"],
     ["/subscriptions", "Gym"],
-    ["/settings", "Everyday"],
+    ["/settings", "Groceries"],
     ["/mortgages", "House"],
     ["/loans", "Car"],
     ["/crypto", "Open cost"],
@@ -66,7 +66,7 @@ describe("accessibility (axe)", () => {
   })
 
   test("the settings tabs (labels, import) have no violations", async () => {
-    const { user } = await open("/settings", "Everyday")
+    const { user } = await open("/settings", "Groceries")
     await user.click(screen.getByRole("button", { name: "Labels" }))
     await screen.findByText("Add label")
     expect(await violations()).toEqual([])

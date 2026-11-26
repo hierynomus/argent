@@ -7,7 +7,6 @@ import AccessTab from "../features/admin/AccessTab.vue"
 import BackupRestoreSection from "../features/admin/BackupRestoreSection.vue"
 import SharingTab from "../features/admin/SharingTab.vue"
 import ImportPanel from "../features/import/ImportPanel.vue"
-import AccountsTab from "../features/settings/AccountsTab.vue"
 import LabelsTab from "../features/settings/LabelsTab.vue"
 
 /** Everything that configures the app, in one place. Access and sharing are for server admins (the standalone app has no groups). */
@@ -18,16 +17,15 @@ const { data: me } = useMe()
 const isAdmin = computed(() => me.value?.isAdmin === true)
 const groups = !isLocalMode()
 const tabs = computed(() => [
-  { id: "accounts", label: "Accounts" },
   { id: "labels", label: "Labels" },
   ...(me.value?.canImport ? [{ id: "import", label: "Import" }] : []),
   ...(isAdmin.value && groups ? [{ id: "access", label: "Access" }, { id: "sharing", label: "Sharing" }] : []),
   ...(isAdmin.value ? [{ id: "backup", label: "Backup & Restore" }] : []),
 ])
-// a tab that is not there for this user (an old /admin link in the standalone app) falls back to Accounts
+// a tab that is not there for this user (an old /admin link in the standalone app) falls back to Labels
 const activeTab = computed(() => {
-  const wanted = typeof route.query.tab === "string" ? route.query.tab : "accounts"
-  return !me.value || tabs.value.some((t) => t.id === wanted) ? wanted : "accounts"
+  const wanted = typeof route.query.tab === "string" ? route.query.tab : "labels"
+  return !me.value || tabs.value.some((t) => t.id === wanted) ? wanted : "labels"
 })
 const setTab = (id: string) => router.replace({ query: { tab: id } })
 </script>
@@ -50,7 +48,6 @@ const setTab = (id: string) => router.replace({ query: { tab: id } })
       </button>
     </div>
 
-    <AccountsTab v-if="activeTab === 'accounts'" />
     <LabelsTab v-if="activeTab === 'labels'" />
     <ImportPanel v-if="activeTab === 'import' && me?.canImport" />
     <AccessTab v-if="activeTab === 'access' && isAdmin && groups" />

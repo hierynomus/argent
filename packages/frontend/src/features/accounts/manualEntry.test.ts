@@ -2,23 +2,34 @@ import { describe, expect, test } from "vitest"
 import { mockApi } from "../../../test/fakeApi"
 import { account, category, page, transaction } from "../../../test/fixtures"
 import { renderApp, screen, waitFor } from "../../../test/render"
-import AccountsByType from "./AccountsByType.vue"
+import AccountsOverview from "./AccountsOverview.vue"
+import AccountDetail from "../../pages/AccountDetail.vue"
 import TransactionDetail from "../transactions/TransactionDetail.vue"
 
 const CASH_ID = "6f1d2c9e-3b7a-4e5f-8a10-2b9c4d7e1f30"
 const cash = account({ id: CASH_ID, name: "Wallet", type: "cash", source: "manual", iban: "manual:123", balance: "35.00" })
 
-const setup = async (accounts = [cash]) => {
-  const api = mockApi({
+const mock = (accounts = [cash]) =>
+  mockApi({
     "GET /accounts": accounts,
     "GET /transactions": page([]),
     "GET /categories": [category()],
     "POST /accounts": ({ body }: any) => ({ ...cash, ...body, id: "new" }),
     "POST /transactions": ({ body }: any) => ({ id: "t9", ...body }),
     "DELETE /accounts/:id": () => null,
+    "PATCH /accounts/:id": ({ body }: any) => ({ ...cash, ...body }),
   })
-  const view = await renderApp(AccountsByType, { props: { title: "Cash", noun: "cash accounts", emptyHint: "hint", accountType: "cash", matches: (a: any) => a.type === "cash" } })
-  return { api, ...view }
+
+/** the overview, where accounts are added */
+const setup = async (accounts = [cash]) => {
+  const api = mock(accounts)
+  return { api, ...(await renderApp(AccountsOverview)) }
+}
+/** one account's page, where its transactions are added and the account is changed or deleted */
+const setupDetail = async (accounts = [cash]) => {
+  const api = mock(accounts)
+  const routes = [{ path: "/accounts/:id", component: AccountDetail }, { path: "/accounts", component: { render: () => null } }]
+  return { api, ...(await renderApp(AccountDetail, { route: `/accounts/${CASH_ID}`, routes })) }
 }
 
 describe("accounts and transactions entered by hand", () => {
@@ -28,15 +39,17 @@ describe("accounts and transactions entered by hand", () => {
     expect(screen.queryByText(/manual:/)).not.toBeInTheDocument()
   })
 
-  test("adds a cash account with the screen's type and no IBAN", async () => {
+  test("adds a cash account: no IBAN field for cash, and the holder is sent", async () => {
     const { api, user } = await setup([])
     await user.click(await screen.findByRole("button", { name: "+ Add account" }))
+    await user.click(screen.getByRole("button", { name: "cash" }))
     expect(screen.queryByLabelText(/IBAN/)).not.toBeInTheDocument()
     await user.type(screen.getByLabelText("Name"), "Home safe")
+    await user.type(screen.getByLabelText(/Holder/), "Joint")
     await user.type(screen.getByLabelText(/Balance/), "120")
     await user.click(screen.getByRole("button", { name: "Add account" }))
     await waitFor(() => expect(api.calls("POST", "/accounts")).toHaveLength(1))
-    expect(api.calls("POST", "/accounts")[0].body).toMatchObject({ name: "Home safe", type: "cash", currency: "EUR", openingBalance: "120" })
+    expect(api.calls("POST", "/accounts")[0].body).toMatchObject({ name: "Home safe", type: "cash", holder: "Joint", currency: "EUR", openingBalance: "120" })
   })
 
   test("asks for a name instead of calling the API", async () => {
@@ -47,8 +60,8 @@ describe("accounts and transactions entered by hand", () => {
     expect(api.calls("POST", "/accounts")).toHaveLength(0)
   })
 
-  test("adds a payment from the card: out by default, in the account's currency", async () => {
-    const { api, user } = await setup()
+  test("adds a payment from the account page: out by default, in the account's currency", async () => {
+    const { api, user } = await setupDetail()
     await user.click(await screen.findByRole("button", { name: "+ Add transaction" }))
     await user.type(screen.getByLabelText(/Amount/), "4.50")
     await user.type(screen.getByLabelText("Who / where"), "Bakery")
@@ -58,7 +71,7 @@ describe("accounts and transactions entered by hand", () => {
   })
 
   test("money in sends CRDT, and a zero amount is refused", async () => {
-    const { api, user } = await setup()
+    const { api, user } = await setupDetail()
     await user.click(await screen.findByRole("button", { name: "+ Add transaction" }))
     await user.click(screen.getByRole("button", { name: "In" }))
     await user.type(screen.getByLabelText(/Amount/), "0")
@@ -72,7 +85,7 @@ describe("accounts and transactions entered by hand", () => {
   })
 
   test("an account can be deleted after confirming", async () => {
-    const { api, user } = await setup()
+    const { api, user } = await setupDetail()
     await user.click(await screen.findByRole("button", { name: "Delete account" }))
     await user.click(screen.getByRole("button", { name: "Yes, delete" }))
     await waitFor(() => expect(api.calls("DELETE", `/accounts/${CASH_ID}`)).toHaveLength(1))

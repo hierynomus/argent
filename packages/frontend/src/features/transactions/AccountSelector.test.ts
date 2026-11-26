@@ -56,3 +56,31 @@ describe("AccountSelector", () => {
     expect([...selected]).toEqual(["a1"])
   })
 })
+
+describe("AccountSelector: holders", () => {
+  const family = [
+    account({ id: "a1", name: "Everyday", holder: "Alex" }),
+    account({ id: "a2", name: "Rainy day", holder: "Alex" }),
+    account({ id: "a3", name: "School", holder: "Sam" }),
+    account({ id: "a4", name: "Old one", holder: "Sam", hidden: true }),
+  ]
+
+  test("accounts appear under their holder, hidden ones only when selected", async () => {
+    const { rerender } = await renderApp(AccountSelector, { props: { accounts: family, selected: new Set() } })
+    expect(screen.getByRole("button", { name: "All of Alex" })).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "All of Sam" })).toBeInTheDocument()
+    expect(screen.queryByRole("button", { name: "Old one" })).not.toBeInTheDocument()
+    await rerender({ accounts: family, selected: new Set(["a4"]) })
+    expect(screen.getByRole("button", { name: "Old one" })).toBeInTheDocument()
+  })
+
+  test("a holder's name selects all of their accounts, and clears them when they are all selected", async () => {
+    const onChange = vi.fn()
+    const { user, rerender } = await renderApp(AccountSelector, { props: { accounts: family, selected: new Set(), onChange } })
+    await user.click(screen.getByRole("button", { name: "All of Alex" }))
+    expect([...onChange.mock.calls[0][0]].sort()).toEqual(["a1", "a2"])
+    await rerender({ accounts: family, selected: new Set(["a1", "a2"]), onChange })
+    await user.click(screen.getByRole("button", { name: "All of Alex" }))
+    expect([...onChange.mock.calls[1][0]]).toEqual([])
+  })
+})

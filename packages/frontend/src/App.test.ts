@@ -40,8 +40,7 @@ describe("routing", () => {
     ["/metals", "Precious Metals"],
     ["/subscriptions", "Subscriptions"],
     ["/profile", "Profile"],
-    ["/checking", "Checking"],
-    ["/savings", "Savings"],
+    ["/accounts", "Accounts"],
     ["/settings", "Settings"],
   ])("%s loads its (lazily imported) page", async (route, heading) => {
     mockEverything()

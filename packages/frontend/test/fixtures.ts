@@ -49,7 +49,7 @@ export const metalDetail = (over: Partial<MetalPortfolioDetail> = {}): MetalPort
 
 export const account = (over: Partial<Account> = {}): Account => ({
   id: "a1", iban: "NL05TEST0417164300", name: "Checking", currency: "EUR", type: "checking", source: "import", openingBalance: "100.00",
-  openingBalanceDate: "2024-01-01", balance: "250.00", ownerSub: "dev-user", createdAt: "2024-01-01T00:00:00Z", ...over,
+  openingBalanceDate: "2024-01-01", balance: "250.00", holder: null, hidden: false, ownerSub: "dev-user", createdAt: "2024-01-01T00:00:00Z", ...over,
 } as Account)
 
 export const category = (over: Partial<Category> = {}): Category => ({ id: "c1", name: "Groceries", color: null, parentId: null, ...over } as Category)

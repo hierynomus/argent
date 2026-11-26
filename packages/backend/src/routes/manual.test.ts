@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { camt, clientAs, del, get, post, put, unique, uniqueIban, upload, user } from "../../test/helpers"
+import { camt, clientAs, del, get, patch, post, put, unique, uniqueIban, upload, user } from "../../test/helpers"
 
 async function newAccount(body: Record<string, unknown> = {}) {
   const res = await post("/accounts", { name: unique("Manual "), type: "checking", currency: "EUR", ...body })
@@ -50,6 +50,17 @@ describe("accounts entered by hand", () => {
     const rest = ((await get(`/transactions?accountId=${b.id}`)).body as any).data
     expect(rest).toHaveLength(1)
     expect(rest[0].transferPeerId).toBeNull()
+  })
+
+  test("an account has a holder and can be hidden; blank clears the holder", async () => {
+    const a = await newAccount({ holder: "  Joint " })
+    expect(a.holder).toBe("Joint")
+    expect(a.hidden).toBe(false)
+    const hide = await patch(`/accounts/${a.id}`, { hidden: true, holder: "Mirte" })
+    expect(hide.body).toMatchObject({ hidden: true, holder: "Mirte" })
+    const listed = ((await get("/accounts")).body as any[]).find((x) => x.id === a.id)
+    expect(listed).toMatchObject({ hidden: true, holder: "Mirte" })
+    expect((await patch(`/accounts/${a.id}`, { holder: "" })).body.holder).toBeNull()
   })
 
   test("a stranger cannot delete someone else's account", async () => {

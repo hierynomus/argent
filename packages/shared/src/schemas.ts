@@ -64,6 +64,9 @@ export const addMemberSchema = z.object({
 export const accountTypeSchema = z.enum(["checking", "savings", "cash"], { error: "type must be checking, savings or cash" })
 
 /** An account entered by hand (no bank export, or cash in the house). The IBAN is optional. */
+/** Who an account belongs to; blank clears it. */
+const holderSchema = z.string().trim().max(100)
+
 export const createAccountSchema = z.object({
   name: requiredString("name"),
   type: accountTypeSchema.default("checking"),
@@ -71,6 +74,7 @@ export const createAccountSchema = z.object({
   iban: z.string().trim().max(50).optional(),
   openingBalance: decimalString("openingBalance").optional(),
   openingBalanceDate: isoDate("openingBalanceDate").nullable().optional(),
+  holder: holderSchema.optional(),
 })
 
 /** A transaction entered by hand. `amount` is always positive; `direction` says whether money came in or went out. */
@@ -94,6 +98,8 @@ export const updateAccountSchema = z
     type: accountTypeSchema.optional(),
     openingBalance: decimalString("openingBalance").optional(),
     openingBalanceDate: isoDate("openingBalanceDate").nullable().optional(),
+    holder: holderSchema.optional(),
+    hidden: z.boolean().optional(),
   })
 
 export const updateTransactionSchema = z.object({
