@@ -25,6 +25,8 @@ export const queryKeys = {
   transactionsRecent: (accountId?: string) => ["transactions", "recent", accountId ?? null] as const,
   /** candidate peers for linking a transfer (nested under `transactions`: stale as soon as any transaction changes) */
   transferSuggestions: (id: string) => ["transactions", "suggestions", id] as const,
+  /** nested under `transactions`: any import, edit or delete refreshes the chart */
+  balanceHistory: (accountId: string) => ["transactions", "balance-history", accountId] as const,
   transactionsMonth: (yearMonth: string) => ["transactions", "month", yearMonth] as const,
 
   portfolios: (kind: PortfolioKind) => ["portfolios", kind] as const,

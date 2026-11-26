@@ -1,7 +1,7 @@
 import { computed, toValue, type MaybeRefOrGetter } from "vue"
 import type { LockStatus, PreviewDebtPartBody } from "@argent/shared"
 import { useQueries, useQuery, useQueryClient } from "@tanstack/vue-query"
-import { getAccounts } from "./accounts"
+import { getAccounts, getBalanceHistory } from "./accounts"
 import { getAdminAccounts, getAdminSharing } from "./admin"
 import { getCategories } from "./categories"
 import { debtApis, type Debt } from "./debts"
@@ -37,6 +37,12 @@ export const useMe = () => useQuery({ queryKey: queryKeys.me, queryFn: getMe })
 export const useLockStatus = (o: Enabled = {}) => useQuery({ queryKey: queryKeys.lockStatus, queryFn: getLockStatus, enabled: enabledOf(o), retry: false, staleTime: Infinity })
 export const useLocalSettings = (o: Enabled = {}) => useQuery({ queryKey: queryKeys.localSettings, queryFn: getLocalSettings, enabled: enabledOf(o) })
 export const useAccounts = () => useQuery({ queryKey: queryKeys.accounts, queryFn: getAccounts })
+/** An account's balance over time. Lives under the transactions key, so everything that changes them refreshes it. */
+export const useBalanceHistory = (id: MaybeRefOrGetter<string>) =>
+  useQuery({
+    queryKey: computed(() => queryKeys.balanceHistory(toValue(id))),
+    queryFn: ({ queryKey }) => getBalanceHistory(queryKey[2] as string),
+  })
 export const useCategories = () => useQuery({ queryKey: queryKeys.categories, queryFn: getCategories })
 export const useSubscriptions = () => useQuery({ queryKey: queryKeys.subscriptions, queryFn: getSubscriptions })
 

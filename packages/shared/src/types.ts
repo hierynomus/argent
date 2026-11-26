@@ -3,6 +3,12 @@ import type * as S from "./schemas"
 
 export type CreditDebitIndicator = "CRDT" | "DBIT"
 
+/** The balance at the end of a day with transactions (computed on request). */
+export interface BalanceHistory {
+  currency: string
+  points: Array<{ date: string; balance: string }>
+}
+
 export interface Account {
   id: string
   iban: string

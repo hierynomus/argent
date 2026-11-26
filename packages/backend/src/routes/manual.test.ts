@@ -76,6 +76,29 @@ describe("accounts entered by hand", () => {
   })
 })
 
+describe("balance history", () => {
+  test("is computed from the transactions, so new, edited and deleted ones show at once", async () => {
+    const a = await newAccount({ openingBalance: "100", openingBalanceDate: "2026-03-01" })
+    const history = async () => (await get(`/accounts/${a.id}/balance-history`)).body as { currency: string; points: Array<{ date: string; balance: string }> }
+    expect((await history()).points[0]).toEqual({ date: "2026-03-01", balance: "100.00" })
+
+    const spent = (await tx(a.id, "DBIT", "30", { bookingDate: "2026-03-05" })).body
+    const h = await history()
+    expect(h.currency).toBe("EUR")
+    expect(h.points.find((p) => p.date === "2026-03-05")?.balance).toBe("70.00")
+    expect(h.points.at(-1)?.balance).toBe("70.00") // the same as the account's balance
+
+    await del(`/transactions/${spent.id}`)
+    expect((await history()).points.every((p) => p.balance === "100.00")).toBe(true)
+  })
+
+  test("is private to those who can see the account", async () => {
+    const a = await newAccount()
+    const stranger = clientAs(user(unique("stranger-")))
+    expect((await stranger.get(`/accounts/${a.id}/balance-history`)).status).toBe(404)
+  })
+})
+
 describe("transactions entered by hand", () => {
   test("they count in the balance, take the account's currency and can be edited and deleted", async () => {
     const a = await newAccount({ openingBalance: "100" })

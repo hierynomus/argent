@@ -1,4 +1,4 @@
-import type { Account, CreateAccountBody, UpdateAccountBody } from "@argent/shared"
+import type { Account, BalanceHistory, CreateAccountBody, UpdateAccountBody } from "@argent/shared"
 import { http } from "./client"
 
 export const getAccounts = () => http.get<Account[]>("/accounts")
@@ -10,3 +10,6 @@ export const createAccount = (body: CreateAccountBody) => http.post<Account>("/a
 
 /** Only accounts entered by hand, and only while they have no transactions. */
 export const deleteAccount = (id: string) => http.delete(`/accounts/${id}`)
+
+/** End-of-day balances of one account, computed by the server from its transactions. */
+export const getBalanceHistory = (id: string) => http.get<BalanceHistory>(`/accounts/${id}/balance-history`)

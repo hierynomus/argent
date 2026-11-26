@@ -5,6 +5,7 @@ import { useMutation } from "@tanstack/vue-query"
 import { hasRealIban } from "@argent/shared"
 import { deleteAccount, updateAccount, useAccounts, useInvalidate } from "../api"
 import { Button, Card, ConfirmButton, EmptyState, ErrorText, LoadingText } from "../components/ui"
+import BalanceChart from "../features/accounts/BalanceChart.vue"
 import AccountEditForm from "../features/accounts/AccountEditForm.vue"
 import { holdersOf } from "../features/accounts/groupAccounts"
 import ManualTransactionForm from "../features/transactions/ManualTransactionForm.vue"
@@ -72,6 +73,8 @@ const TYPE_LABEL = { checking: "Checking", savings: "Savings", cash: "Cash" }
       <div v-if="adding" class="mt-4 pt-4 border-t border-gray-100 dark:border-gray-800">
         <ManualTransactionForm :account="account" @done="adding = false" />
       </div>
+
+      <BalanceChart :account-id="account.id" :name="account.name ?? account.iban" />
     </Card>
 
     <TransactionBrowser :key="account.id" :account-id="account.id" />

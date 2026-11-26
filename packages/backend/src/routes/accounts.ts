@@ -8,6 +8,8 @@ import type { AuthUser } from "../middleware/auth"
 import { validateJson } from "../middleware/validate"
 import { createAccountSchema, updateAccountSchema } from "@argent/shared"
 import { isOwnerOrAdmin } from "../middleware/guards"
+import { balanceHistory } from "../services/balanceHistory"
+import { todayIso } from "../lib/dates"
 
 const app = new Hono<{ Variables: { user: AuthUser } }>()
 
@@ -87,6 +89,25 @@ app.delete("/:id", async (c) => {
     await tx.delete(accounts).where(eq(accounts.id, id))
   })
   return c.body(null, 204)
+})
+
+/** The balance over time: end-of-day balances, computed from the transactions on every request. */
+app.get("/:id/balance-history", async (c) => {
+  const user = c.get("user")
+  const id = c.req.param("id")
+  if (!(await canViewAccount(toAccessContext(user), id))) return c.json({ error: "Not found" }, 404)
+  const account = await db.query.accounts.findFirst({ where: (a, { eq }) => eq(a.id, id) })
+  if (!account) return c.json({ error: "Not found" }, 404)
+  const daily = await db
+    .select({
+      date: transactions.bookingDate,
+      net: sql<string>`SUM(CASE WHEN ${transactions.creditDebitIndicator} = 'CRDT' THEN ${transactions.amount}::numeric ELSE -${transactions.amount}::numeric END)`,
+    })
+    .from(transactions)
+    .where(eq(transactions.accountId, id))
+    .groupBy(transactions.bookingDate)
+  const points = balanceHistory(account.openingBalance ?? "0", account.openingBalanceDate, daily.map((d) => ({ date: String(d.date), net: String(d.net) })), todayIso())
+  return c.json({ currency: account.currency, points })
 })
 
 app.get("/:id", async (c) => {
