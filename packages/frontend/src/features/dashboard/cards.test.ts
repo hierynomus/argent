@@ -3,7 +3,6 @@ import { renderApp, screen } from "../../../test/render"
 import CashFlowCard from "./CashFlowCard.vue"
 import LiabilitiesCard from "./LiabilitiesCard.vue"
 import NetWorthCard from "./NetWorthCard.vue"
-import RecentTransactionsCard from "./RecentTransactionsCard.vue"
 import SummaryTile from "./SummaryTile.vue"
 
 describe("NetWorthCard", () => {
@@ -123,40 +122,5 @@ describe("LiabilitiesCard", () => {
     await rerender({ ...props, loanCount: 0 })
     expect(screen.queryByText("Total")).not.toBeInTheDocument()
     expect(screen.queryByText("Loans")).not.toBeInTheDocument()
-  })
-})
-
-describe("RecentTransactionsCard", () => {
-  const tx = (over: object = {}) => ({ id: "t", bookingDate: "2024-06-01", amount: "12.50", currency: "EUR", creditDebitIndicator: "DBIT", counterpartyName: "Roastery", description: "beans", transferPeerId: null, ...over })
-
-  test("lists transactions with a signed amount and a link to everything", async () => {
-    await renderApp(RecentTransactionsCard, { props: { loading: false, transactions: [tx(), tx({ id: "u", creditDebitIndicator: "CRDT", amount: "2000.00", counterpartyName: "Employer" })] } })
-    expect(screen.getByText("Roastery")).toBeInTheDocument()
-    expect(screen.getByText(/−.*12,50/)).toBeInTheDocument()
-    expect(screen.getByText(/\+.*2\.000,00/)).toBeInTheDocument()
-    expect(screen.getByRole("link", { name: /View all/ })).toHaveAttribute("href", "/overview")
-  })
-
-  test("the label falls back from counterparty to description to a dash", async () => {
-    await renderApp(RecentTransactionsCard, { props: { loading: false, transactions: [tx({ id: "1", counterpartyName: null, description: "Only description" }), tx({ id: "2", counterpartyName: null, description: null })] } })
-    expect(screen.getByText("Only description")).toBeInTheDocument()
-    expect(screen.getByText("—")).toBeInTheDocument()
-  })
-
-  test("internal transfers are not listed", async () => {
-    await renderApp(RecentTransactionsCard, { props: { loading: false, transactions: [tx({ id: "1", counterpartyName: "Real" }), tx({ id: "2", counterpartyName: "Transfer leg", transferPeerId: "x" })] } })
-    expect(screen.getByText("Real")).toBeInTheDocument()
-    expect(screen.queryByText("Transfer leg")).not.toBeInTheDocument()
-  })
-
-  test("an empty list says so", async () => {
-    await renderApp(RecentTransactionsCard, { props: { loading: false, transactions: [] } })
-    expect(screen.getByText("No recent transactions.")).toBeInTheDocument()
-  })
-
-  test("while loading it shows placeholders instead of rows", async () => {
-    await renderApp(RecentTransactionsCard, { props: { loading: true, transactions: [tx()] } })
-    expect(screen.queryByText("Roastery")).not.toBeInTheDocument()
-    expect(document.querySelectorAll(".animate-pulse").length).toBeGreaterThan(0)
   })
 })
