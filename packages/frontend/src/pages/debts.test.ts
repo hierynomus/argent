@@ -419,8 +419,9 @@ for (const k of kinds) {
       expect(screen.getByText(/paid in 2 payments/)).toBeInTheDocument() // the card's summary line
       await user.click(screen.getByRole("button", { name: "Payments" }))
       const box = screen.getByLabelText("Savings from extra payments")
-      expect(box).toHaveTextContent("2 years 2 months")
-      expect(box).toHaveTextContent("was")
+      expect(box).toHaveTextContent("Paid off 2 years 2 months sooner")
+      expect(box).toHaveTextContent(/11\.234,50/) // the headline
+      expect(box).toHaveTextContent(/Last payment/)
     })
 
     test("no savings box without extra payments", async () => {
