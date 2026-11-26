@@ -29,3 +29,15 @@
     color: var(--color-gray-400);
   }
 }
+
+/* native dropdowns, calendars and scrollbars follow the theme */
+:root { color-scheme: light; }
+:root.dark { color-scheme: dark; }
+select, select option, select optgroup {
+  background-color: var(--color-white);
+  color: var(--color-gray-900);
+}
+.dark select, .dark select option, .dark select optgroup {
+  background-color: var(--color-gray-800);
+  color: var(--color-gray-100);
+}
