@@ -114,6 +114,8 @@ function simulatePart(
   extraPayments: ExtraPayment[],
   asOf: Date,
   rateChanges: RateChange[],
+  /** when given, receives the balance after every installment (and the starting balance) */
+  trace?: SchedulePoint[],
 ): Omit<PartState, "closedOn" | "carriedOver"> & { interestPaid: number; paymentsMade: number } {
   const start = part.startDate
   const end = part.endDate
@@ -201,6 +203,7 @@ function simulatePart(
   let previous = anchor > start ? anchor : start
   let interestPaid = new Decimal(0)
   let paymentsMade = 0
+  trace?.push({ date: start, balance: balance })
   for (let m = 1; m <= monthsElapsed; m++) {
     const due = paymentDate(m)
     const openingBalance = balance
@@ -219,6 +222,7 @@ function simulatePart(
     }
     interestPaid = interestPaid.plus(interest)
     if (balance === 0) {
+      if (trace && trace[trace.length - 1]?.balance !== 0) trace.push({ date: due, balance: 0 })
       paymentsMade = openingBalance > 0 ? m : m - 1 // an extra payment can be the last one; otherwise it was repaid before
       break
     }
@@ -232,6 +236,7 @@ function simulatePart(
       balance = Math.max(0, cents(balance - Math.min(balance, Math.max(0, installment - interest))))
     }
     // interest_only: no principal reduction
+    trace?.push({ date: due, balance })
     previous = due
   }
 
@@ -397,4 +402,51 @@ export function extraPaymentImpact(part: PartInput, extraPayments: ExtraPayment[
     endDate: lastDate(withExtra.paymentsMade),
     endDateWithoutExtra: lastDate(without.paymentsMade),
   }
+}
+
+export interface SchedulePoint {
+  date: string
+  balance: number
+}
+
+export interface BalanceSchedule {
+  /** the balance after each installment, from the start to the last one: what was paid is real, the rest a projection */
+  actual: SchedulePoint[]
+  /** the same without any extra payment, or null when there is none to compare with */
+  scheduled: SchedulePoint[] | null
+}
+
+/**
+ * The balance of a part over its whole life: month by month as it goes with the extra payments (those dated in
+ * the future too), and, when there are extra payments, as it would have gone without them. A closed part ends at
+ * zero on the day it was closed (what was left moved to its continuation).
+ */
+export function balanceSchedule(part: PartInput, extraPayments: ExtraPayment[], rateChanges: RateChange[] = []): BalanceSchedule {
+  const closedOn = part.closedOn ?? null
+  const run = (extras: ExtraPayment[]) => {
+    const trace: SchedulePoint[] = []
+    simulatePart({ ...part, closedOn: null }, extras, instantOf(closedOn ?? addMonths(part.endDate, 2)), rateChanges, trace)
+    const points = closedOn ? trace.filter((p) => p.date < closedOn) : trace
+    // lines are drawn from the points: close the part with a zero on its closing day
+    return closedOn ? [...points, { date: closedOn, balance: 0 }] : points
+  }
+  return { actual: run(extraPayments), scheduled: extraPayments.length > 0 ? run([]) : null }
+}
+
+/**
+ * The balances of several parts added up: on every date any of them has a point, each part counts with its
+ * latest balance up to then (nothing before it started, its last balance, normally zero, after it ended).
+ */
+export function sumSchedules(series: SchedulePoint[][]): SchedulePoint[] {
+  const dates = [...new Set(series.flatMap((s) => s.map((p) => p.date)))].sort()
+  const cursor = series.map(() => 0)
+  return dates.map((date) => {
+    let total = new Decimal(0)
+    series.forEach((points, i) => {
+      while (cursor[i]! < points.length && points[cursor[i]!]!.date <= date) cursor[i]!++
+      const latest = points[cursor[i]! - 1]
+      if (latest) total = total.plus(latest.balance)
+    })
+    return { date, balance: cents(total) }
+  })
 }

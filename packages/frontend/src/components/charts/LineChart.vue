@@ -28,6 +28,11 @@ const props = defineProps<{
   label: string
   /** draw a step line (the value stays flat until the next point) instead of straight segments */
   step?: boolean
+  /** a second, fainter dashed line to compare with (e.g. "as scheduled"); it shares the axes but has no hover */
+  reference?: ChartPoint[]
+  referenceLabel?: string
+  /** from this moment on the main line is dashed (a projection) and a "today" rule is drawn there */
+  projectedFrom?: number
 }>()
 
 const W = 720
@@ -37,20 +42,22 @@ const innerW = W - M.left - M.right
 const innerH = H - M.top - M.bottom
 
 const domain = computed(() => {
-  const ts = props.points.map((p) => p.t)
-  const vs = props.points.map((p) => p.v)
+  const all = [...props.points, ...(props.reference ?? [])]
+  const ts = all.map((p) => p.t)
+  const vs = all.map((p) => p.v)
   const t0 = Math.min(...ts)
   const t1 = Math.max(...ts)
   const vmin = Math.min(...vs)
   const vmax = Math.max(...vs)
   const pad = ((vmax - vmin) || Math.abs(vmax) * 0.05 || 1) * 0.08
-  return { t0, t1, lo: vmin - pad, hi: vmax + pad }
+  // values that are never negative (a balance, a price) don't get an axis that dips below zero
+  return { t0, t1, lo: vmin >= 0 ? Math.max(0, vmin - pad) : vmin - pad, hi: vmax + pad }
 })
 const x = (t: number) => M.left + (domain.value.t1 === domain.value.t0 ? innerW / 2 : ((t - domain.value.t0) / (domain.value.t1 - domain.value.t0)) * innerW)
 const y = (v: number) => M.top + innerH - ((v - domain.value.lo) / (domain.value.hi - domain.value.lo)) * innerH
 
-const path = computed(() =>
-  props.points
+const pathOf = (pts: ChartPoint[]) =>
+  pts
     .map((p, i) => {
       const px = x(p.t).toFixed(1)
       const py = y(p.v).toFixed(1)
@@ -58,8 +65,19 @@ const path = computed(() =>
       // a step line holds the previous value until this point's date, then jumps
       return props.step ? `H${px} V${py}` : `L${px} ${py}`
     })
-    .join(" "),
-)
+    .join(" ")
+// with `projectedFrom` the line is solid up to there and dashed after it (joined at the last solid point)
+const solidPoints = computed(() => (props.projectedFrom === undefined ? props.points : props.points.filter((p) => p.t <= props.projectedFrom!)))
+const dashedPoints = computed(() => {
+  if (props.projectedFrom === undefined) return []
+  const later = props.points.filter((p) => p.t > props.projectedFrom!)
+  const last = solidPoints.value[solidPoints.value.length - 1]
+  return later.length === 0 ? [] : last ? [last, ...later] : later
+})
+const path = computed(() => pathOf(solidPoints.value))
+const dashedPath = computed(() => pathOf(dashedPoints.value))
+const referencePath = computed(() => pathOf(props.reference ?? []))
+const todayX = computed(() => (props.projectedFrom !== undefined && props.projectedFrom >= domain.value.t0 && props.projectedFrom <= domain.value.t1 ? x(props.projectedFrom) : null))
 const yTicks = computed(() => Array.from({ length: 5 }, (_, i) => domain.value.lo + ((domain.value.hi - domain.value.lo) * i) / 4))
 const xTicks = computed(() => Array.from({ length: 5 }, (_, i) => domain.value.t0 + ((domain.value.t1 - domain.value.t0) * i) / 4))
 
@@ -122,7 +140,13 @@ const tooltipStyle = computed(() => {
         <text v-for="(t, i) in xTicks" :key="t" :x="x(t)" :y="H - 8" :text-anchor="i === 0 ? 'start' : i === xTicks.length - 1 ? 'end' : 'middle'" class="fill-gray-500 dark:fill-gray-400">{{ formatDate(t) }}</text>
       </g>
 
+      <path v-if="reference && reference.length > 1" :d="referencePath" fill="none" class="stroke-gray-400 dark:stroke-gray-500" stroke-width="1.5" stroke-dasharray="2 4" stroke-linecap="round" data-testid="reference-line"><title>{{ referenceLabel }}</title></path>
+      <g v-if="todayX !== null" data-testid="today-rule">
+        <line :x1="todayX" :x2="todayX" :y1="M.top" :y2="M.top + innerH" class="stroke-gray-300 dark:stroke-gray-600" stroke-width="1" />
+        <text :x="todayX + 4" :y="M.top + 10" class="text-[10px] fill-gray-400 dark:fill-gray-500">today</text>
+      </g>
       <path :d="path" fill="none" class="stroke-indigo-600 dark:stroke-indigo-400" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" />
+      <path v-if="dashedPoints.length > 1" :d="dashedPath" fill="none" class="stroke-indigo-600 dark:stroke-indigo-400" stroke-width="2" stroke-dasharray="5 4" stroke-linejoin="round" stroke-linecap="round" data-testid="projected-line" />
 
       <!-- trades -->
       <g v-for="(m, i) in visibleMarkers" :key="i">

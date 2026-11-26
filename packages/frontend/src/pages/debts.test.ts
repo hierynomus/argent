@@ -25,6 +25,10 @@ for (const k of kinds) {
         [`POST ${k.base}/:id/parts`]: ({ body }: any) => ({ id: "np", ...body }),
         [`PATCH ${k.base}/:id/parts/:pid`]: ({ body }: any) => ({ id: "part-1", ...body }),
         [`DELETE ${k.base}/:id/parts/:pid`]: respond(204),
+        [`GET ${k.base}/:id/schedule`]: () => ({
+          currency: "EUR", today: "2026-11-26", scheduled: null,
+          actual: [{ date: "2020-01-01", balance: 200000 }, { date: "2026-11-01", balance: 180000 }, { date: "2050-01-01", balance: 0 }],
+        }),
         [`GET ${k.base}/:id/parts/:pid/carry-over`]: ({ query }: any) => ({ date: query?.date ?? "", balance: 60000 }),
         [`POST ${k.base}/:id/parts/:pid/close`]: ({ body }: any) => ({ closed: {}, created: [], carriedOver: 60000, repaid: 0, ...body }),
         [`DELETE ${k.base}/:id/parts/:pid/close`]: respond(204),
@@ -433,6 +437,13 @@ for (const k of kinds) {
       const strip = screen.getByLabelText("Repaid so far")
       expect(strip).toHaveTextContent("25%")
       expect(screen.getByRole("img", { name: /25% repaid/ })).toBeInTheDocument()
+    })
+
+    test("draws the balance over the whole term", async () => {
+      const { api } = await setup([debt()])
+      await screen.findByText("Part A")
+      expect(await screen.findByRole("img", { name: "House balance over its term" })).toBeInTheDocument()
+      expect(api.calls("GET", `${k.base}/d1/schedule`)).toHaveLength(1)
     })
 
     test("no savings box without extra payments", async () => {

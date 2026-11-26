@@ -436,6 +436,16 @@ export interface MortgagePart {
   extraImpact?: ExtraPaymentImpact | null
 }
 
+/** The balance of a mortgage or loan over its life, month by month (computed on request). */
+export interface DebtSchedule {
+  currency: string
+  /** today (UTC): points up to here are what happened, later ones a projection */
+  today: string
+  actual: Array<{ date: string; balance: number }>
+  /** the course without extra payments; null when there are none */
+  scheduled: Array<{ date: string; balance: number }> | null
+}
+
 /** What the extra payments made so far are worth: the part run to its end with them and as if they had never been made. */
 export interface ExtraPaymentImpact {
   count: number

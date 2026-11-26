@@ -45,6 +45,8 @@ export const queryKeys = {
   properties: ["properties"] as const,
 
   debts: (kind: DebtKind) => ["debts", kind] as const,
+  /** the balance of a debt over its life (under `debts`: a part, rate or extra payment changing refreshes it) */
+  debtSchedule: (kind: DebtKind, debtId: string) => ["debts", kind, "schedule", debtId] as const,
   /** what is left of a part on a day (under `debts`: saving or closing a part refreshes it) */
   debtCarryOver: (kind: DebtKind, debtId: string, partId: string, date: string) => ["debts", kind, "carry-over", debtId, partId, date] as const,
   /** the preview of a part being entered (not under `debts`: it is not data, saving a part must not refresh it) */

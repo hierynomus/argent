@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { Card } from "../../components/ui"
 import { fmtCur } from "../../lib/format"
+import AssetMix from "./AssetMix.vue"
 import Skeleton from "./Skeleton.vue"
+import type { AssetSlice } from "./summarize"
 
-defineProps<{ netWorth: number; totalAssets: number; totalLiabilities: number; loading: boolean; hasNonEurAssets: boolean }>()
+defineProps<{ netWorth: number; totalAssets: number; totalLiabilities: number; loading: boolean; hasNonEurAssets: boolean; mix?: AssetSlice[] }>()
 </script>
 
 <template>
@@ -27,6 +29,7 @@ defineProps<{ netWorth: number; totalAssets: number; totalLiabilities: number; l
         </div>
       </div>
     </div>
+    <AssetMix v-if="!loading && mix" :slices="mix" />
     <p v-if="hasNonEurAssets && !loading" class="text-xs text-amber-600 dark:text-amber-400 mt-3">* Non-EUR portfolios are excluded from this total.</p>
   </Card>
 </template>

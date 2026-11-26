@@ -1,6 +1,6 @@
 import Decimal from "decimal.js"
 import { describe, expect, test } from "bun:test"
-import { computePartState, extraPaymentImpact, monthlyRate, type PartInput } from "./amortization"
+import { balanceSchedule, computePartState, extraPaymentImpact, monthlyRate, sumSchedules, type PartInput } from "./amortization"
 
 const part = (over: Partial<PartInput> = {}): PartInput => ({
   type: "annuity",
@@ -574,5 +574,52 @@ describe("extraPaymentImpact: interest paid so far", () => {
     // installments paid minus the principal repaid so far, from the state's own run
     const state = computePartState(part(), [], at(2025, 1))
     expect(impact.interestPaidToDateWithoutExtra).toBeCloseTo(state.monthsElapsed * state.originalMonthlyPayment - (120000 - state.currentBalance), 2)
+  })
+})
+
+describe("balanceSchedule", () => {
+  test("starts at the principal and ends at zero on the last installment", () => {
+    const { actual, scheduled } = balanceSchedule(part(), [])
+    expect(scheduled).toBeNull()
+    expect(actual[0]).toEqual({ date: "2020-01-01", balance: 120000 })
+    expect(actual).toHaveLength(121) // the start and 120 installments
+    expect(actual.at(-1)).toEqual({ date: "2030-01-01", balance: 0 })
+    // never goes up, and passes through the state's own balance after 60 installments
+    for (let i = 1; i < actual.length; i++) expect(actual[i]!.balance).toBeLessThanOrEqual(actual[i - 1]!.balance)
+    expect(actual.find((p) => p.date === "2025-01-01")!.balance).toBe(computePartState(part(), [], at(2025, 1)).currentBalance)
+  })
+
+  test("with extra payments it ends sooner than it would have, and the comparison is given", () => {
+    const { actual, scheduled } = balanceSchedule(part(), [{ paymentDate: "2021-03-10", amount: "10000" }])
+    expect(scheduled!.at(-1)).toEqual({ date: "2030-01-01", balance: 0 })
+    expect(actual.at(-1)!.balance).toBe(0)
+    expect(actual.at(-1)!.date < "2030-01-01").toBe(true)
+    // each month after the extra payment it is below the unaffected line
+    const a = actual.find((p) => p.date === "2022-01-01")!.balance
+    const s = scheduled!.find((p) => p.date === "2022-01-01")!.balance
+    expect(a).toBeLessThan(s - 10000)
+    // no repeated zero at the end
+    expect(actual.filter((p) => p.balance === 0)).toHaveLength(1)
+  })
+
+  test("a closed part ends at zero on the day it was closed", () => {
+    const { actual } = balanceSchedule(part({ closedOn: "2024-06-01" }), [])
+    expect(actual.at(-1)).toEqual({ date: "2024-06-01", balance: 0 })
+    expect(actual.filter((p) => p.date === "2024-06-01")).toHaveLength(1)
+    expect(actual.at(-2)!.balance).toBeGreaterThan(0)
+  })
+})
+
+describe("sumSchedules", () => {
+  test("adds the parts up on every date; a part counts with its latest balance, and not before it starts", () => {
+    const a = [{ date: "2024-01-01", balance: 100 }, { date: "2024-02-01", balance: 90 }, { date: "2024-03-01", balance: 0 }]
+    const b = [{ date: "2024-02-15", balance: 50 }, { date: "2024-03-15", balance: 40 }]
+    expect(sumSchedules([a, b])).toEqual([
+      { date: "2024-01-01", balance: 100 },
+      { date: "2024-02-01", balance: 90 },
+      { date: "2024-02-15", balance: 140 },
+      { date: "2024-03-01", balance: 50 },
+      { date: "2024-03-15", balance: 40 },
+    ])
   })
 })

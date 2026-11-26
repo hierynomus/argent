@@ -174,3 +174,31 @@ export function bankingLabel(accounts: Account[]): string | undefined {
   const cash = accounts.filter((a) => a.type === "cash").length
   return [savings > 0 ? `${savings} savings` : "", checking > 0 ? `${checking} checking` : "", cash > 0 ? `${cash} cash` : ""].filter(Boolean).join(" · ") || undefined
 }
+
+export interface AssetSlice {
+  key: "banking" | "stocks" | "crypto" | "metals" | "property" | "options" | "pensions"
+  label: string
+  value: number
+  /** share of the assets that make up the bar, 0-100 */
+  percent: number
+}
+
+/**
+ * The assets of the summary split by class, largest first, for the net worth bar. Only what counts towards the
+ * total and is above zero is a slice (an overdrawn account is not a negative piece of a bar; it shows in the
+ * liabilities and the net worth). Property is its value, not its equity: the mortgage is a liability of its own.
+ */
+export function assetMix(s: DashboardSummary): AssetSlice[] {
+  const parts: Array<Pick<AssetSlice, "key" | "label" | "value">> = [
+    { key: "banking", label: "Banking", value: s.accountsTotal },
+    { key: "stocks", label: "Stocks", value: s.stocks.total },
+    { key: "crypto", label: "Crypto", value: s.crypto.total },
+    { key: "metals", label: "Metals", value: s.metals.total },
+    { key: "property", label: "Property", value: s.properties.value },
+    { key: "options", label: "Options", value: s.equity.vestedValue },
+    { key: "pensions", label: "Pensions", value: s.pensions.value },
+  ]
+  const present = parts.filter((p) => p.value > 0)
+  const total = present.reduce((n, p) => n + p.value, 0)
+  return present.map((p) => ({ ...p, percent: total > 0 ? (p.value / total) * 100 : 0 })).sort((a, b) => b.value - a.value)
+}

@@ -368,6 +368,26 @@ for (const kind of ["mortgages", "loans"] as const) {
       expect(impact.endDate < "2030-01-01").toBe(true)
     })
 
+    test("the schedule gives the balance month by month, with the comparison once there are extra payments", async () => {
+      const d = (await create()).body
+      const p = (await post(`${base}/${d.id}/parts`, part())).body
+      const plain = (await get(`${base}/${d.id}/schedule`)).body
+      expect(plain).toMatchObject({ currency: "EUR", scheduled: null })
+      expect(plain.actual[0]).toEqual({ date: "2020-01-01", balance: 120000 })
+      expect(plain.actual.at(-1)).toEqual({ date: "2030-01-01", balance: 0 })
+
+      await post(`${base}/${d.id}/parts/${p.id}/payments`, { paymentDate: "2021-03-10", amount: "10000" })
+      const withExtra = (await get(`${base}/${d.id}/schedule`)).body
+      expect(withExtra.scheduled.at(-1).date).toBe("2030-01-01")
+      expect(withExtra.actual.at(-1).date < "2030-01-01").toBe(true)
+    })
+
+    test("the schedule of a debt nobody can see is a 404, and a debt without parts has an empty one", async () => {
+      const d = (await create()).body
+      expect((await get(`${base}/${d.id}/schedule`)).body.actual).toEqual([])
+      expect((await get(`${base}/${NIL}/schedule`)).status).toBe(404)
+    })
+
     test("extra payment validation", async () => {
       const d = (await create()).body
       const p = (await post(`${base}/${d.id}/parts`, part())).body

@@ -6,7 +6,7 @@ import CashFlowCard from "../features/dashboard/CashFlowCard.vue"
 import LiabilitiesCard from "../features/dashboard/LiabilitiesCard.vue"
 import NetWorthCard from "../features/dashboard/NetWorthCard.vue"
 import SummaryTile from "../features/dashboard/SummaryTile.vue"
-import { bankingLabel, summarize, toHoldings, unrealizedLabel } from "../features/dashboard/summarize"
+import { assetMix, bankingLabel, summarize, toHoldings, unrealizedLabel } from "../features/dashboard/summarize"
 
 const now = new Date()
 const yearMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`
@@ -53,6 +53,7 @@ const summary = computed(() =>
   }),
 )
 const cashFlow = computed(() => summary.value.cashFlow)
+const mix = computed(() => assetMix(summary.value))
 
 const tile = (list: unknown[], s: { total: number }) => (list.length === 0 ? "â€”" : fmtCur(s.total))
 </script>
@@ -63,7 +64,7 @@ const tile = (list: unknown[], s: { total: number }) => (list.length === 0 ? "â€
 
     <!-- the overview: net worth and how this month is going -->
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
-      <NetWorthCard class="lg:col-span-2" :net-worth="summary.netWorth" :total-assets="summary.totalAssets" :total-liabilities="summary.totalLiabilities" :loading="summary.netWorthLoading" :has-non-eur-assets="summary.hasExcludedNonEur" />
+      <NetWorthCard class="lg:col-span-2" :net-worth="summary.netWorth" :total-assets="summary.totalAssets" :total-liabilities="summary.totalLiabilities" :loading="summary.netWorthLoading" :has-non-eur-assets="summary.hasExcludedNonEur" :mix="mix" />
       <SummaryTile
         label="This month"
         :value="`${cashFlow.net >= 0 ? '+' : ''}${fmtCur(cashFlow.net)}`"

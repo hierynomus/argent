@@ -8,6 +8,7 @@ import { fmtCur } from "../../lib/format"
 import AddPartForm from "./AddPartForm.vue"
 import { DEBT_KINDS } from "./config"
 import ExtraSavings from "./ExtraSavings.vue"
+import DebtScheduleChart from "./DebtScheduleChart.vue"
 import RepaidStrip from "./RepaidStrip.vue"
 import { repaidSoFar } from "./repaid"
 import { sumImpacts } from "./extraSavings"
@@ -59,6 +60,8 @@ const refresh = () => invalidate.debts(props.kind)
 
     <RepaidStrip v-if="repaid" :repaid="repaid" :currency="debt.currency" />
     <ExtraSavings v-if="savings" :impact="savings" :currency="debt.currency" />
+
+    <DebtScheduleChart v-if="debt.parts.length > 0" :kind="kind" :debt-id="debt.id" :name="debt.name" />
 
     <div v-if="debt.parts.length > 0" class="overflow-x-auto">
       <table class="w-full text-sm">

@@ -139,6 +139,14 @@ export const useDebtPartPreview = (kind: DebtKind, body: MaybeRefOrGetter<Previe
     staleTime: 60 * 1000,
   })
 
+/** The balance of a mortgage/loan month by month, with the projection and the course without extra payments. */
+export const useDebtSchedule = (kind: DebtKind, debtId: MaybeRefOrGetter<string>) =>
+  useQuery({
+    queryKey: computed(() => queryKeys.debtSchedule(kind, toValue(debtId))),
+    // parameters come from the key (see the note at the top of this file)
+    queryFn: ({ queryKey }) => debtApis[kind].schedule(queryKey[3] as string),
+  })
+
 /** What is left of a part on a day: the balance a continuation starts from. Not requested while `date` is empty. */
 export const usePartCarryOver = (kind: DebtKind, debtId: MaybeRefOrGetter<string>, partId: MaybeRefOrGetter<string>, date: MaybeRefOrGetter<string>) =>
   useQuery({

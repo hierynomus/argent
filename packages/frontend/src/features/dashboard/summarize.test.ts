@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest"
 import { account, debt, equityPlan, pensionPlan, portfolio, property, transaction } from "../../../test/fixtures"
-import { bankingLabel, summarize, toHoldings, unrealizedLabel, type DashboardInput, type Holding } from "./summarize"
+import { assetMix, bankingLabel, summarize, toHoldings, unrealizedLabel, type DashboardInput, type Holding } from "./summarize"
 
 const empty: DashboardInput = { accounts: [], mortgages: [], loans: [], crypto: [], metals: [], stocks: [], monthTransactions: [] }
 const holding = (over: Partial<Holding> = {}): Holding => ({ currency: "EUR", value: 1000, unrealizedPnL: 100, cash: 0, loading: false, ...over })
@@ -260,5 +260,29 @@ describe("summarize: pensions", () => {
     const s = summarize({ ...empty, pensions: [pensionPlan({ currency: "USD", netWorthValue: 9_999 })] })
     expect(s.pensions.value).toBe(0)
     expect(s.hasExcludedNonEur).toBe(true)
+  })
+})
+
+describe("assetMix", () => {
+  test("splits the assets by class, largest first, with shares that add up to 100", () => {
+    const mix = assetMix(summarize({
+      ...empty,
+      accounts: [account({ balance: "1000" })],
+      stocks: [holding({ value: 2000, cash: 0 })],
+      crypto: [holding({ value: 500 })],
+    }))
+    expect(mix.map((s) => s.key)).toEqual(["stocks", "banking", "crypto"])
+    expect(mix.map((s) => s.value)).toEqual([2000, 1000, 500])
+    expect(mix[0]!.percent).toBeCloseTo(57.14, 1)
+    expect(mix.reduce((n, s) => n + s.percent, 0)).toBeCloseTo(100)
+  })
+
+  test("leaves out what is zero or negative: an overdrawn account is no negative piece of a bar", () => {
+    const mix = assetMix(summarize({ ...empty, accounts: [account({ balance: "-50" })], metals: [holding({ value: 300 })] }))
+    expect(mix.map((s) => s.key)).toEqual(["metals"])
+  })
+
+  test("nothing at all gives no slices", () => {
+    expect(assetMix(summarize(empty))).toEqual([])
   })
 })

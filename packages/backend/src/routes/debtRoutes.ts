@@ -3,7 +3,8 @@ import { and, eq, inArray } from "drizzle-orm"
 import type { PgColumn } from "drizzle-orm/pg-core"
 import { db } from "../db"
 import { mortgages, mortgageParts, mortgageExtraPayments, mortgagePartRates, mortgageMembers } from "../db/schema"
-import { computePartState, extraPaymentImpact, instantOf } from "../services/amortization"
+import { balanceSchedule, computePartState, extraPaymentImpact, instantOf, sumSchedules } from "../services/amortization"
+import { todayIso } from "../lib/dates"
 import { toAccessContext, type AccessContext } from "../services/accessControl"
 import { Decimal, cents } from "../services/money"
 import type { SharedResource } from "../services/sharedResources"
@@ -193,6 +194,29 @@ export function debtRoutes(cfg: DebtKindConfig) {
     const deleted = await db.delete(parts).where(and(eq(parts.id, pid), eq(cfg.partDebtColumn, debtId))).returning()
     if (deleted.length === 0) return c.json({ error: "Not found" }, 404)
     return c.body(null, 204)
+  })
+
+  // The balance of the whole debt over its life, month by month: what has been paid (with the extra payments),
+  // the projection from today on, and the course it would have taken without extra payments. Computed on every request.
+  app.get("/:id/schedule", async (c) => {
+    const debtId = c.req.param("id")
+    if (!(await cfg.canView(toAccessContext(c.get("user")), debtId))) return c.json({ error: "Not found" }, 404)
+    const debt = (await db.select().from(debts).where(eq(debts.id, debtId)).limit(1))[0]
+    if (!debt) return c.json({ error: "Not found" }, 404)
+    const debtParts = await db.select().from(parts).where(eq(cfg.partDebtColumn, debtId))
+    if (debtParts.length === 0) return c.json({ currency: debt.currency, today: todayIso(), actual: [], scheduled: null })
+    const ids = debtParts.map((p) => p.id)
+    const [payments, rates] = await Promise.all([
+      db.select().from(extraPayments).where(inArray(extraPayments.partId, ids)),
+      db.select().from(partRates).where(inArray(partRates.partId, ids)),
+    ])
+    const schedules = debtParts.map((p) => balanceSchedule(p, payments.filter((x) => x.partId === p.id), rates.filter((r) => r.partId === p.id)))
+    return c.json({
+      currency: debt.currency,
+      today: todayIso(),
+      actual: sumSchedules(schedules.map((s) => s.actual)),
+      scheduled: schedules.some((s) => s.scheduled) ? sumSchedules(schedules.map((s) => s.scheduled ?? s.actual)) : null,
+    })
   })
 
   // What is left of a part on a day (the balance a continuation starts from)

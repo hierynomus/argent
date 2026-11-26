@@ -107,4 +107,25 @@ describe("LineChart", () => {
     expect(d).toMatch(/^M[\d. ]+( H[\d.]+ V[\d.]+){4}$/) // M start, then H (to the next date) V (to the next value) per point
     expect(d).not.toContain("L")
   })
+
+  test("a projection is dashed from the given moment, with a today rule, and a reference line shares the axes", async () => {
+    const reference = [{ t: T0, v: 100 }, { t: T0 + 4 * DAY, v: 400 }]
+    await renderApp(LineChart, { props: { ...props, reference, referenceLabel: "As scheduled", projectedFrom: T0 + 2 * DAY } })
+    const solid = document.querySelector("svg path[stroke-width='2']:not([stroke-dasharray])")!
+    expect(solid.getAttribute("d")!.match(/[ML]/g)).toHaveLength(3) // the first three days
+    const dashed = screen.getByTestId("projected-line")
+    expect(dashed.getAttribute("d")!.match(/[ML]/g)).toHaveLength(3) // joined at the third, then two more
+    expect(screen.getByTestId("today-rule")).toBeInTheDocument()
+    expect(screen.getByTestId("reference-line")).toBeInTheDocument()
+    // the reference's 400 stretches the value axis beyond the data's 130
+    const ticks = screen.getAllByText(/^€\d+$/).map((t) => Number(t.textContent!.slice(1)))
+    expect(Math.max(...ticks)).toBeGreaterThanOrEqual(400)
+  })
+
+  test("without a projection or reference nothing extra is drawn", async () => {
+    await renderApp(LineChart, { props })
+    expect(screen.queryByTestId("projected-line")).toBeNull()
+    expect(screen.queryByTestId("today-rule")).toBeNull()
+    expect(screen.queryByTestId("reference-line")).toBeNull()
+  })
 })
