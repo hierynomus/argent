@@ -416,9 +416,11 @@ for (const k of kinds) {
       const extraImpact = { count: 2, totalExtra: 12500, interestWithExtra: 30000, interestWithoutExtra: 41234.5, interestSaved: 11234.5, monthsSaved: 26, endDate: "2046-11-01", endDateWithoutExtra: "2048-11-01" }
       const { user } = await setup([debt({ parts: [part({ extraImpact })] })])
       await screen.findByText("Part A")
-      expect(screen.getByText(/paid in 2 payments/)).toBeInTheDocument() // the card's summary line
+      const summary = screen.getAllByLabelText("Savings from extra payments")[0] // the card's headline
+      expect(summary).toHaveTextContent(/11\.234,50/)
+      expect(summary).toHaveTextContent("in 2 payments")
       await user.click(screen.getByRole("button", { name: "Payments" }))
-      const box = screen.getByLabelText("Savings from extra payments")
+      const box = screen.getAllByLabelText("Savings from extra payments")[1]
       expect(box).toHaveTextContent("Paid off 2 years 2 months sooner")
       expect(box).toHaveTextContent(/11\.234,50/) // the headline
       expect(box).toHaveTextContent(/Last payment/)
